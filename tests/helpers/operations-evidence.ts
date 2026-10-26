@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { resolve, join, dirname } from 'node:path';
 import { createRequire } from 'node:module';
 import { build } from 'esbuild';
@@ -255,7 +255,9 @@ export async function verifyClipboardFixture(
   try {
     await fixture.goto(base + '/health/live');
     await fixture.setContent(
-      '<h1>Clipboard interaction fixture — UI-only, never persisted</h1><div id="copy-fixture"></div>',
+      '<!doctype html><html lang="en"><head><title>Vigil clipboard UI fixture</title><style>' +
+        (await readFile(resolve('apps/ops/app/global.css'), 'utf8')) +
+        '</style></head><body><main><h1>Clipboard interaction fixture — UI-only, never persisted</h1><div id="copy-fixture"></div></main></body></html>',
     );
     const values = [
       { label: 'test reference', value: exactReference },
@@ -267,7 +269,7 @@ export async function verifyClipboardFixture(
     ];
     const bundle = await build({
       stdin: {
-        contents: `import {createElement as h} from 'react'; import {createRoot} from 'react-dom/client'; import {CopyValue} from './components/copy-value'; const values=${JSON.stringify(values)}; createRoot(document.getElementById('copy-fixture')).render(h('div',{},...values.map(v=>h('section',{key:v.label},h('pre',{},v.value),h(CopyValue,v)))));`,
+        contents: `import {createElement as h} from 'react'; import {createRoot} from 'react-dom/client'; import {CopyValue} from './components/copy-value'; const values=${JSON.stringify(values)}; createRoot(document.getElementById('copy-fixture')).render(h('div',{},...values.map(v=>h('section',{key:v.label},h('pre',{className:'evidence-value'},v.value),h(CopyValue,v)))));`,
         resolveDir: resolve('apps/ops'),
         sourcefile: 'copy-fixture.tsx',
         loader: 'tsx',
@@ -306,6 +308,25 @@ export async function verifyClipboardFixture(
         await fixture.evaluate(() => navigator.clipboard.readText()),
         value.value,
       );
+    }
+    for (const width of [390, 320]) {
+      await fixture.setViewportSize({ width, height: 1000 });
+      assert.equal(
+        await fixture.evaluate(
+          () => document.documentElement.scrollWidth <= innerWidth,
+        ),
+        true,
+      );
+      for (const value of values)
+        assert(
+          (await fixture.locator('pre').allTextContents()).includes(
+            value.value,
+          ),
+        );
+      await fixture.screenshot({
+        path: join(screenshots, `long-identifiers-ui-fixture-${width}.png`),
+        fullPage: true,
+      });
     }
     await fixture.evaluate(
       "Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText: async () => { throw new DOMException('Permission denied', 'NotAllowedError'); } } })",

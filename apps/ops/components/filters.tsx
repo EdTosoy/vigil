@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useTransition } from 'react';
+import { useLayoutEffect, useRef, useTransition } from 'react';
 import { url } from './common';
 export function Filters({
   section,
@@ -27,14 +27,33 @@ export function Filters({
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
+  const form = useRef<HTMLFormElement>(null);
+  const signature = JSON.stringify({
+    section,
+    book,
+    fields: { ...values, evaluation: values['evaluation'] ?? evaluation ?? '' },
+  });
+  useLayoutEffect(() => {
+    const { fields } = JSON.parse(signature) as {
+      fields: Record<string, string | undefined>;
+    };
+    for (const field of form.current?.querySelectorAll<
+      HTMLInputElement | HTMLSelectElement
+    >('input:not([type="hidden"]), select') ?? []) {
+      field.value = fields[field.name] ?? '';
+    }
+    if (identifierError)
+      form.current?.querySelector<HTMLInputElement>('[name="id"]')?.focus();
+  }, [signature, identifierError]);
   return (
     <form
-      key={JSON.stringify(values)}
+      ref={form}
       className="filters"
       method="get"
       action={url(section, null)}
       onSubmit={(event) => {
         event.preventDefault();
+        if (pending) return;
         const query = new URLSearchParams();
         for (const [key, value] of new FormData(event.currentTarget))
           if (typeof value === 'string' && value) query.set(key, value);
@@ -108,8 +127,9 @@ export function Filters({
       )}
       {section !== 'controls' && (
         <label>
-          Exact identifier
+          <span id="identifier-label">Exact identifier</span>
           <input
+            aria-labelledby="identifier-label"
             name="id"
             defaultValue={values['id'] ?? ''}
             placeholder="UUID"
@@ -122,7 +142,13 @@ export function Filters({
           )}
         </label>
       )}
-      <button type="submit" disabled={pending}>
+      <button
+        type="submit"
+        aria-disabled={pending}
+        onClick={(event) => {
+          if (pending) event.preventDefault();
+        }}
+      >
         Apply filters
       </button>
       <Link

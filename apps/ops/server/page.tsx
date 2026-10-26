@@ -184,9 +184,11 @@ async function renderPage({
       return (
         <>
           <div className="page-heading">
-            <span className="eyebrow">INTERNAL OPERATIONS</span>
-            <h1>Select a financial book</h1>
-            <p>No population selected. Assurance: UNKNOWN.</p>
+            <div>
+              <span className="eyebrow">INTERNAL OPERATIONS</span>
+              <h1>Select a financial book</h1>
+              <p>No population selected. Assurance: UNKNOWN.</p>
+            </div>
           </div>
           <Panel title="Available books">
             {books.items?.length ? (
@@ -290,6 +292,7 @@ async function renderPage({
         )}
         {!id && (
           <QueryControls
+            key="query-controls"
             navigation={selection}
             identifierError={
               filters['id'] && model.items?.length === 0
@@ -339,16 +342,17 @@ async function renderPage({
     const invalid = error instanceof InvalidRead;
     const missing =
       error instanceof ReadUnavailable && error.category === 'NOT_FOUND';
+    const ErrorHeading = book ? 'h2' : 'h1';
     return (
       <>
         <div className="page-heading">
-          <h1>
+          <ErrorHeading>
             {invalid
               ? 'Invalid request'
               : missing
                 ? 'Scope not found'
                 : 'Operations data unavailable'}
-          </h1>
+          </ErrorHeading>
         </div>
         <Notice kind="fail">
           {invalid
@@ -365,6 +369,7 @@ async function renderPage({
           </p>
         )}
         <QueryControls
+          key="query-controls"
           navigation={selection}
           id={id}
           recovery

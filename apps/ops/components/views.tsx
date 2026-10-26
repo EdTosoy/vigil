@@ -57,7 +57,7 @@ function Details({
                 copy
               />
             ) : v !== null && typeof v === 'object' ? (
-              <pre>{JSON.stringify(v, null, 2)}</pre>
+              <pre tabIndex={0}>{JSON.stringify(v, null, 2)}</pre>
             ) : (
               <span className="evidence-value">
                 {v === undefined ? 'Unavailable (not supplied)' : t(v)}
@@ -93,7 +93,7 @@ function RawEvidence({
   return (
     <details className="raw-evidence">
       <summary>{title}</summary>
-      <pre>{JSON.stringify(data, null, 2)}</pre>
+      <pre tabIndex={0}>{JSON.stringify(data, null, 2)}</pre>
     </details>
   );
 }
@@ -435,6 +435,7 @@ export function Overview({
           </div>
           <div
             className="overview-next"
+            role="region"
             aria-label="Investigation destinations"
           >
             <dl className="overview-concerns">
@@ -626,6 +627,7 @@ function Exposure({ values }: { values: Row[] }) {
   return values.length ? (
     <>
       <Table
+        identity
         label="Canonical exposure by mapping and currency"
         numeric={[1, 2, 3, 4, 5, 6]}
         headers={[
@@ -640,11 +642,11 @@ function Exposure({ values }: { values: Row[] }) {
       >
         {values.map((v, i) => (
           <tr key={i}>
-            <td>
+            <th scope="row">
               <Id value={t(obj(v['scope'])['mappingId'])} />
               <br />
               {t(v['currency'])}
-            </td>
+            </th>
             <td className="money">
               {money(v['unreconciledMinor'], v['currency'])}
             </td>
@@ -717,6 +719,7 @@ export function Evaluations({
     <Panel title="Choose a control evaluation">
       {model.items?.length ? (
         <Table
+          identity
           label="Control evaluation history"
           numeric={[]}
           headers={[
@@ -729,9 +732,9 @@ export function Evaluations({
         >
           {model.items.map((v) => (
             <tr key={t(v['id'])}>
-              <td>
+              <th scope="row">
                 <Id value={t(v['id'])} />
-              </td>
+              </th>
               <td>
                 {t(v['version'])}
                 <br />
@@ -773,6 +776,7 @@ export function Reconciliation({
     <Panel title="Reconciliation runs">
       {model.items?.length ? (
         <Table
+          identity
           label="Reconciliation runs"
           numeric={[1, 3]}
           headers={[
@@ -787,8 +791,8 @@ export function Reconciliation({
           {model.items.map((r) => {
             const s = obj(r['summary']);
             return (
-              <tr key={t(r['id'])} id={recordAnchor(t(r['id']))}>
-                <td>
+              <tr key={t(r['id'])} id={recordAnchor(t(r['id']))} tabIndex={-1}>
+                <th scope="row">
                   <Id
                     value={t(r['id'])}
                     href={detailUrl(
@@ -806,7 +810,7 @@ export function Reconciliation({
                   </small>
                   <br />
                   <Status value={t(r['state'])} />
-                </td>
+                </th>
                 <td className="numeric">
                   {t(s['processorPopulation'])} / {t(s['bankPopulation'])}
                   <br />
@@ -864,11 +868,11 @@ export function Exceptions({
     <Panel title="Exception queue">
       {model.items?.length ? (
         <Table
+          identity
           label="Exception case exposures"
-          numeric={[3]}
+          numeric={[2]}
           headers={[
-            'Case / financial state',
-            'Operational state',
+            'Case / financial and operational state',
             'Classification / assignment',
             'Item exposure',
             'Age / latest activity',
@@ -876,8 +880,8 @@ export function Exceptions({
           ]}
         >
           {model.items.map((c) => (
-            <tr key={t(c['id'])} id={recordAnchor(t(c['id']))}>
-              <td>
+            <tr key={t(c['id'])} id={recordAnchor(t(c['id']))} tabIndex={-1}>
+              <th scope="row">
                 <Id
                   value={t(c['id'])}
                   href={detailUrl(
@@ -890,6 +894,7 @@ export function Exceptions({
                   )}
                 />
                 <br />
+                <span className="timestamp-meaning">Financial state</span>
                 <Status
                   value={
                     c['currentlyReconciled'] === true
@@ -899,8 +904,7 @@ export function Exceptions({
                         : 'UNKNOWN'
                   }
                 />
-              </td>
-              <td>
+                <span className="timestamp-meaning">Operational state</span>
                 <Status value={t(c['state'])} />
                 {c['resolution'] && (
                   <>
@@ -908,7 +912,7 @@ export function Exceptions({
                     {t(c['resolution'])}
                   </>
                 )}
-              </td>
+              </th>
               <td>
                 {t(c['classification'])}
                 <br />
@@ -1253,6 +1257,7 @@ export function Run({ model, book, evaluation, from }: Context) {
                       <Details data={obj(a['proof'])} />
                     </details>
                     <Table
+                      identity
                       label="Allocation member contributions"
                       numeric={[2]}
                       headers={[
@@ -1263,9 +1268,9 @@ export function Run({ model, book, evaluation, from }: Context) {
                     >
                       {rows(a['members']).map((v) => (
                         <tr key={t(v['itemId'])}>
-                          <td>
+                          <th scope="row">
                             <Id value={t(v['itemId'])} />
-                          </td>
+                          </th>
                           <td>{t(v['role'])}</td>
                           <td className="money">
                             {money(v['amountMinor'], a['currency'])}
@@ -1318,11 +1323,11 @@ export function Controls({
       </p>
       {model.items?.length ? (
         <Table
+          identity
           label="Frozen control comparisons"
-          numeric={[2, 3, 4]}
+          numeric={[1, 2, 3]}
           headers={[
-            'Control / scope',
-            'Frozen result',
+            'Control / frozen result',
             'Expected',
             'Observed',
             'Discrepancy',
@@ -1330,8 +1335,8 @@ export function Controls({
           ]}
         >
           {model.items.map((c) => (
-            <tr key={t(c['key'])} id={recordAnchor(t(c['key']))}>
-              <td>
+            <tr key={t(c['key'])} id={recordAnchor(t(c['key']))} tabIndex={-1}>
+              <th scope="row">
                 {t(c['type'])}
                 <br />
                 <Id
@@ -1349,11 +1354,13 @@ export function Controls({
                   )}
                 />
                 <br />
-                <small>{t(c['scope'])}</small>
-              </td>
-              <td>
+                <details>
+                  <summary>Scope</summary>
+                  <span className="evidence-value">{t(c['scope'])}</span>
+                </details>
+                <span className="timestamp-meaning">Frozen result</span>
                 <Status value={t(c['status'])} />
-              </td>
+              </th>
               <td className="money">{controlValue(c, 'expected')}</td>
               <td className="money">{controlValue(c, 'observed')}</td>
               <td className="money">{controlValue(c, 'discrepancy')}</td>
@@ -1502,11 +1509,11 @@ export function Workers({
         </p>
         {model.items?.length ? (
           <Table
+            identity
             label="Worker operations"
-            numeric={[3]}
+            numeric={[2]}
             headers={[
-              'Work / event',
-              'State',
+              'Work / event / state',
               'Handler',
               'Attempts',
               'Work timestamps (UTC)',
@@ -1514,8 +1521,8 @@ export function Workers({
             ]}
           >
             {model.items.map((w) => (
-              <tr key={t(w['id'])} id={recordAnchor(t(w['id']))}>
-                <td>
+              <tr key={t(w['id'])} id={recordAnchor(t(w['id']))} tabIndex={-1}>
+                <th scope="row">
                   <Id
                     value={t(w['id'])}
                     href={detailUrl(
@@ -1529,8 +1536,7 @@ export function Workers({
                   />
                   <br />
                   <small>{t(w['eventType'])}</small>
-                </td>
-                <td>
+                  <br />
                   <Status value={t(w['state'])} />
                   {w['expiredRecoverable'] === true && (
                     <>
@@ -1538,7 +1544,7 @@ export function Workers({
                       <Status value="EXPIRED · RECOVERABLE" />
                     </>
                   )}
-                </td>
+                </th>
                 <td>
                   {t(w['handler'])} v{t(w['handlerVersion'])}
                 </td>
@@ -1762,6 +1768,7 @@ export function Integrity({ model }: Context) {
         ) : rows(s['violations']).length ? (
           <>
             <Table
+              identity
               label="Integrity invariant violations"
               headers={['Invariant', 'Entity IDs', 'Scope / evidence']}
             >
@@ -1769,7 +1776,7 @@ export function Integrity({ model }: Context) {
                 .slice(0, 50)
                 .map((v, i) => (
                   <tr key={i}>
-                    <td>{t(v['invariant'])}</td>
+                    <th scope="row">{t(v['invariant'])}</th>
                     <td>
                       {Array.isArray(v['entityIds'])
                         ? v['entityIds'].map((id, i) => (

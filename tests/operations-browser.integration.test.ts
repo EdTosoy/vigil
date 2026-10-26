@@ -24,6 +24,7 @@ import { distribution } from './helpers/profile-reads';
 import { verifyLoading } from './helpers/operations-loading';
 import { verifyNavigation } from './helpers/operations-navigation';
 import { verifyOverview } from './helpers/operations-overview';
+import { verifyAccessibility } from './helpers/operations-accessibility';
 import { verifyEvidence } from './helpers/operations-evidence';
 const exec = promisify(execFile);
 const keys: Record<keyof DemoPools, string> = {
@@ -70,7 +71,8 @@ async function stop(child: ChildProcess) {
 }
 test(
   'public simulator demo, restricted production browser, query plans and local performance',
-  { timeout: 240000 },
+  // Includes the five-viewport WCAG matrix and keyboard journey; latency gates below remain unchanged.
+  { timeout: 420000 },
   async () => {
     const dir = await mkdtemp(join(tmpdir(), 'vigil-ops-public-'));
     let child: ChildProcess | undefined;
@@ -590,6 +592,17 @@ test(
         join(
           process.env['VIGIL_OPS_SCREENSHOTS'] ?? join(dir, 'screenshots'),
           'evidence',
+        ),
+      );
+      await verifyAccessibility(
+        page,
+        base,
+        demo.bookId,
+        demo.evaluationId,
+        empty,
+        join(
+          process.env['VIGIL_OPS_SCREENSHOTS'] ?? join(dir, 'screenshots'),
+          'accessibility',
         ),
       );
       await page.goto(overview);

@@ -266,6 +266,12 @@ Preserve:
 
 Financial state must remain understandable without relying only on visual color.
 
+At 320px, keep the active primary section visible and contain financial-table
+scrolling within a named keyboard-focusable region. Preserve readable identity,
+column headings and exact recoverable values while scrolling; allow pinned
+identity columns to be released. URL filter updates must preserve keyboard focus,
+and validation must identify and retain the control needed for correction.
+
 ## Performance
 
 Do not fix slow pages by duplicating financial logic in the UI.
@@ -308,3 +314,13 @@ For any non-trivial dashboard change, ask:
 12. Is new client-side complexity actually necessary?
 
 If any answer reveals unresolved financial or security risk, do not report the change as complete.
+
+<!-- BEGIN:nextjs-agent-rules -->
+
+## This is NOT the Next.js you know
+
+This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` (resolved from this file's directory; in monorepos the `next` package may not be visible from the repo root) before writing any code. Heed deprecation notices.
+
+This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
+
+<!-- END:nextjs-agent-rules -->

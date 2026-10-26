@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { type ReactNode } from 'react';
 import { timestampPresentation } from './format';
 import { text as evidenceText, type Json } from './model';
+import { TableViewport } from './table-viewport';
 import { CopyValue } from './copy-value';
 export { url } from './navigation';
 const failedStatuses = new Set(['FAIL', 'FAILED', 'FAILED_TERMINAL']);
@@ -155,15 +156,18 @@ export function Table({
   children,
   numeric = [],
   label = 'Scrollable results',
+  identity = false,
 }: {
   headers: string[];
   children: ReactNode;
   numeric?: number[];
   label?: string;
+  identity?: boolean;
 }) {
   return (
-    <div className="table-scroll" tabIndex={0} role="region" aria-label={label}>
+    <TableViewport label={label} identity={identity}>
       <table>
+        <caption className="sr-only">{label}</caption>
         <thead>
           <tr>
             {headers.map((h, index) => (
@@ -179,7 +183,7 @@ export function Table({
         </thead>
         <tbody>{children}</tbody>
       </table>
-    </div>
+    </TableViewport>
   );
 }
 export function Id({ value, href }: { value: string; href?: string }) {
