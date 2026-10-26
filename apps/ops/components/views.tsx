@@ -2,6 +2,13 @@ import Link from 'next/link';
 import { Panel, Status, Table, Time, Empty, Notice, Id, url } from './common';
 import { money, age } from './format';
 import {
+  detailUrl,
+  listFilters,
+  recordAnchor,
+  type Query,
+  type Section,
+} from './navigation';
+import {
   object as obj,
   rows,
   text as t,
@@ -9,7 +16,13 @@ import {
   type Row,
   type Json,
 } from './model';
-type Context = { model: Model; book: string; evaluation?: string | undefined };
+type Context = {
+  model: Model;
+  book: string;
+  evaluation?: string | undefined;
+  from?: string | undefined;
+  filters?: Query | undefined;
+};
 function Details({ data }: { data: Row }) {
   // Field names are labels; scalar and nested evidence values remain exact.
   return (
@@ -142,7 +155,7 @@ function workTimeValue(
   }
   return t(record[key]);
 }
-export function Overview({ model, book, evaluation }: Context) {
+export function Overview({ model, book, evaluation, from }: Context) {
   const data = model.data ?? {},
     s = obj(data['integrity']),
     e = obj(data['evaluation']);
@@ -175,7 +188,7 @@ export function Overview({ model, book, evaluation }: Context) {
       <Panel
         title="Financial assurance checks"
         aside={
-          <Link href={url('integrity', book, evaluation)}>
+          <Link href={url('integrity', book, evaluation, undefined, { from })}>
             Inspect integrity →
           </Link>
         }
@@ -305,10 +318,12 @@ export function Evaluations({
   model,
   book,
   section,
+  filters = {},
 }: {
   model: Model;
   book: string;
-  section: string;
+  section: Section;
+  filters?: Query | undefined;
 }) {
   return (
     <Panel title="Choose a control evaluation">
@@ -339,8 +354,13 @@ export function Evaluations({
                 <Time value={v['completedAt']} />
               </td>
               <td>
-                <Link href={url(section, book, t(v['id']))}>
-                  Inspect evaluation →
+                <Link
+                  href={url(section, book, t(v['id']), undefined, {
+                    ...listFilters(section, filters),
+                    cursor: undefined,
+                  })}
+                >
+                  Inspect evaluation {t(v['id'])} →
                 </Link>
               </td>
             </tr>
@@ -352,7 +372,13 @@ export function Evaluations({
     </Panel>
   );
 }
-export function Reconciliation({ model, book, evaluation }: Context) {
+export function Reconciliation({
+  model,
+  book,
+  evaluation,
+  filters = {},
+  from,
+}: Context) {
   return (
     <Panel title="Reconciliation runs">
       {model.items?.length ? (
@@ -369,11 +395,18 @@ export function Reconciliation({ model, book, evaluation }: Context) {
           {model.items.map((r) => {
             const s = obj(r['summary']);
             return (
-              <tr key={t(r['id'])}>
+              <tr key={t(r['id'])} id={recordAnchor(t(r['id']))}>
                 <td>
                   <Id
                     value={t(r['id'])}
-                    href={url('reconciliation', book, evaluation, t(r['id']))}
+                    href={detailUrl(
+                      'reconciliation',
+                      book,
+                      evaluation,
+                      t(r['id']),
+                      filters,
+                      from,
+                    )}
                   />
                   <br />
                   <small>
@@ -428,7 +461,13 @@ export function Reconciliation({ model, book, evaluation }: Context) {
     </Panel>
   );
 }
-export function Exceptions({ model, book, evaluation }: Context) {
+export function Exceptions({
+  model,
+  book,
+  evaluation,
+  filters = {},
+  from,
+}: Context) {
   return (
     <Panel title="Exception queue">
       {model.items?.length ? (
@@ -443,11 +482,18 @@ export function Exceptions({ model, book, evaluation }: Context) {
           ]}
         >
           {model.items.map((c) => (
-            <tr key={t(c['id'])}>
+            <tr key={t(c['id'])} id={recordAnchor(t(c['id']))}>
               <td>
                 <Id
                   value={t(c['id'])}
-                  href={url('exceptions', book, evaluation, t(c['id']))}
+                  href={detailUrl(
+                    'exceptions',
+                    book,
+                    evaluation,
+                    t(c['id']),
+                    filters,
+                    from,
+                  )}
                 />
                 <br />
                 <Status
@@ -493,9 +539,20 @@ export function Exceptions({ model, book, evaluation }: Context) {
                     book,
                     evaluation,
                     t(c['evidenceRunId']),
+                    {
+                      from:
+                        from ??
+                        JSON.stringify({
+                          book,
+                          section: 'exceptions',
+                          evaluation,
+                          filters: listFilters('exceptions', filters),
+                          record: t(c['id']),
+                        }),
+                    },
                   )}
                 >
-                  Linked run →
+                  Linked run {t(c['evidenceRunId'])} →
                 </Link>
               </td>
             </tr>
@@ -510,7 +567,7 @@ export function Exceptions({ model, book, evaluation }: Context) {
     </Panel>
   );
 }
-export function Case({ model, book, evaluation }: Context) {
+export function Case({ model, book, evaluation, from }: Context) {
   const c = model.data ?? {};
   return (
     <>
@@ -564,9 +621,11 @@ export function Case({ model, book, evaluation }: Context) {
           }}
         />
         <Link
-          href={url('reconciliation', book, evaluation, t(c['evidenceRunId']))}
+          href={url('reconciliation', book, evaluation, t(c['evidenceRunId']), {
+            from,
+          })}
         >
-          Inspect linked reconciliation evidence →
+          Inspect linked reconciliation run {t(c['evidenceRunId'])} →
         </Link>
         <div>
           <p className="footnote">
@@ -578,6 +637,7 @@ export function Case({ model, book, evaluation }: Context) {
               <Link
                 href={url('controls', book, t(v['evaluation']), 'result', {
                   key: t(v['key']),
+                  from,
                 })}
               >
                 Linked control {t(v['key'])}
@@ -618,7 +678,7 @@ export function Case({ model, book, evaluation }: Context) {
     </>
   );
 }
-export function Run({ model, book, evaluation }: Context) {
+export function Run({ model, book, evaluation, from }: Context) {
   const r = model.data ?? {},
     s = obj(r['summary']);
   return (
@@ -732,7 +792,9 @@ export function Run({ model, book, evaluation }: Context) {
                 {rows(m['cases']).map((c) => (
                   <p key={t(c['id'])}>
                     <Link
-                      href={url('exceptions', book, evaluation, t(c['id']))}
+                      href={url('exceptions', book, evaluation, t(c['id']), {
+                        from,
+                      })}
                     >
                       Case {t(c['id'])} →
                     </Link>{' '}
@@ -752,7 +814,13 @@ export function Run({ model, book, evaluation }: Context) {
 function controlValue(r: Row, k: string) {
   return r['unit'] === 'MINOR_UNITS' ? money(r[k], r['currency']) : t(r[k]);
 }
-export function Controls({ model, book, evaluation }: Context) {
+export function Controls({
+  model,
+  book,
+  evaluation,
+  filters = {},
+  from,
+}: Context) {
   const e = obj(model.data?.['evaluation']);
   return (
     <Panel title="Financial controls">
@@ -773,17 +841,24 @@ export function Controls({ model, book, evaluation }: Context) {
           ]}
         >
           {model.items.map((c) => (
-            <tr key={t(c['key'])}>
+            <tr key={t(c['key'])} id={recordAnchor(t(c['key']))}>
               <td>
-                <Link
-                  href={url('controls', book, evaluation, 'result', {
-                    key: t(c['key']),
-                  })}
-                >
-                  {t(c['type'])}
-                </Link>
+                {t(c['type'])}
                 <br />
-                <Id value={t(c['key'])} />
+                <Id
+                  value={t(c['key'])}
+                  href={detailUrl(
+                    'controls',
+                    book,
+                    evaluation,
+                    'result',
+                    filters,
+                    from,
+                    {
+                      key: t(c['key']),
+                    },
+                  )}
+                />
                 <br />
                 <small>{t(c['scope'])}</small>
               </td>
@@ -811,7 +886,7 @@ export function Controls({ model, book, evaluation }: Context) {
     </Panel>
   );
 }
-export function Control({ model, book }: Context) {
+export function Control({ model, book, evaluation, from }: Context) {
   const c = model.data ?? {};
   return (
     <Panel title="Control evidence">
@@ -841,7 +916,7 @@ export function Control({ model, book }: Context) {
       {Array.isArray(c['caseIds']) &&
         c['caseIds'].map((v) => (
           <p key={t(v)}>
-            <Link href={url('exceptions', book, undefined, t(v))}>
+            <Link href={url('exceptions', book, evaluation, t(v), { from })}>
               Linked case {t(v)} →
             </Link>
           </p>
@@ -849,7 +924,13 @@ export function Control({ model, book }: Context) {
     </Panel>
   );
 }
-export function Workers({ model, book, evaluation }: Context) {
+export function Workers({
+  model,
+  book,
+  evaluation,
+  filters = {},
+  from,
+}: Context) {
   const d = model.data ?? {},
     counts = obj(d['counts']);
   const countsSupplied =
@@ -903,11 +984,18 @@ export function Workers({ model, book, evaluation }: Context) {
             ]}
           >
             {model.items.map((w) => (
-              <tr key={t(w['id'])}>
+              <tr key={t(w['id'])} id={recordAnchor(t(w['id']))}>
                 <td>
                   <Id
                     value={t(w['id'])}
-                    href={url('workers', book, evaluation, t(w['id']))}
+                    href={detailUrl(
+                      'workers',
+                      book,
+                      evaluation,
+                      t(w['id']),
+                      filters,
+                      from,
+                    )}
                   />
                   <br />
                   <small>{t(w['eventType'])}</small>

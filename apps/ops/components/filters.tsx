@@ -11,6 +11,9 @@ export function Filters({
   values,
   states = [],
   categories = [],
+  from,
+  editEvaluation = false,
+  identifierError,
 }: {
   section: string;
   book: string;
@@ -18,6 +21,9 @@ export function Filters({
   values: Record<string, string | undefined>;
   states?: string[];
   categories?: readonly string[];
+  from?: string | undefined;
+  editEvaluation?: boolean;
+  identifierError?: string | undefined;
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -32,14 +38,41 @@ export function Filters({
         const query = new URLSearchParams();
         for (const [key, value] of new FormData(event.currentTarget))
           if (typeof value === 'string' && value) query.set(key, value);
+        const selectedEvaluation = query.get('evaluation') || undefined;
+        query.delete('book');
+        query.delete('evaluation');
         startTransition(() =>
-          router.push(`${url(section, null)}?${query}`, { scroll: false }),
+          router.push(
+            url(
+              section,
+              book,
+              selectedEvaluation,
+              undefined,
+              Object.fromEntries(query),
+            ),
+            { scroll: false },
+          ),
         );
       }}
     >
       <input type="hidden" name="book" value={book} />
-      {evaluation && (
-        <input type="hidden" name="evaluation" value={evaluation} />
+      {from && <input type="hidden" name="from" value={from} />}
+      {values['limit'] && (
+        <input type="hidden" name="limit" value={values['limit']} />
+      )}
+      {editEvaluation ? (
+        <label>
+          Evaluation identifier
+          <input
+            name="evaluation"
+            defaultValue={values['evaluation'] ?? evaluation ?? ''}
+            maxLength={36}
+          />
+        </label>
+      ) : (
+        evaluation && (
+          <input type="hidden" name="evaluation" value={evaluation} />
+        )
       )}
       {states.length > 0 && (
         <label>
@@ -81,19 +114,33 @@ export function Filters({
             defaultValue={values['id'] ?? ''}
             placeholder="UUID"
             maxLength={36}
+            aria-invalid={identifierError ? true : undefined}
+            aria-describedby={identifierError ? 'identifier-error' : undefined}
           />
+          {identifierError && (
+            <small id="identifier-error">{identifierError}</small>
+          )}
         </label>
       )}
       <button type="submit" disabled={pending}>
         Apply filters
       </button>
       <Link
-        href={url(section, book, evaluation)}
+        href={url(section, book, evaluation, undefined, {
+          from,
+          limit: values['limit'],
+        })}
         prefetch={false}
         onNavigate={(event) => {
           event.preventDefault();
           startTransition(() =>
-            router.push(url(section, book, evaluation), { scroll: false }),
+            router.push(
+              url(section, book, evaluation, undefined, {
+                from,
+                limit: values['limit'],
+              }),
+              { scroll: false },
+            ),
           );
         }}
       >

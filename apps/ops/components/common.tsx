@@ -1,19 +1,7 @@
 import Link from 'next/link';
 import { type ReactNode } from 'react';
 import { timestamp } from './format';
-export function url(
-  section: string,
-  book: string | null,
-  evaluation?: string,
-  id?: string,
-  extra: Record<string, string | undefined> = {},
-) {
-  const q = new URLSearchParams();
-  if (book) q.set('book', book);
-  if (evaluation) q.set('evaluation', evaluation);
-  for (const [k, v] of Object.entries(extra)) if (v) q.set(k, v);
-  return `${section === 'overview' ? '/' : '/' + section}${id ? '/' + encodeURIComponent(id) : ''}${q.size ? '?' + q.toString() : ''}`;
-}
+export { url } from './navigation';
 const failedStatuses = new Set(['FAIL', 'FAILED', 'FAILED_TERMINAL']);
 const uncertainOrAdverseStatuses = new Set([
   'UNKNOWN',

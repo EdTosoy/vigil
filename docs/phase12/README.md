@@ -45,6 +45,16 @@ Default fifty/max one hundred rows per read. Lists order oldest `(created_at,id)
 
 Each approved read is one snapshot. The main financial presentation comes from one coherent read; auxiliary evaluation/navigation lists use separate bounded reads and may be newer. Navigation/refresh starts new queries. Pages do not promise one snapshot across a long multi-page mutable queue; refresh from the beginning for new arrivals. Financial run membership/history remains frozen by its domain. Explicit evaluation selection survives navigation. All routes force dynamic rendering; no static/cache snapshot masquerades as live state. Manual refresh uses a fresh server navigation. No polling/WebSocket/SSE/streaming infrastructure.
 
+Investigation URLs separate book/evaluation scope from route-specific filters and
+cursors. The bounded `from` descriptor records a server-validated, same-book
+originating results list, its filters/cursor and selected row; it is not a return
+URL or an authorization capability. Detail and related-evidence links retain it,
+and an explicit return restores those results without browser history. A direct
+detail without an origin returns to its scoped first results page. `book=` opens
+selection even when a default book is configured; choosing a book clears prior
+evaluation, record and filter context. Invalid/unavailable requests retain
+correction controls and never silently substitute another financial record.
+
 Malformed request, missing/foreign scope, no configured database, unavailable query and no data have distinct visible states. Required verification failure blocks assurance rather than presenting a partially healthy summary. Structured server logs expose operation/category only, never SQL errors/payloads/stacks/URLs. Browser bundles are scanned for database strings/implementations. App/port/boundary gates reject privileged writers, pg outside server/, oracle/test/demo imports and client transitive server dependencies.
 
 ## Authentication and security scope

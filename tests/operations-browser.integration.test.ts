@@ -22,6 +22,7 @@ import { seedDemo, type DemoPools } from '../tools/ops-demo';
 import { clean, witness } from './helpers/resilience';
 import { distribution } from './helpers/profile-reads';
 import { verifyLoading } from './helpers/operations-loading';
+import { verifyNavigation } from './helpers/operations-navigation';
 const exec = promisify(execFile);
 const keys: Record<keyof DemoPools, string> = {
   admin: 'ADMIN',
@@ -277,6 +278,7 @@ test(
               ),
             ),
             OPS_SLOW_READ_MS: '500',
+            OPS_BOOK_ID: demo.bookId,
             DATABASE_OPERATIONS_URL: process.env['VIGIL_TEST_OPERATIONS_URL'],
             NEXT_TELEMETRY_DISABLED: '1',
           },
@@ -291,7 +293,9 @@ test(
         if (child.exitCode !== null)
           throw new Error('Production app exited (' + child.exitCode + ')');
         try {
-          const r = await fetch(base, { signal: AbortSignal.timeout(1000) });
+          const r = await fetch(base + '/health/live', {
+            signal: AbortSignal.timeout(1000),
+          });
           if (r.ok) {
             ready = true;
             break;
@@ -511,6 +515,18 @@ test(
       assert(
         (await page.getByText('Assurance: UNKNOWN', { exact: false }).count()) >
           0,
+      );
+      await verifyNavigation(
+        page,
+        reads,
+        base,
+        demo.bookId,
+        demo.evaluationId,
+        empty,
+        join(
+          process.env['VIGIL_OPS_SCREENSHOTS'] ?? join(dir, 'screenshots'),
+          'navigation',
+        ),
       );
       await page.goto(overview);
       await page.keyboard.press('Tab');

@@ -193,6 +193,13 @@ Use parameterized queries through the read-model package.
 
 Filtering must not alter financial semantics.
 
+Keep validated book/evaluation scope separate from route-specific filters and
+cursors. Detail and related-evidence navigation must retain a book-bound results
+origin, with an explicit return that also works on a refreshed deep link. Never
+accept arbitrary return URLs or carry an old book's record/evaluation context
+into book selection. Validation and unavailable-record errors must retain the
+controls needed to correct the request; recovery must not substitute an entity.
+
 ## Pagination
 
 Large operational lists must remain bounded.
