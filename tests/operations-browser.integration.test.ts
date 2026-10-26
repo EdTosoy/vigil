@@ -359,6 +359,58 @@ test(
       await page
         .getByRole('heading', { name: 'Financial operations', exact: true })
         .waitFor();
+      assert.equal(await page.title(), 'Vigil · Financial operations');
+      assert.equal(
+        await page
+          .locator('meta[name="application-name"]')
+          .getAttribute('content'),
+        'Vigil',
+      );
+      const brand = page.getByRole('link', {
+        name: 'Vigil operations overview',
+      });
+      assert(await brand.isVisible());
+      assert.equal(
+        await brand.getAttribute('href'),
+        new URL(overview).pathname + new URL(overview).search,
+      );
+      const logo = brand.locator('img');
+      await logo.evaluate((img: HTMLImageElement) => img.decode());
+      assert.equal(await logo.getAttribute('alt'), '');
+      const iconLinks = await page
+        .locator('link[rel="icon"], link[rel="apple-touch-icon"]')
+        .evaluateAll((links) =>
+          links.map((link) => (link as HTMLLinkElement).href),
+        );
+      for (const path of [
+        '/favicon.ico',
+        '/favicon-16x16.png',
+        '/favicon-32x32.png',
+        '/favicon-48x48.png',
+        '/apple-touch-icon.png',
+      ]) {
+        assert(
+          iconLinks.some((href) => new URL(href).pathname === path),
+          path,
+        );
+        const response = await page.request.get(base + path);
+        assert.equal(response.status(), 200, path);
+        assert.match(response.headers()['content-type']!, /^image\//);
+      }
+      const manifestHref = await page
+        .locator('link[rel="manifest"]')
+        .getAttribute('href');
+      assert.equal(manifestHref, '/site.webmanifest');
+      const manifestResponse = await page.request.get(base + manifestHref);
+      assert.equal(manifestResponse.status(), 200);
+      const manifest = await manifestResponse.json();
+      assert.equal(manifest.name, 'Vigil');
+      assert.equal(manifest.short_name, 'Vigil');
+      for (const icon of manifest.icons) {
+        const response = await page.request.get(base + icon.src);
+        assert.equal(response.status(), 200, icon.src);
+        assert.match(response.headers()['content-type']!, /^image\/png/);
+      }
       assert((await page.getByText('UNKNOWN', { exact: false }).count()) > 0);
       assert((await page.getByText('FAIL', { exact: false }).count()) > 0);
       assert(
@@ -463,13 +515,15 @@ test(
       );
       await page.keyboard.press('Enter');
       assert.equal(await page.locator(':focus').getAttribute('id'), 'main');
-      await mkdir(join(dir, 'screenshots'), { recursive: true });
+      const screenshots =
+        process.env['FLOW_OPS_SCREENSHOTS'] ?? join(dir, 'screenshots');
+      await mkdir(screenshots, { recursive: true });
       await page.evaluate(() => {
         (document.activeElement as HTMLElement)?.blur();
         window.scrollTo(0, 0);
       });
       await page.screenshot({
-        path: join(dir, 'screenshots/overview.png'),
+        path: join(screenshots, 'overview.png'),
         fullPage: true,
       });
       await page.setViewportSize({ width: 640, height: 900 });
@@ -481,6 +535,15 @@ test(
           demo.evaluationId,
       );
       await page.getByRole('heading', { name: 'Exception queue' }).waitFor();
+      assert(
+        await page
+          .getByRole('link', { name: 'Vigil operations overview' })
+          .isVisible(),
+      );
+      await page.screenshot({
+        path: join(screenshots, 'exceptions-narrow.png'),
+        fullPage: true,
+      });
       assert.equal(
         await page.evaluate(
           () => document.documentElement.scrollWidth > window.innerWidth,

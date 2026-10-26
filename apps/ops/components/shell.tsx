@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import Image from 'next/image';
 import type { ReactNode } from 'react';
 import { url } from './common';
 const sections = [
@@ -23,8 +24,20 @@ export function Shell({
   return (
     <div className="app-shell">
       <aside className="sidebar">
-        <Link className="brand" href={url('overview', book, evaluation)}>
-          <span className="brand-mark">f</span>flow
+        <Link
+          className="brand"
+          href={url('overview', book, evaluation)}
+          aria-label="Vigil operations overview"
+        >
+          <Image
+            className="brand-mark"
+            src="/android-chrome-192x192.png"
+            width={36}
+            height={36}
+            alt=""
+            unoptimized
+          />
+          Vigil
           <span className="brand-sub">OPERATIONS</span>
         </Link>
         <div className="nav-label">INVESTIGATION</div>
