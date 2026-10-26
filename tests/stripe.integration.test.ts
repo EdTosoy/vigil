@@ -5,33 +5,33 @@ import { createRequire } from 'node:module';
 import { resolve } from 'node:path';
 import { ingressServer } from '../apps/integrations/src/index';
 import { Pool } from 'pg';
-import { PostgresIngestion } from '@flow/ingestion-postgres';
-import { PostgresProcessor } from '@flow/processor-postgres';
-import { PostgresWorker } from '@flow/worker-postgres';
-import { PostgresReconciliation } from '@flow/reconciliation-postgres';
-import { PostgresControls } from '@flow/control-postgres';
-import { PostgresExceptions } from '@flow/exception-postgres';
+import { PostgresIngestion } from '@vigil/ingestion-postgres';
+import { PostgresProcessor } from '@vigil/processor-postgres';
+import { PostgresWorker } from '@vigil/worker-postgres';
+import { PostgresReconciliation } from '@vigil/reconciliation-postgres';
+import { PostgresControls } from '@vigil/control-postgres';
+import { PostgresExceptions } from '@vigil/exception-postgres';
 import { commitDropProxy } from './helpers/commit-proxy';
-import { UnknownWorkerCommit } from '@flow/worker-postgres';
-import { PostgresBank } from '@flow/bank-postgres';
-import { PostgresOperations } from '@flow/operations-read-postgres';
+import { UnknownWorkerCommit } from '@vigil/worker-postgres';
+import { PostgresBank } from '@vigil/bank-postgres';
+import { PostgresOperations } from '@vigil/operations-read-postgres';
 import {
   StripeEvidenceDatabase,
   StripeEvidenceWorker,
   backfill,
-} from '@flow/stripe-postgres';
+} from '@vigil/stripe-postgres';
 import {
   eventEnvelope,
   StripeBoundaryError,
   STRIPE_API_VERSION,
   type JsonObject,
   type StripeReader,
-} from '@flow/stripe-integration';
+} from '@vigil/stripe-integration';
 import { stripeFixture } from '../libs/stripe-integration/test/fixture';
 import { clean } from './helpers/resilience';
-const adminUrl = process.env['FLOW_TEST_ADMIN_URL'],
-  ingressUrl = process.env['FLOW_TEST_STRIPE_INGRESS_URL'],
-  workerUrl = process.env['FLOW_TEST_STRIPE_WORKER_URL'];
+const adminUrl = process.env['VIGIL_TEST_ADMIN_URL'],
+  ingressUrl = process.env['VIGIL_TEST_STRIPE_INGRESS_URL'],
+  workerUrl = process.env['VIGIL_TEST_STRIPE_WORKER_URL'];
 if (!adminUrl || !ingressUrl || !workerUrl)
   throw new Error('Run pnpm test:stripe');
 const admin = new Pool({ connectionString: adminUrl }),
@@ -460,7 +460,7 @@ test('automatic payout members flow through existing processor, reconciliation, 
   );
 
   const opsPool = new Pool({
-    connectionString: process.env['FLOW_TEST_OPERATIONS_URL'],
+    connectionString: process.env['VIGIL_TEST_OPERATIONS_URL'],
     max: 2,
   });
   try {
@@ -543,7 +543,7 @@ test('ingress and worker privileges cannot mutate financial truth or impersonate
     );
   }
   const ordinaryPool = new Pool({
-    connectionString: process.env['FLOW_TEST_WORKER_URL'],
+    connectionString: process.env['VIGIL_TEST_WORKER_URL'],
   });
   try {
     assert.equal(

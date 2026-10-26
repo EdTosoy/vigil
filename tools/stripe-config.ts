@@ -1,5 +1,5 @@
-import { sandboxKey, identity } from '@flow/stripe-integration';
-import type { SourceBinding } from '@flow/stripe-postgres';
+import { sandboxKey, identity } from '@vigil/stripe-integration';
+import type { SourceBinding } from '@vigil/stripe-postgres';
 export function stripeConfig(capability: 'ingress' | 'worker'): {
   key: string;
   binding: SourceBinding;

@@ -1,4 +1,4 @@
-import { Money, currency, type Currency, type MoneyJson } from '@flow/money';
+import { Money, currency, type Currency, type MoneyJson } from '@vigil/money';
 import { boundedText, utcTime, type NormalizationResult } from './index';
 
 export interface BankEntryObservation {

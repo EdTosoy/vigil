@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import fc from 'fast-check';
-import { Money } from '@flow/money';
-import { normalize } from '@flow/ingestion-domain';
+import { Money } from '@vigil/money';
+import { normalize } from '@vigil/ingestion-domain';
 import {
   evaluateGrouped,
   serializeCommand,

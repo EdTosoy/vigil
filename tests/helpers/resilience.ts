@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import { setTimeout as delay } from 'node:timers/promises';
 import { Pool, type PoolClient } from 'pg';
-import { PostgresIntegrity } from '@flow/integrity-postgres';
+import { PostgresIntegrity } from '@vigil/integrity-postgres';
 
 export type Boundary =
   | 'beforeBegin'

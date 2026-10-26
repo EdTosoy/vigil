@@ -3,16 +3,16 @@ import { randomUUID } from 'node:crypto';
 import { before, after, test } from 'node:test';
 import { Pool, type PoolClient } from 'pg';
 import fc from 'fast-check';
-import { canonicalJson, type RawInput } from '@flow/ingestion-domain';
-import { PostgresIngestion } from '@flow/ingestion-postgres';
+import { canonicalJson, type RawInput } from '@vigil/ingestion-domain';
+import { PostgresIngestion } from '@vigil/ingestion-postgres';
 import {
   PostgresProcessor,
   UnknownProcessorCommit,
-} from '@flow/processor-postgres';
+} from '@vigil/processor-postgres';
 import { commitDropProxy } from './helpers/commit-proxy';
-const adminUrl = process.env['FLOW_TEST_ADMIN_URL'],
-  url = process.env['FLOW_TEST_PROCESSOR_URL'],
-  ingestionUrl = process.env['FLOW_TEST_INGESTION_URL'];
+const adminUrl = process.env['VIGIL_TEST_ADMIN_URL'],
+  url = process.env['VIGIL_TEST_PROCESSOR_URL'],
+  ingestionUrl = process.env['VIGIL_TEST_INGESTION_URL'];
 if (!adminUrl || !url || !ingestionUrl)
   throw new Error('Run pnpm test:integration');
 const admin = new Pool({ connectionString: adminUrl }),
@@ -865,7 +865,7 @@ test('correction committed while original derivation waits does not authorize re
       provenance: { adapter: 'test' },
       records: [movement('c', 'capture', '9600')],
     };
-    const { batchPayload } = await import('@flow/ingestion-domain');
+    const { batchPayload } = await import('@vigil/ingestion-domain');
     await locker.query('SELECT ingestion.accept_batch($1::jsonb)', [
       batchPayload(cmd),
     ]);

@@ -3,24 +3,24 @@ import { randomUUID } from 'node:crypto';
 import { before, after, test } from 'node:test';
 import { Pool, type PoolClient } from 'pg';
 import fc from 'fast-check';
-import { Money, MAX_MINOR_UNITS, MIN_MINOR_UNITS } from '@flow/money';
+import { Money, MAX_MINOR_UNITS, MIN_MINOR_UNITS } from '@vigil/money';
 import {
   PostgresLedger,
   LedgerDatabaseError,
   UnknownCommitOutcome,
   ledgerCommandsInTransaction,
-} from '@flow/ledger-postgres';
+} from '@vigil/ledger-postgres';
 import type {
   PostJournalCommand,
   ReverseJournalCommand,
   CommandResult,
-} from '@flow/ledger-domain';
+} from '@vigil/ledger-domain';
 import { migrate } from '../tools/migrations';
 import { commitDropProxy } from './helpers/commit-proxy';
 
-const adminURL = process.env['FLOW_TEST_ADMIN_URL'];
-const writerURL = process.env['FLOW_TEST_WRITER_URL'];
-const readerURL = process.env['FLOW_TEST_READER_URL'];
+const adminURL = process.env['VIGIL_TEST_ADMIN_URL'];
+const writerURL = process.env['VIGIL_TEST_WRITER_URL'];
+const readerURL = process.env['VIGIL_TEST_READER_URL'];
 if (!adminURL || !writerURL || !readerURL)
   throw new Error(
     'Run pnpm test:integration; this suite requires its disposable PostgreSQL',

@@ -19,7 +19,7 @@ raw receipts → source revisions → normalized observations → processor deri
 ledger journals remain separate; no processor command posts them
 ```
 
-`@flow/processor-domain -> money + ingestion-domain` supplies terminology, pure interpretation/sign/lifecycle/conservation functions and result contracts. `@flow/processor-postgres -> processor-domain + pg` supplies controlled commands. The database implements the same registered interpreter with projections validated against immutable normalized evidence. Foundation, ledger and ingestion packages do not depend on processor packages. Tooling alone composes public simulator, ingestion and processor APIs. No external dependency or version is added.
+`@vigil/processor-domain -> money + ingestion-domain` supplies terminology, pure interpretation/sign/lifecycle/conservation functions and result contracts. `@vigil/processor-postgres -> processor-domain + pg` supplies controlled commands. The database implements the same registered interpreter with projections validated against immutable normalized evidence. Foundation, ledger and ingestion packages do not depend on processor packages. Tooling alone composes public simulator, ingestion and processor APIs. No external dependency or version is added.
 
 ## Identity and reproducibility
 

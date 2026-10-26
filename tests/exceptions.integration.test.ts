@@ -6,9 +6,9 @@ import fc from 'fast-check';
 import {
   PostgresExceptions,
   UnknownExceptionCommit,
-} from '@flow/exception-postgres';
-import { type CaseCommand, type CaseView } from '@flow/exception-domain';
-import { PostgresReconciliation } from '@flow/reconciliation-postgres';
+} from '@vigil/exception-postgres';
+import { type CaseCommand, type CaseView } from '@vigil/exception-domain';
+import { PostgresReconciliation } from '@vigil/reconciliation-postgres';
 import {
   fixture,
   installInvariantSweeps,
@@ -19,17 +19,17 @@ import {
 } from './helpers/reconciliation-fixture';
 import { commitDropProxy } from './helpers/commit-proxy';
 installInvariantSweeps();
-const au = process.env['FLOW_TEST_ADMIN_URL']!,
-  eu = process.env['FLOW_TEST_EXCEPTION_URL']!;
+const au = process.env['VIGIL_TEST_ADMIN_URL']!,
+  eu = process.env['VIGIL_TEST_EXCEPTION_URL']!;
 if (!au || !eu) throw new Error('Run pnpm test:integration');
 const admin = new Pool({ connectionString: au }),
   ep = new Pool({ connectionString: eu }),
   rp = new Pool({
-    connectionString: process.env['FLOW_TEST_RECONCILIATION_URL'],
+    connectionString: process.env['VIGIL_TEST_RECONCILIATION_URL'],
   }),
-  ip = new Pool({ connectionString: process.env['FLOW_TEST_INGESTION_URL'] }),
-  pp = new Pool({ connectionString: process.env['FLOW_TEST_PROCESSOR_URL'] }),
-  bp = new Pool({ connectionString: process.env['FLOW_TEST_BANK_URL'] });
+  ip = new Pool({ connectionString: process.env['VIGIL_TEST_INGESTION_URL'] }),
+  pp = new Pool({ connectionString: process.env['VIGIL_TEST_PROCESSOR_URL'] }),
+  bp = new Pool({ connectionString: process.env['VIGIL_TEST_BANK_URL'] });
 const exceptions = new PostgresExceptions(ep),
   recon = new PostgresReconciliation(rp);
 after(async () => {

@@ -27,7 +27,7 @@ import {
   object,
   EVENT_TYPES,
   STRIPE_API_VERSION,
-} from '@flow/stripe-integration';
+} from '@vigil/stripe-integration';
 const root = resolve(__dirname, '..'),
   directory = resolve(root, 'infra/demo'),
   local = resolve(root, '.deployment');
@@ -260,7 +260,7 @@ async function images(): Promise<void> {
         [
           'build',
           '--build-arg',
-          `FLOW_IMAGE_REVISION=${tag}`,
+          `VIGIL_IMAGE_REVISION=${tag}`,
           '--platform',
           'linux/amd64',
           '--target',
@@ -464,7 +464,7 @@ async function task(command?: string[]): Promise<Record<string, unknown>> {
         '--task',
         arn,
         '--reason',
-        'Flow one-shot command time limit',
+        'Vigil one-shot command time limit',
       ]);
       throw new Error('One-shot task exceeded its bounded execution window');
     }

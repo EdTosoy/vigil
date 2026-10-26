@@ -1,6 +1,6 @@
-import { sandboxKey } from '@flow/stripe-integration';
+import { sandboxKey } from '@vigil/stripe-integration';
 import { Pool } from 'pg';
-import { StripeEvidenceDatabase } from '@flow/stripe-postgres';
+import { StripeEvidenceDatabase } from '@vigil/stripe-postgres';
 import { ingressServer } from './index';
 async function main(): Promise<void> {
   const {

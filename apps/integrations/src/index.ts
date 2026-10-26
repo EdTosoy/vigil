@@ -9,7 +9,7 @@ import {
   stripeMetrics,
   verifyWebhook,
   type EventEnvelope,
-} from '@flow/stripe-integration';
+} from '@vigil/stripe-integration';
 export interface IngressStore {
   ready(): Promise<boolean>;
   accept(

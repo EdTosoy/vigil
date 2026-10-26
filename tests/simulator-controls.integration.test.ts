@@ -6,14 +6,14 @@ import fc from 'fast-check';
 import {
   generateSimulation,
   generateGroupedSimulation,
-} from '@flow/simulator-oracle';
-import type { SystemInput } from '@flow/simulator';
-import { PostgresIngestion } from '@flow/ingestion-postgres';
-import { PostgresProcessor } from '@flow/processor-postgres';
-import { PostgresBank } from '@flow/bank-postgres';
-import { PostgresReconciliation } from '@flow/reconciliation-postgres';
-import { PostgresExceptions } from '@flow/exception-postgres';
-import { PostgresControls } from '@flow/control-postgres';
+} from '@vigil/simulator-oracle';
+import type { SystemInput } from '@vigil/simulator';
+import { PostgresIngestion } from '@vigil/ingestion-postgres';
+import { PostgresProcessor } from '@vigil/processor-postgres';
+import { PostgresBank } from '@vigil/bank-postgres';
+import { PostgresReconciliation } from '@vigil/reconciliation-postgres';
+import { PostgresExceptions } from '@vigil/exception-postgres';
+import { PostgresControls } from '@vigil/control-postgres';
 import { importEvidence, money } from './helpers/reconciliation-fixture';
 import { simulatorBatch } from '../tools/ingestion-input';
 import { simulatorSettlementBatch } from '../tools/processor-input';
@@ -24,17 +24,17 @@ import { mkdtemp, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 const admin = new Pool({
-    connectionString: process.env['FLOW_TEST_ADMIN_URL'],
+    connectionString: process.env['VIGIL_TEST_ADMIN_URL'],
   }),
   rp = new Pool({
-    connectionString: process.env['FLOW_TEST_RECONCILIATION_URL'],
+    connectionString: process.env['VIGIL_TEST_RECONCILIATION_URL'],
   }),
-  ip = new Pool({ connectionString: process.env['FLOW_TEST_INGESTION_URL'] }),
-  pp = new Pool({ connectionString: process.env['FLOW_TEST_PROCESSOR_URL'] }),
-  bp = new Pool({ connectionString: process.env['FLOW_TEST_BANK_URL'] }),
-  ep = new Pool({ connectionString: process.env['FLOW_TEST_EXCEPTION_URL'] }),
-  cp = new Pool({ connectionString: process.env['FLOW_TEST_CONTROL_URL'] });
-if (!process.env['FLOW_TEST_CONTROL_URL'])
+  ip = new Pool({ connectionString: process.env['VIGIL_TEST_INGESTION_URL'] }),
+  pp = new Pool({ connectionString: process.env['VIGIL_TEST_PROCESSOR_URL'] }),
+  bp = new Pool({ connectionString: process.env['VIGIL_TEST_BANK_URL'] }),
+  ep = new Pool({ connectionString: process.env['VIGIL_TEST_EXCEPTION_URL'] }),
+  cp = new Pool({ connectionString: process.env['VIGIL_TEST_CONTROL_URL'] });
+if (!process.env['VIGIL_TEST_CONTROL_URL'])
   throw new Error('Run pnpm test:integration');
 const controls = new PostgresControls(cp),
   exceptions = new PostgresExceptions(ep);
@@ -386,13 +386,13 @@ test('CLI public pipeline and summary remain deterministic and contain no privat
     {
       env: {
         ...process.env,
-        DATABASE_INGESTION_URL: process.env['FLOW_TEST_INGESTION_URL']!,
-        DATABASE_PROCESSOR_URL: process.env['FLOW_TEST_PROCESSOR_URL']!,
-        DATABASE_BANK_URL: process.env['FLOW_TEST_BANK_URL']!,
+        DATABASE_INGESTION_URL: process.env['VIGIL_TEST_INGESTION_URL']!,
+        DATABASE_PROCESSOR_URL: process.env['VIGIL_TEST_PROCESSOR_URL']!,
+        DATABASE_BANK_URL: process.env['VIGIL_TEST_BANK_URL']!,
         DATABASE_RECONCILIATION_URL:
-          process.env['FLOW_TEST_RECONCILIATION_URL']!,
-        DATABASE_EXCEPTION_URL: process.env['FLOW_TEST_EXCEPTION_URL']!,
-        DATABASE_CONTROL_URL: process.env['FLOW_TEST_CONTROL_URL']!,
+          process.env['VIGIL_TEST_RECONCILIATION_URL']!,
+        DATABASE_EXCEPTION_URL: process.env['VIGIL_TEST_EXCEPTION_URL']!,
+        DATABASE_CONTROL_URL: process.env['VIGIL_TEST_CONTROL_URL']!,
       },
       maxBuffer: 16 * 1024 * 1024,
     },
@@ -415,7 +415,7 @@ test('CLI public pipeline and summary remain deterministic and contain no privat
     {
       env: {
         ...process.env,
-        DATABASE_CONTROL_URL: process.env['FLOW_TEST_CONTROL_URL']!,
+        DATABASE_CONTROL_URL: process.env['VIGIL_TEST_CONTROL_URL']!,
       },
       maxBuffer: 16 * 1024 * 1024,
     },

@@ -1,8 +1,8 @@
 import { readFile } from 'node:fs/promises';
 import { Pool } from 'pg';
-import type { SystemInput } from '@flow/simulator';
-import { PostgresIngestion } from '@flow/ingestion-postgres';
-import { PostgresProcessor } from '@flow/processor-postgres';
+import type { SystemInput } from '@vigil/simulator';
+import { PostgresIngestion } from '@vigil/ingestion-postgres';
+import { PostgresProcessor } from '@vigil/processor-postgres';
 import { simulatorBatch } from './ingestion-input';
 import { simulatorSettlementBatch } from './processor-input';
 async function main(): Promise<void> {

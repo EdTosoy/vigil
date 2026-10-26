@@ -78,3 +78,68 @@ test('hosted demo access is fail-closed and protects financial routes and metric
   assert.equal(demoAccess('/health/ready', null, env), 200);
   assert.equal(demoAccess('/', null, {}), 200); // Existing explicitly local workflow.
 });
+
+test('Vigil demo configuration supports legacy fallbacks without bypassing access checks', () => {
+  const env = {
+    VIGIL_DEPLOYMENT_MODE: 'demo',
+    VIGIL_DEMO_USERNAME: 'vigil-demo',
+    VIGIL_DEMO_PASSWORD: 'v'.repeat(48),
+    FLOW_DEPLOYMENT_MODE: 'demo',
+    FLOW_DEMO_USERNAME: 'legacy-demo',
+    FLOW_DEMO_PASSWORD: 'l'.repeat(48),
+  };
+  const basic = (user: string, password: string) =>
+    'Basic ' + Buffer.from(user + ':' + password).toString('base64');
+  const current = basic(env.VIGIL_DEMO_USERNAME, env.VIGIL_DEMO_PASSWORD);
+  const legacy = basic(env.FLOW_DEMO_USERNAME, env.FLOW_DEMO_PASSWORD);
+  assert.equal(demoAccess('/', null, env), 401);
+  assert.equal(demoAccess('/', current, env), 200);
+  assert.equal(demoAccess('/', legacy, env), 401);
+  assert.equal(
+    demoAccess('/', current, { ...env, VIGIL_DEPLOYMENT_MODE: 'invalid' }),
+    503,
+  );
+  assert.equal(
+    demoAccess('/', current, { ...env, VIGIL_DEMO_PASSWORD: '' }),
+    503,
+  );
+  assert.equal(
+    demoAccess('/', legacy, {
+      FLOW_DEPLOYMENT_MODE: env.FLOW_DEPLOYMENT_MODE,
+      FLOW_DEMO_USERNAME: env.FLOW_DEMO_USERNAME,
+      FLOW_DEMO_PASSWORD: env.FLOW_DEMO_PASSWORD,
+    }),
+    200,
+  );
+  assert.equal(
+    demoAccess('/', legacy, {
+      VIGIL_DEPLOYMENT_MODE: 'demo',
+      FLOW_DEMO_USERNAME: env.FLOW_DEMO_USERNAME,
+      FLOW_DEMO_PASSWORD: env.FLOW_DEMO_PASSWORD,
+    }),
+    200,
+  );
+});
+
+test('Vigil build IDs preserve legacy image revision fallback', async () => {
+  const config = (
+    await import(pathToFileURL(resolve('apps/ops/next.config.mjs')).href)
+  ).default as { generateBuildId(): Promise<string | null> };
+  const current = process.env['VIGIL_IMAGE_REVISION'];
+  const legacy = process.env['FLOW_IMAGE_REVISION'];
+  try {
+    delete process.env['VIGIL_IMAGE_REVISION'];
+    process.env['FLOW_IMAGE_REVISION'] = 'legacy-image';
+    assert.equal(await config.generateBuildId(), 'legacy-image');
+    process.env['VIGIL_IMAGE_REVISION'] = 'vigil-image';
+    assert.equal(await config.generateBuildId(), 'vigil-image');
+    delete process.env['VIGIL_IMAGE_REVISION'];
+    delete process.env['FLOW_IMAGE_REVISION'];
+    assert.equal(await config.generateBuildId(), null);
+  } finally {
+    if (current === undefined) delete process.env['VIGIL_IMAGE_REVISION'];
+    else process.env['VIGIL_IMAGE_REVISION'] = current;
+    if (legacy === undefined) delete process.env['FLOW_IMAGE_REVISION'];
+    else process.env['FLOW_IMAGE_REVISION'] = legacy;
+  }
+});

@@ -16,8 +16,8 @@ import { tmpdir } from 'node:os';
 import { randomUUID } from 'node:crypto';
 import { Pool } from 'pg';
 import { chromium } from '@playwright/test';
-import type { SystemInput } from '@flow/simulator';
-import { PostgresOperations } from '@flow/operations-read-postgres';
+import type { SystemInput } from '@vigil/simulator';
+import { PostgresOperations } from '@vigil/operations-read-postgres';
 import { seedDemo, type DemoPools } from '../tools/ops-demo';
 import { clean, witness } from './helpers/resilience';
 import { distribution } from './helpers/profile-reads';
@@ -37,14 +37,14 @@ const keys: Record<keyof DemoPools, string> = {
 const p = Object.fromEntries(
   Object.entries(keys).map(([k, v]) => [
     k,
-    new Pool({ connectionString: process.env['FLOW_TEST_' + v + '_URL'] }),
+    new Pool({ connectionString: process.env['VIGIL_TEST_' + v + '_URL'] }),
   ]),
 ) as unknown as DemoPools;
 const op = new Pool({
-    connectionString: process.env['FLOW_TEST_OPERATIONS_URL'],
+    connectionString: process.env['VIGIL_TEST_OPERATIONS_URL'],
   }),
   reads = new PostgresOperations(op);
-if (!process.env['FLOW_TEST_OPERATIONS_URL'])
+if (!process.env['VIGIL_TEST_OPERATIONS_URL'])
   throw new Error('Run pnpm test:integration');
 after(async () => {
   await Promise.all([...Object.values(p), op].map((p) => p.end()));
@@ -69,7 +69,7 @@ test(
   'public simulator demo, restricted production browser, query plans and local performance',
   { timeout: 240000 },
   async () => {
-    const dir = await mkdtemp(join(tmpdir(), 'flow-ops-public-'));
+    const dir = await mkdtemp(join(tmpdir(), 'vigil-ops-public-'));
     let child: ChildProcess | undefined;
     let browser: Awaited<ReturnType<typeof chromium.launch>> | undefined;
     const serverLogs: Record<string, unknown>[] = [];
@@ -103,7 +103,7 @@ test(
       );
     }
     try {
-      const scale = process.env['FLOW_PROFILE_LARGE'] ? 2 : 1;
+      const scale = process.env['VIGIL_PROFILE_LARGE'] ? 2 : 1;
       const configs = [
         { seed: 71200, paymentCount: 40 * scale, batchSizeRange: [5, 10] },
         {
@@ -173,7 +173,7 @@ test(
         )
       ).rows[0];
       assert(dataset.receipts >= 1000);
-      if (process.env['FLOW_PROFILE_READS']) {
+      if (process.env['VIGIL_PROFILE_READS']) {
         const { profileReads } = await import('./helpers/profile-reads.js');
         await profileReads(p.admin, op, demo, dataset);
         await clean(p.admin, demo.bookId, demo.reconciliationRunIds);
@@ -273,11 +273,11 @@ test(
           env: {
             ...Object.fromEntries(
               Object.entries(process.env).filter(
-                ([key]) => !/^(DATABASE_|FLOW_TEST_|OPS_)/.test(key),
+                ([key]) => !/^(DATABASE_|VIGIL_TEST_|OPS_)/.test(key),
               ),
             ),
             OPS_SLOW_READ_MS: '500',
-            DATABASE_OPERATIONS_URL: process.env['FLOW_TEST_OPERATIONS_URL'],
+            DATABASE_OPERATIONS_URL: process.env['VIGIL_TEST_OPERATIONS_URL'],
             NEXT_TELEMETRY_DISABLED: '1',
           },
           stdio: ['ignore', 'pipe', 'pipe'],
@@ -304,10 +304,14 @@ test(
       assert(ready, 'Production server ready within bound');
       await measureMemory();
       const live = await fetch(base + '/health/live', {
-        headers: { 'x-flow-request-id': 'untrusted-secret' },
+        headers: {
+          'x-flow-request-id': 'untrusted-secret',
+          'x-vigil-request-id': 'untrusted-secret',
+        },
       });
       assert.equal(live.status, 200);
       const correlationId = live.headers.get('x-flow-request-id')!;
+      assert.equal(live.headers.get('x-vigil-request-id'), correlationId);
       assert.match(correlationId, /^[0-9a-f-]{36}$/);
       assert.notEqual(correlationId, 'untrusted-secret');
       assert.equal((await live.json()).status, 'LIVE');
@@ -467,7 +471,8 @@ test(
         page,
         p.admin,
         overview,
-        process.env['FLOW_OPS_SCREENSHOTS'] ?? join(dir, 'loading-screenshots'),
+        process.env['VIGIL_OPS_SCREENSHOTS'] ??
+          join(dir, 'loading-screenshots'),
       );
       await p.admin.query(
         'REVOKE EXECUTE ON FUNCTION operations.read_v1(uuid,text,jsonb) FROM flow_operations_reader',
@@ -516,7 +521,7 @@ test(
       await page.keyboard.press('Enter');
       assert.equal(await page.locator(':focus').getAttribute('id'), 'main');
       const screenshots =
-        process.env['FLOW_OPS_SCREENSHOTS'] ?? join(dir, 'screenshots');
+        process.env['VIGIL_OPS_SCREENSHOTS'] ?? join(dir, 'screenshots');
       await mkdir(screenshots, { recursive: true });
       await page.evaluate(() => {
         (document.activeElement as HTMLElement)?.blur();
@@ -637,7 +642,7 @@ test(
         const source = await readFile(file, 'utf8');
         clientJsBytes += Buffer.byteLength(source);
         for (const forbidden of [
-          'FLOW_TEST_OPERATIONS_URL',
+          'VIGIL_TEST_OPERATIONS_URL',
           'DATABASE_OPERATIONS_URL',
           'postgresql://',
           'operations.read_v1',

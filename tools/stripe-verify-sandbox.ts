@@ -1,10 +1,10 @@
 import { Pool } from 'pg';
-import { stripeReader, object } from '@flow/stripe-integration';
+import { stripeReader, object } from '@vigil/stripe-integration';
 import {
   backfill,
   StripeEvidenceDatabase,
   StripeEvidenceWorker,
-} from '@flow/stripe-postgres';
+} from '@vigil/stripe-postgres';
 import { stripeConfig } from './stripe-config';
 /** Fetches existing real sandbox objects; creates no external financial object and never fabricates evidence. */
 async function main(): Promise<void> {

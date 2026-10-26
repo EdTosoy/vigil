@@ -1,5 +1,5 @@
 {
-  "name": "@flow/simulator-oracle",
+  "name": "@vigil/simulator-oracle",
   "version": "0.0.0",
   "private": true,
   "main": "dist/index.js",
@@ -11,7 +11,7 @@
     }
   },
   "dependencies": {
-    "@flow/money": "workspace:*",
-    "@flow/simulator": "workspace:*"
+    "@vigil/money": "workspace:*",
+    "@vigil/simulator": "workspace:*"
   }
 }

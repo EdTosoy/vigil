@@ -1,6 +1,6 @@
 import { Pool } from 'pg';
-import { stripeReader, stripeMetricSnapshot } from '@flow/stripe-integration';
-import { backfill, StripeEvidenceDatabase } from '@flow/stripe-postgres';
+import { stripeReader, stripeMetricSnapshot } from '@vigil/stripe-integration';
+import { backfill, StripeEvidenceDatabase } from '@vigil/stripe-postgres';
 import { stripeConfig } from './stripe-config';
 async function main(): Promise<void> {
   const config = stripeConfig('ingress');

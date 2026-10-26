@@ -6,21 +6,21 @@ import fc from 'fast-check';
 import {
   PostgresLedger,
   ledgerCommandsInTransaction,
-} from '@flow/ledger-postgres';
-import type { PostJournalCommand } from '@flow/ledger-domain';
-import { Money } from '@flow/money';
-import { PostgresIngestion } from '@flow/ingestion-postgres';
-import { PostgresProcessor } from '@flow/processor-postgres';
-import { PostgresBank } from '@flow/bank-postgres';
-import { PostgresReconciliation } from '@flow/reconciliation-postgres';
-import { PostgresExceptions } from '@flow/exception-postgres';
-import type { CaseCommand, CaseView } from '@flow/exception-domain';
-import { PostgresControls } from '@flow/control-postgres';
-import { PostgresWorker } from '@flow/worker-postgres';
+} from '@vigil/ledger-postgres';
+import type { PostJournalCommand } from '@vigil/ledger-domain';
+import { Money } from '@vigil/money';
+import { PostgresIngestion } from '@vigil/ingestion-postgres';
+import { PostgresProcessor } from '@vigil/processor-postgres';
+import { PostgresBank } from '@vigil/bank-postgres';
+import { PostgresReconciliation } from '@vigil/reconciliation-postgres';
+import { PostgresExceptions } from '@vigil/exception-postgres';
+import type { CaseCommand, CaseView } from '@vigil/exception-domain';
+import { PostgresControls } from '@vigil/control-postgres';
+import { PostgresWorker } from '@vigil/worker-postgres';
 import {
   PostgresIntegrity,
   type IntegritySummary,
-} from '@flow/integrity-postgres';
+} from '@vigil/integrity-postgres';
 import {
   fixture,
   entry,
@@ -52,7 +52,7 @@ const urls = Object.fromEntries(
     'CONTROL',
     'WORKER',
     'INTEGRITY',
-  ].map((k) => [k, process.env['FLOW_TEST_' + k + '_URL']!]),
+  ].map((k) => [k, process.env['VIGIL_TEST_' + k + '_URL']!]),
 );
 if (!urls['ADMIN']) throw new Error('Run pnpm test:integration');
 const pools = Object.fromEntries(

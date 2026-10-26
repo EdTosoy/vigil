@@ -1,5 +1,5 @@
 {
-  "name": "flow",
+  "name": "vigil",
   "version": "0.0.0",
   "private": true,
   "packageManager": "pnpm@11.27.0",
@@ -8,7 +8,7 @@
   },
   "scripts": {
     "build": "nx run-many -t build --skip-nx-cache",
-    "typecheck": "tsc -p tsconfig.check.json --noEmit && pnpm --filter @flow/ops typecheck",
+    "typecheck": "tsc -p tsconfig.check.json --noEmit && pnpm --filter @vigil/ops typecheck",
     "lint": "nx graph --file=.nx/phase1-project-graph.json && eslint . --max-warnings 0 && node tools/check-oracle-dependencies.mjs",
     "format": "prettier --write '**/*.{ts,tsx,mjs,json,yaml,css}' README.md 'docs/phase1/*.md' 'docs/phase2/*.md' 'docs/phase3/*.md' 'docs/phase4/*.md' 'docs/phase5/*.md' 'docs/phase6/*.md' 'docs/phase7/*.md' 'docs/phase8/*.md' 'docs/phase9/*.md' 'docs/phase10/*.md' 'docs/phase11/*.md' 'docs/phase12/*.md' 'docs/phase13/*.md' 'docs/phase14/*.md' 'docs/phase15/*.md'",
     "format:check": "prettier --check '**/*.{ts,tsx,mjs,json,yaml,css}' README.md 'docs/phase1/*.md' 'docs/phase2/*.md' 'docs/phase3/*.md' 'docs/phase4/*.md' 'docs/phase5/*.md' 'docs/phase6/*.md' 'docs/phase7/*.md' 'docs/phase8/*.md' 'docs/phase9/*.md' 'docs/phase10/*.md' 'docs/phase11/*.md' 'docs/phase12/*.md' 'docs/phase13/*.md' 'docs/phase14/*.md' 'docs/phase15/*.md'",
@@ -30,8 +30,8 @@
     "integrity": "tsx tools/integrity.ts",
     "test:resilience": "tsx tools/test-postgres.ts tests/resilience.integration.test.ts tests/resilience-load.integration.test.ts tests/resilience-restart.integration.test.ts",
     "benchmark:resilience": "tsx tools/test-postgres.ts tests/resilience-load.integration.test.ts",
-    "ops:dev": "pnpm --filter @flow/ops dev",
-    "ops:start": "pnpm --filter @flow/ops start",
+    "ops:dev": "pnpm --filter @vigil/ops dev",
+    "ops:start": "pnpm --filter @vigil/ops start",
     "ops:demo": "tsx tools/ops-demo.ts",
     "stripe:ingress": "tsx apps/integrations/src/main.ts",
     "stripe:worker": "tsx tools/stripe-worker.ts",

@@ -118,10 +118,13 @@ async function config(dns: boolean): Promise<void> {
         budget_email?: string;
       })
     : {};
-  const email = process.env['FLOW_BUDGET_EMAIL'] ?? previous.budget_email;
+  const email =
+    process.env['VIGIL_BUDGET_EMAIL'] ??
+    process.env['FLOW_BUDGET_EMAIL'] ??
+    previous.budget_email;
   if (!email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email))
     throw new Error(
-      'Supply the user-approved FLOW_BUDGET_EMAIL; never infer a contact',
+      'Supply the user-approved VIGIL_BUDGET_EMAIL; never infer a contact',
     );
   await privateWrite(
     variables,

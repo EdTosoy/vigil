@@ -60,14 +60,14 @@ export default {
         function unsafe(name, from, seen = new Set()) {
           if (server)
             return (
-              /^@flow\/(.*postgres)(\/|$)/.test(name) &&
-              name !== '@flow/operations-read-postgres'
+              /^@vigil\/(.*postgres)(\/|$)/.test(name) &&
+              name !== '@vigil/operations-read-postgres'
             );
           if (
             name === 'pg' ||
             name.startsWith('pg/') ||
             name === 'server-only' ||
-            /^@flow\/(.*postgres|simulator-oracle)(\/|$)/.test(name)
+            /^@vigil\/(.*postgres|simulator-oracle)(\/|$)/.test(name)
           )
             return true;
           const resolved = ts.resolveModuleName(name, from, options, ts.sys)
@@ -167,8 +167,8 @@ export default {
               ? path.resolve(path.dirname(file), name)
               : '');
           if (
-            name === '@flow/simulator-oracle' ||
-            name.startsWith('@flow/simulator-oracle/') ||
+            name === '@vigil/simulator-oracle' ||
+            name.startsWith('@vigil/simulator-oracle/') ||
             (target && privateFile(target))
           )
             context.report({ node, messageId: 'private' });

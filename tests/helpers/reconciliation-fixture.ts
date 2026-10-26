@@ -1,9 +1,9 @@
 import { randomUUID } from 'node:crypto';
 import type { Pool } from 'pg';
-import { PostgresIngestion } from '@flow/ingestion-postgres';
-import { PostgresProcessor } from '@flow/processor-postgres';
-import { PostgresBank } from '@flow/bank-postgres';
-import type { RunCommand } from '@flow/reconciliation-domain';
+import { PostgresIngestion } from '@vigil/ingestion-postgres';
+import { PostgresProcessor } from '@vigil/processor-postgres';
+import { PostgresBank } from '@vigil/bank-postgres';
+import type { RunCommand } from '@vigil/reconciliation-domain';
 import { afterEach } from 'node:test';
 import { clean } from './resilience';
 const sweepScopes = new Map<string, Pool>();

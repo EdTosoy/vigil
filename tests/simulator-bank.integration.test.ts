@@ -8,14 +8,14 @@ import { mkdtemp, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import fc from 'fast-check';
-import { generateSimulation } from '@flow/simulator-oracle';
-import type { SystemInput } from '@flow/simulator';
-import { PostgresIngestion } from '@flow/ingestion-postgres';
-import { PostgresBank } from '@flow/bank-postgres';
+import { generateSimulation } from '@vigil/simulator-oracle';
+import type { SystemInput } from '@vigil/simulator';
+import { PostgresIngestion } from '@vigil/ingestion-postgres';
+import { PostgresBank } from '@vigil/bank-postgres';
 import { simulatorBankBatch } from '../tools/bank-input';
-const au = process.env['FLOW_TEST_ADMIN_URL'],
-  bu = process.env['FLOW_TEST_BANK_URL'],
-  iu = process.env['FLOW_TEST_INGESTION_URL'];
+const au = process.env['VIGIL_TEST_ADMIN_URL'],
+  bu = process.env['VIGIL_TEST_BANK_URL'],
+  iu = process.env['VIGIL_TEST_INGESTION_URL'];
 if (!au || !bu || !iu) throw new Error('Run pnpm test:integration');
 const admin = new Pool({ connectionString: au }),
   bp = new Pool({ connectionString: bu }),
@@ -180,7 +180,7 @@ test('developer CLI runs public processor and bank pipelines with repeatable sep
     fullRefundCount: 2,
     batchSizeRange: [2, 4],
   });
-  const dir = await mkdtemp(join(tmpdir(), 'flow-bank-cli-')),
+  const dir = await mkdtemp(join(tmpdir(), 'vigil-bank-cli-')),
     path = join(dir, 'input.json');
   await writeFile(path, JSON.stringify(sim.input));
   const invoke = async () =>
@@ -193,7 +193,7 @@ test('developer CLI runs public processor and bank pipelines with repeatable sep
             env: {
               ...process.env,
               DATABASE_INGESTION_URL: iu!,
-              DATABASE_PROCESSOR_URL: process.env['FLOW_TEST_PROCESSOR_URL']!,
+              DATABASE_PROCESSOR_URL: process.env['VIGIL_TEST_PROCESSOR_URL']!,
               DATABASE_BANK_URL: bu!,
             },
             maxBuffer: 16 * 1024 * 1024,

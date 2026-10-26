@@ -1,8 +1,8 @@
 import { readFile } from 'node:fs/promises';
 import { Pool } from 'pg';
-import { PostgresIngestion } from '@flow/ingestion-postgres';
-import { normalizerVersion } from '@flow/ingestion-domain';
-import type { SystemInput } from '@flow/simulator';
+import { PostgresIngestion } from '@vigil/ingestion-postgres';
+import { normalizerVersion } from '@vigil/ingestion-domain';
+import type { SystemInput } from '@vigil/simulator';
 import { simulatorBatch } from './ingestion-input';
 async function main(): Promise<void> {
   const [action, inputPath, bookId, batchKey, versionArg] =

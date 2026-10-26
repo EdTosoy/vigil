@@ -4,20 +4,22 @@ import { promisify } from 'node:util';
 import { randomUUID } from 'node:crypto';
 import { test } from 'node:test';
 import { Pool, type PoolClient } from 'pg';
-import { PostgresIngestion } from '@flow/ingestion-postgres';
-import { PostgresWorker } from '@flow/worker-postgres';
+import { PostgresIngestion } from '@vigil/ingestion-postgres';
+import { PostgresWorker } from '@vigil/worker-postgres';
 import { clean, witness } from './helpers/resilience';
 const exec = promisify(execFile);
 test('local single-node PostgreSQL restart drops outstanding transaction, retains committed handler and resumes from a separate worker process', async () => {
-  const container = process.env['FLOW_TEST_CONTAINER']!;
-  assert.match(container, /^flow-phase1-[0-9a-f-]{36}$/);
+  const container = process.env['VIGIL_TEST_CONTAINER']!;
+  assert.match(container, /^vigil-phase1-[0-9a-f-]{36}$/);
   const admin = new Pool({
-      connectionString: process.env['FLOW_TEST_ADMIN_URL'],
+      connectionString: process.env['VIGIL_TEST_ADMIN_URL'],
       connectionTimeoutMillis: 2000,
       query_timeout: 10000,
     }),
-    ip = new Pool({ connectionString: process.env['FLOW_TEST_INGESTION_URL'] }),
-    wp = new Pool({ connectionString: process.env['FLOW_TEST_WORKER_URL'] });
+    ip = new Pool({
+      connectionString: process.env['VIGIL_TEST_INGESTION_URL'],
+    }),
+    wp = new Pool({ connectionString: process.env['VIGIL_TEST_WORKER_URL'] });
   for (const p of [admin, ip, wp]) p.on('error', () => {}); // Idle sockets are expected to be discarded on this owned local restart.
   const book = randomUUID();
   let outstanding: PoolClient | undefined;
@@ -116,7 +118,7 @@ test('local single-node PostgreSQL restart drops outstanding transaction, retain
       {
         env: {
           ...process.env,
-          DATABASE_WORKER_URL: process.env['FLOW_TEST_WORKER_URL']!,
+          DATABASE_WORKER_URL: process.env['VIGIL_TEST_WORKER_URL']!,
         },
         timeout: 30000,
       },
@@ -162,7 +164,7 @@ test('local single-node PostgreSQL restart drops outstanding transaction, retain
       {
         env: {
           ...process.env,
-          DATABASE_INTEGRITY_URL: process.env['FLOW_TEST_INTEGRITY_URL']!,
+          DATABASE_INTEGRITY_URL: process.env['VIGIL_TEST_INTEGRITY_URL']!,
         },
         timeout: 30000,
       },

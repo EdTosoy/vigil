@@ -2,7 +2,7 @@
 
 Vigil is a production-oriented financial reconciliation and exception-management system built as a portfolio project. It compares processor settlement evidence with bank observations, records explainable matches, and keeps discrepancies visible for investigation. An exact-money, immutable double-entry ledger remains a separate accounting boundary.
 
-Vigil was originally developed under the internal project name Flow. Package scopes such as `@flow/*`, database/infrastructure identifiers and `flow.edtosoy.com` retain that name; historical verification reports retain their original context.
+Vigil was originally developed under the internal project name Flow. The workspace now uses `@vigil/*` packages. Persisted database/infrastructure identities, legacy compatibility interfaces and historical verification evidence retain their original names. See the [rename and compatibility record](docs/branding-migration.md).
 
 Reconciliation is difficult because records can arrive late, repeat, change, or describe different parts of the same payment. Fees, refunds and grouped settlements complicate totals; matching amounts alone cannot prove that money arrived.
 

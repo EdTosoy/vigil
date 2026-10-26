@@ -2,17 +2,19 @@ import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { test } from 'node:test';
 import { Pool } from 'pg';
-import { PostgresIngestion } from '@flow/ingestion-postgres';
-import { PostgresWorker } from '@flow/worker-postgres';
+import { PostgresIngestion } from '@vigil/ingestion-postgres';
+import { PostgresWorker } from '@vigil/worker-postgres';
 import { clean, waitDue, witness } from './helpers/resilience';
 
 test('1,002 work items / 16 workers: retry storm, expired leases, poison isolation, recovery and invariant-clean load', async () => {
   const admin = new Pool({
-      connectionString: process.env['FLOW_TEST_ADMIN_URL'],
+      connectionString: process.env['VIGIL_TEST_ADMIN_URL'],
     }),
-    ip = new Pool({ connectionString: process.env['FLOW_TEST_INGESTION_URL'] }),
+    ip = new Pool({
+      connectionString: process.env['VIGIL_TEST_INGESTION_URL'],
+    }),
     wp = new Pool({
-      connectionString: process.env['FLOW_TEST_WORKER_URL'],
+      connectionString: process.env['VIGIL_TEST_WORKER_URL'],
       max: 20,
     });
   const book = randomUUID(),

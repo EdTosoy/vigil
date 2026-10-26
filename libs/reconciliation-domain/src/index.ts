@@ -1,5 +1,5 @@
-import { Money, type Currency } from '@flow/money';
-import { boundedText, canonicalJson, utcTime } from '@flow/ingestion-domain';
+import { Money, type Currency } from '@vigil/money';
+import { boundedText, canonicalJson, utcTime } from '@vigil/ingestion-domain';
 export const RULE_VERSION = 'settlement-bank-exact-v1';
 export const GROUPED_RULE_VERSION = 'settlement-bank-grouped-v1';
 export const MAX_GROUP_SIZE = 32;

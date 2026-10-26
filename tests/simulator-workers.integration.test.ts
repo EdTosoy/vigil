@@ -7,17 +7,19 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { Pool } from 'pg';
-import { generateSimulation } from '@flow/simulator-oracle';
-import { PostgresIngestion } from '@flow/ingestion-postgres';
-import { PostgresWorker } from '@flow/worker-postgres';
+import { generateSimulation } from '@vigil/simulator-oracle';
+import { PostgresIngestion } from '@vigil/ingestion-postgres';
+import { PostgresWorker } from '@vigil/worker-postgres';
 import { simulatorBatch } from '../tools/ingestion-input';
 const exec = promisify(execFile);
 test('public simulator → atomic ingestion intent → async normalization, crash/replay and untouched oracle/ledger boundaries', async () => {
   const admin = new Pool({
-      connectionString: process.env['FLOW_TEST_ADMIN_URL'],
+      connectionString: process.env['VIGIL_TEST_ADMIN_URL'],
     }),
-    ip = new Pool({ connectionString: process.env['FLOW_TEST_INGESTION_URL'] }),
-    wp = new Pool({ connectionString: process.env['FLOW_TEST_WORKER_URL'] });
+    ip = new Pool({
+      connectionString: process.env['VIGIL_TEST_INGESTION_URL'],
+    }),
+    wp = new Pool({ connectionString: process.env['VIGIL_TEST_WORKER_URL'] });
   try {
     const book = randomUUID();
     await admin.query(
@@ -76,9 +78,11 @@ test('public simulator → atomic ingestion intent → async normalization, cras
 });
 test('separate CLI processes enqueue, process, restart and inspect retained state; graceful shutdown stops polling', async () => {
   const admin = new Pool({
-      connectionString: process.env['FLOW_TEST_ADMIN_URL'],
+      connectionString: process.env['VIGIL_TEST_ADMIN_URL'],
     }),
-    ip = new Pool({ connectionString: process.env['FLOW_TEST_INGESTION_URL'] });
+    ip = new Pool({
+      connectionString: process.env['VIGIL_TEST_INGESTION_URL'],
+    });
   try {
     const book = randomUUID();
     await admin.query(
@@ -86,13 +90,13 @@ test('separate CLI processes enqueue, process, restart and inspect retained stat
       [book, 'cli-worker-' + book],
     );
     const sim = generateSimulation({ seed: 71005, paymentCount: 5 }),
-      dir = await mkdtemp(join(tmpdir(), 'flow-workers-cli-')),
+      dir = await mkdtemp(join(tmpdir(), 'vigil-workers-cli-')),
       file = join(dir, 'public.json');
     await writeFile(file, JSON.stringify(sim.input));
     const env = {
       ...process.env,
-      DATABASE_WORKER_URL: process.env['FLOW_TEST_WORKER_URL'],
-      DATABASE_INGESTION_URL: process.env['FLOW_TEST_INGESTION_URL'],
+      DATABASE_WORKER_URL: process.env['VIGIL_TEST_WORKER_URL'],
+      DATABASE_INGESTION_URL: process.env['VIGIL_TEST_INGESTION_URL'],
     };
     const call = (args: string[]) =>
       exec(process.execPath, ['--import', 'tsx', 'tools/worker.ts', ...args], {
@@ -130,10 +134,12 @@ test('separate CLI processes enqueue, process, restart and inspect retained stat
 
 test('full process restart recovers pending, due retry and abandoned lease; retains succeeded and terminal items', async () => {
   const admin = new Pool({
-      connectionString: process.env['FLOW_TEST_ADMIN_URL'],
+      connectionString: process.env['VIGIL_TEST_ADMIN_URL'],
     }),
-    ip = new Pool({ connectionString: process.env['FLOW_TEST_INGESTION_URL'] }),
-    wp = new Pool({ connectionString: process.env['FLOW_TEST_WORKER_URL'] });
+    ip = new Pool({
+      connectionString: process.env['VIGIL_TEST_INGESTION_URL'],
+    }),
+    wp = new Pool({ connectionString: process.env['VIGIL_TEST_WORKER_URL'] });
   try {
     const book = randomUUID();
     await admin.query(
@@ -183,8 +189,8 @@ test('full process restart recovers pending, due retry and abandoned lease; reta
     // A separate worker process commits a claim and exits before running its handler.
     const env = {
       ...process.env,
-      DATABASE_WORKER_URL: process.env['FLOW_TEST_WORKER_URL'],
-      FLOW_RESTART_BOOK: book,
+      DATABASE_WORKER_URL: process.env['VIGIL_TEST_WORKER_URL'],
+      VIGIL_RESTART_BOOK: book,
     };
     await exec(
       process.execPath,
@@ -192,7 +198,7 @@ test('full process restart recovers pending, due retry and abandoned lease; reta
         '--import',
         'tsx',
         '--eval',
-        "const {Pool}=require('pg'); const {PostgresWorker}=require('./libs/worker-postgres/src/index.ts'); (async()=>{const p=new Pool({connectionString:process.env.DATABASE_WORKER_URL});await new PostgresWorker(p).claim('crashed-process',process.env.FLOW_RESTART_BOOK);await p.end();})().catch(()=>process.exitCode=1);",
+        "const {Pool}=require('pg'); const {PostgresWorker}=require('./libs/worker-postgres/src/index.ts'); (async()=>{const p=new Pool({connectionString:process.env.DATABASE_WORKER_URL});await new PostgresWorker(p).claim('crashed-process',process.env.VIGIL_RESTART_BOOK);await p.end();})().catch(()=>process.exitCode=1);",
       ],
       { env },
     );
@@ -223,9 +229,11 @@ test('full process restart recovers pending, due retry and abandoned lease; reta
 
 test('SIGTERM during an active handler drains its attempt and leaves the next item pending', async () => {
   const admin = new Pool({
-      connectionString: process.env['FLOW_TEST_ADMIN_URL'],
+      connectionString: process.env['VIGIL_TEST_ADMIN_URL'],
     }),
-    ip = new Pool({ connectionString: process.env['FLOW_TEST_INGESTION_URL'] });
+    ip = new Pool({
+      connectionString: process.env['VIGIL_TEST_INGESTION_URL'],
+    });
   const lock = await admin.connect();
   let child: ReturnType<typeof execFile> | undefined;
   try {
@@ -261,7 +269,7 @@ test('SIGTERM during an active handler drains its attempt and leaves the next it
       {
         env: {
           ...process.env,
-          DATABASE_WORKER_URL: process.env['FLOW_TEST_WORKER_URL'],
+          DATABASE_WORKER_URL: process.env['VIGIL_TEST_WORKER_URL'],
         },
       },
     );
@@ -311,9 +319,11 @@ test('SIGTERM during an active handler drains its attempt and leaves the next it
 
 test('three concurrent CLI worker processes drain one shared queue without missing or duplicated effects', async () => {
   const admin = new Pool({
-      connectionString: process.env['FLOW_TEST_ADMIN_URL'],
+      connectionString: process.env['VIGIL_TEST_ADMIN_URL'],
     }),
-    ip = new Pool({ connectionString: process.env['FLOW_TEST_INGESTION_URL'] });
+    ip = new Pool({
+      connectionString: process.env['VIGIL_TEST_INGESTION_URL'],
+    });
   try {
     const book = randomUUID();
     await admin.query(
@@ -335,7 +345,7 @@ test('three concurrent CLI worker processes drain one shared queue without missi
       );
     const env = {
       ...process.env,
-      DATABASE_WORKER_URL: process.env['FLOW_TEST_WORKER_URL'],
+      DATABASE_WORKER_URL: process.env['VIGIL_TEST_WORKER_URL'],
     };
     const results = await Promise.all(
       Array.from({ length: 3 }, () =>

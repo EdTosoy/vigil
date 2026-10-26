@@ -1,4 +1,4 @@
-import { CURRENCIES, type Currency } from '@flow/money';
+import { CURRENCIES, type Currency } from '@vigil/money';
 /** Aggregate minor-unit strings may exceed BIGINT; formatting never passes through Number. */
 export function money(value: unknown, code: unknown): string {
   if (value === null || value === undefined) return 'UNKNOWN';

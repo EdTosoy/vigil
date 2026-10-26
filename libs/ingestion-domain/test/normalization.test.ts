@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { execFileSync } from 'node:child_process';
 import fc from 'fast-check';
-import { MIN_MINOR_UNITS, MAX_MINOR_UNITS } from '@flow/money';
+import { MIN_MINOR_UNITS, MAX_MINOR_UNITS } from '@vigil/money';
 import {
   normalize,
   canonicalJson,

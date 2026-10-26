@@ -3,7 +3,7 @@ import {
   serializeControl,
   type ControlCommand,
   type ControlSummary,
-} from '@flow/control-domain';
+} from '@vigil/control-domain';
 export class ControlDatabaseError extends Error {
   constructor(readonly code: string) {
     super('Control command rejected (' + code + ')');

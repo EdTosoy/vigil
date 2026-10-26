@@ -1,4 +1,4 @@
-import { canonicalJson } from '@flow/ingestion-domain';
+import { canonicalJson } from '@vigil/ingestion-domain';
 import {
   evidence,
   evaluate,

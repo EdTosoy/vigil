@@ -5,7 +5,7 @@ import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import fc from 'fast-check';
-import { stableJson, sha256, type ProcessorActivity } from '@flow/simulator';
+import { stableJson, sha256, type ProcessorActivity } from '@vigil/simulator';
 import {
   generateSimulation,
   resolveConfig,
@@ -299,7 +299,7 @@ test('explicit placements and mixed corruption preserve hidden truth and do not 
     assert(!text.includes(`"${hidden}"`));
 });
 test('independent clean processes replay byte-for-byte across timezone settings and reject artifact overlap', () => {
-  const dir = mkdtempSync(path.join(os.tmpdir(), 'flow-simulator-replay-'));
+  const dir = mkdtempSync(path.join(os.tmpdir(), 'vigil-simulator-replay-'));
   const configPath = path.join(dir, 'config.json');
   writeFileSync(
     configPath,

@@ -4,7 +4,7 @@ Scope: synthetic/test system-wide control coordination over existing Phase 1–8
 
 ## Ownership, identity and scope
 
-`@flow/control-domain → @flow/money` supplies exact contracts and deterministic partition/total/exposure rules. `@flow/control-postgres → @flow/control-domain + pg` supplies controlled resumable commands. Reviewed SQL composition reads source-owned coverage/processor/bank calculations and reconciliation/exception evidence; lower modules do not import controls. No new external dependency/version.
+`@vigil/control-domain → @vigil/money` supplies exact contracts and deterministic partition/total/exposure rules. `@vigil/control-postgres → @vigil/control-domain + pg` supplies controlled resumable commands. Reviewed SQL composition reads source-owned coverage/processor/bank calculations and reconciliation/exception evidence; lower modules do not import controls. No new external dependency/version.
 
 A command contains `bookId`, stable `runKey`, synthetic `actorId`, explicit `reconciliationRunIds`, version `financial-controls-v1`, `maxAgeSeconds` (default 86,400, range 1–31,536,000) and `createCases` (default false). Run IDs are sorted canonically; at most one run per mapping, all in the same book. Full payload, including actor/configuration, defines semantic identity. Conflicting key reuse rejects explicitly.
 

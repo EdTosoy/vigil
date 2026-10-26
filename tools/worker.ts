@@ -2,9 +2,9 @@ import { randomUUID } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { setTimeout as delay } from 'node:timers/promises';
 import { Pool } from 'pg';
-import { PostgresWorker } from '@flow/worker-postgres';
-import { PostgresIngestion } from '@flow/ingestion-postgres';
-import type { SystemInput } from '@flow/simulator';
+import { PostgresWorker } from '@vigil/worker-postgres';
+import { PostgresIngestion } from '@vigil/ingestion-postgres';
+import type { SystemInput } from '@vigil/simulator';
 import { simulatorBatch } from './ingestion-input';
 async function main(): Promise<void> {
   const [action, arg, scope, key] = process.argv.slice(2);

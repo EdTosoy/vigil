@@ -1,4 +1,4 @@
-import { Money, type MoneyJson, type Currency } from '@flow/money';
+import { Money, type MoneyJson, type Currency } from '@vigil/money';
 
 export const POLICY_VERSION = 'exception-workflow-v1';
 export const STATES = [

@@ -7,7 +7,7 @@ import {
   InvalidRead,
   ReadUnavailable,
   type Operation,
-} from '@flow/operations-read-postgres';
+} from '@vigil/operations-read-postgres';
 export type Search = Record<string, string | string[] | undefined>;
 let pool: Pool | undefined;
 export function scope(search: Search): {

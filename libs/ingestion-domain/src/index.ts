@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import { TextDecoder } from 'node:util';
-import { Money, type MoneyJson } from '@flow/money';
+import { Money, type MoneyJson } from '@vigil/money';
 import {
   normalizeBank,
   type BankEntryObservation,

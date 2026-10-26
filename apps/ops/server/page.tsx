@@ -11,7 +11,7 @@ import {
   classifications,
   controlTypes,
   type Operation,
-} from '@flow/operations-read-postgres';
+} from '@vigil/operations-read-postgres';
 import { Shell } from '../components/shell';
 import { Panel, Notice, Empty, Time, Id, url } from '../components/common';
 import { Filters } from '../components/filters';

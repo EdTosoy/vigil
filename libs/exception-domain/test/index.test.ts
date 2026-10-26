@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import fc from 'fast-check';
 import { nextState, serializeCommand, STATES, type Action } from '../src/index';
-import { Money } from '@flow/money';
+import { Money } from '@vigil/money';
 test('explicit Phase 0 lifecycle rejects direct closure and preserves resolution separation', () => {
   assert.equal(nextState('OPEN', 'START_REVIEW'), 'UNDER_REVIEW');
   assert.equal(

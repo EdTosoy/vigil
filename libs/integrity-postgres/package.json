@@ -1,5 +1,5 @@
 {
-  "name": "@flow/integrity-postgres",
+  "name": "@vigil/integrity-postgres",
   "version": "0.0.0",
   "private": true,
   "main": "dist/index.js",

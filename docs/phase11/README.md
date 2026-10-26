@@ -4,7 +4,7 @@ Phase 11 adds an independent read-only verification surface and adversarial test
 
 ## Independent invariant sweep
 
-`@flow/integrity-postgres` calls `integrity.sweep(book, explicitlySelectedRunIds)` in a READ ONLY REPEATABLE READ transaction. The fixed-search-path SECURITY DEFINER routine executes as the existing owner but grants its caller only this scoped read operation. `flow_integrity_reader` has no domain writer memberships, base-table access or command execution. It returns IDs, scopes, counts, exact integer-string control totals and named violations, excluding raw receipts, notes, commands and payloads. A failed/unavailable query never emits assurance.
+`@vigil/integrity-postgres` calls `integrity.sweep(book, explicitlySelectedRunIds)` in a READ ONLY REPEATABLE READ transaction. The fixed-search-path SECURITY DEFINER routine executes as the existing owner but grants its caller only this scoped read operation. `flow_integrity_reader` has no domain writer memberships, base-table access or command execution. It returns IDs, scopes, counts, exact integer-string control totals and named violations, excluding raw receipts, notes, commands and payloads. A failed/unavailable query never emits assurance.
 
 The sweep reuses `controls.snapshot`, `controls.evaluate_input`, source-owned coverage/intrinsic controls, current allocation validity and canonical exposure. It creates no control run, case, audit, work or financial effect. It independently checks:
 

@@ -1,5 +1,5 @@
 {
-  "name": "@flow/simulator",
+  "name": "@vigil/simulator",
   "version": "0.0.0",
   "private": true,
   "main": "dist/index.js",
@@ -11,7 +11,7 @@
     }
   },
   "dependencies": {
-    "@flow/money": "workspace:*",
-    "@flow/ledger-domain": "workspace:*"
+    "@vigil/money": "workspace:*",
+    "@vigil/ledger-domain": "workspace:*"
   }
 }

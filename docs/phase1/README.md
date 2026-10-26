@@ -27,9 +27,9 @@ The environment value above is a local test identity with no password/secret. Pr
 ## Actual package/dependency structure
 
 ```text
-@flow/money                    pure exact value object
-@flow/ledger-domain            command/read ports and validation -> money
-@flow/ledger-postgres          controlled SQL adapter -> ledger-domain + money + pg
+@vigil/money                    pure exact value object
+@vigil/ledger-domain            command/read ports and validation -> money
+@vigil/ledger-postgres          controlled SQL adapter -> ledger-domain + money + pg
 database/migrations            reviewed financial/audit/outbox SQL
 tools                          migration + disposable PostgreSQL test infrastructure
 tests                          real SQL, concurrency, crash and generated-property verification

@@ -1,5 +1,5 @@
 {
-  "name": "@flow/ops",
+  "name": "@vigil/ops",
   "version": "0.0.0",
   "private": true,
   "scripts": {
@@ -13,8 +13,8 @@
     "react": "19.3.0",
     "react-dom": "19.3.0",
     "server-only": "0.0.1",
-    "@flow/operations-read-postgres": "workspace:*",
-    "@flow/money": "workspace:*",
+    "@vigil/operations-read-postgres": "workspace:*",
+    "@vigil/money": "workspace:*",
     "pg": "8.23.1"
   },
   "devDependencies": {

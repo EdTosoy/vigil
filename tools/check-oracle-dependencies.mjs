@@ -39,8 +39,8 @@ export function assertRuntimeDependencies(root) {
     const pkg = packages.get(name);
     if (!pkg) {
       if (
-        name === '@flow/simulator-oracle' ||
-        name.startsWith('@flow/simulator-oracle/')
+        name === '@vigil/simulator-oracle' ||
+        name.startsWith('@vigil/simulator-oracle/')
       )
         throw new Error(
           `Runtime dependency reaches oracle: ${[...trail, name].join(' -> ')}`,

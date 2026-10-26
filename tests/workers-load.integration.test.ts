@@ -2,15 +2,17 @@ import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { test } from 'node:test';
 import { Pool } from 'pg';
-import { PostgresIngestion } from '@flow/ingestion-postgres';
-import { PostgresWorker } from '@flow/worker-postgres';
+import { PostgresIngestion } from '@vigil/ingestion-postgres';
+import { PostgresWorker } from '@vigil/worker-postgres';
 test('1,000 durable requests / 16 workers: throughput, latency, retry drainage, database counters and peak memory', async () => {
   const admin = new Pool({
-      connectionString: process.env['FLOW_TEST_ADMIN_URL'],
+      connectionString: process.env['VIGIL_TEST_ADMIN_URL'],
     }),
-    ip = new Pool({ connectionString: process.env['FLOW_TEST_INGESTION_URL'] }),
+    ip = new Pool({
+      connectionString: process.env['VIGIL_TEST_INGESTION_URL'],
+    }),
     wp = new Pool({
-      connectionString: process.env['FLOW_TEST_WORKER_URL'],
+      connectionString: process.env['VIGIL_TEST_WORKER_URL'],
       max: 20,
     });
   try {

@@ -83,7 +83,7 @@ resource "aws_budgets_budget" "demo" {
   limit_unit   = "USD"
   time_unit    = "MONTHLY"
   # Account-wide so untagged infrastructure and bootstrap costs are not omitted.
-  # Existing non-Flow spend also contributes. Alerts are not a spending cap.
+  # Existing non-Vigil spend also contributes. Alerts are not a spending cap.
   dynamic "notification" {
     for_each = [50, 80, 100]
     content {

@@ -11,7 +11,7 @@ Existing financial domains → PostgreSQL authoritative state
                                        ↓
                         operations.read_v1 / narrow capability
                                        ↓
-                        @flow/operations-read-postgres
+                        @vigil/operations-read-postgres
                                        ↓
                         Next.js server-only boundary
                                        ↓
@@ -37,7 +37,7 @@ Navigation: Overview, Reconciliation, Exceptions, Controls, Workers, Integrity. 
 
 PASS uses an explicit check symbol/text, FAIL a distinct exclamation/text, UNKNOWN a question/text with amber styling. Source completeness without independent period closure remains UNKNOWN even if all received evidence processed/matched. Empty books remain UNKNOWN. Query failure renders unavailable rather than zero counts. Historical exposure is visibly labelled frozen and stale/current; select an evaluation to establish scope. Missing exposure stays UNKNOWN. Per-mapping/currency canonical totals and their accepted-risk subset come directly from Phase 9; processor/bank claims are not added when overlap is unproven. Ambiguous exposure remains unknown unless the owning domain proves an amount.
 
-All monetary fields remain exact integer strings. Display reads scale from @flow/money currency metadata and formats strings without Number conversion. Aggregate strings can exceed BIGINT. Counts and rates, if used, are presentation only; the exact count percentage helper uses bigint, truncates to one decimal and treats a zero denominator as not evaluated. No FX/cross-currency total exists. UTC exact timestamps remain visible; ages supplement them, use the query timestamp and confer no SLA policy.
+All monetary fields remain exact integer strings. Display reads scale from @vigil/money currency metadata and formats strings without Number conversion. Aggregate strings can exceed BIGINT. Counts and rates, if used, are presentation only; the exact count percentage helper uses bigint, truncates to one decimal and treats a zero denominator as not evaluated. No FX/cross-currency total exists. UTC exact timestamps remain visible; ages supplement them, use the query timestamp and confer no SLA policy.
 
 ## Bounded navigation, freshness and errors
 
@@ -61,14 +61,14 @@ Use a dedicated local disposable synthetic database. The following example has l
 pnpm install --frozen-lockfile
 pnpm exec playwright install chromium
 # Optional on NixOS: export PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH="$(command -v chromium)"
-docker run --detach --rm --name flow-ops-local --publish 127.0.0.1:5432:5432 \
+docker run --detach --rm --name vigil-ops-local --publish 127.0.0.1:5432:5432 \
   --env POSTGRES_USER=flow_local_admin --env POSTGRES_DB=flow_local \
   --env POSTGRES_HOST_AUTH_METHOD=trust \
   postgres:18@sha256:fc973eb97c9fd04bfa1840e0f510719a584ccb3be8debfe6a4144637a9dfe8cf
 export DATABASE_ADMIN_URL=postgresql://flow_local_admin@127.0.0.1:5432/flow_local
 pnpm db:migrate
 # Provision scoped LOCAL logins once through the administrator:
-docker exec -i flow-ops-local psql -U flow_local_admin -d flow_local <<'SQL'
+docker exec -i vigil-ops-local psql -U flow_local_admin -d flow_local <<'SQL'
 CREATE ROLE flow_local_ingestion LOGIN IN ROLE flow_ingestion_writer;
 CREATE ROLE flow_local_processor LOGIN IN ROLE flow_processor_writer;
 CREATE ROLE flow_local_bank LOGIN IN ROLE flow_bank_writer;
@@ -89,11 +89,11 @@ export DATABASE_WORKER_URL=postgresql://flow_local_worker@127.0.0.1:5432/flow_lo
 export DATABASE_INTEGRITY_URL=postgresql://flow_local_integrity@127.0.0.1:5432/flow_local
 export DATABASE_OPERATIONS_URL=postgresql://flow_local_operations@127.0.0.1:5432/flow_local
 # Choose NEW output paths; generator preserves existing artifacts.
-printf '%s\n' '{"seed":71201,"paymentCount":12,"batchSizeRange":[1,1],"anomalies":{"missing-bank-transaction":{"count":2},"duplicate-bank-observation":{"count":2},"incorrect-amount":{"count":2}}}' > /tmp/flow-ops-demo-config.json
-pnpm simulator generate --seed 71200 --payments 40 --out /tmp/flow-ops-healthy
-pnpm simulator generate --config /tmp/flow-ops-demo-config.json --out /tmp/flow-ops-unhealthy
-pnpm simulator generate --seed 71202 --payments 12 --group-size 2 --out /tmp/flow-ops-grouped
-pnpm ops:demo --delivery-replays 12 /tmp/flow-ops-healthy/input.json /tmp/flow-ops-unhealthy/input.json /tmp/flow-ops-grouped/input.json
+printf '%s\n' '{"seed":71201,"paymentCount":12,"batchSizeRange":[1,1],"anomalies":{"missing-bank-transaction":{"count":2},"duplicate-bank-observation":{"count":2},"incorrect-amount":{"count":2}}}' > /tmp/vigil-ops-demo-config.json
+pnpm simulator generate --seed 71200 --payments 40 --out /tmp/vigil-ops-healthy
+pnpm simulator generate --config /tmp/vigil-ops-demo-config.json --out /tmp/vigil-ops-unhealthy
+pnpm simulator generate --seed 71202 --payments 12 --group-size 2 --out /tmp/vigil-ops-grouped
+pnpm ops:demo --delivery-replays 12 /tmp/vigil-ops-healthy/input.json /tmp/vigil-ops-unhealthy/input.json /tmp/vigil-ops-grouped/input.json
 # Command emits bookId/evaluationId/run IDs. Substitute these identities below:
 pnpm integrity <book-id> <selected-run-id> [...]
 pnpm worker status RETRYABLE
@@ -115,7 +115,7 @@ pnpm verify
 # Optional developer loop:
 pnpm ops:dev
 # Stop only your dedicated local example when done:
-docker stop flow-ops-local
+docker stop vigil-ops-local
 ```
 
 The integration runner owns its randomly named disposable container, verifies populated upgrades and roles, runs the production app/browser, and cleans processes/pools/proxies/directories in finally. Chromium is test-only; the harness can use an explicitly configured executable or installed system Chromium, otherwise Playwright-managed Chromium. A browser executable is required for the full gate; it is never silently skipped.

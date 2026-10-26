@@ -1,4 +1,4 @@
-import { Money, MAX_MINOR_UNITS } from '@flow/money';
+import { Money, MAX_MINOR_UNITS } from '@vigil/money';
 
 export const SIMULATOR_VERSION = 'phase2-v1' as const;
 export const ANOMALY_KINDS = [

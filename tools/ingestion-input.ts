@@ -1,10 +1,10 @@
-import type { SystemInput } from '@flow/simulator';
+import type { SystemInput } from '@vigil/simulator';
 import {
   canonicalJson,
   boundedText,
   type BatchCommand,
   type RawInput,
-} from '@flow/ingestion-domain';
+} from '@vigil/ingestion-domain';
 
 /** Only public processor-event evidence crosses this adapter. Other Phase 2 streams are deferred. */
 export function simulatorBatch(

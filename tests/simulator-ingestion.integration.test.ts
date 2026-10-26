@@ -7,12 +7,12 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { before, after, test } from 'node:test';
 import { Pool } from 'pg';
-import { generateSimulation } from '@flow/simulator-oracle';
-import { stableJson } from '@flow/simulator';
-import { PostgresIngestion } from '@flow/ingestion-postgres';
+import { generateSimulation } from '@vigil/simulator-oracle';
+import { stableJson } from '@vigil/simulator';
+import { PostgresIngestion } from '@vigil/ingestion-postgres';
 import { simulatorBatch } from '../tools/ingestion-input';
-const adminURL = process.env['FLOW_TEST_ADMIN_URL'];
-const url = process.env['FLOW_TEST_INGESTION_URL'];
+const adminURL = process.env['VIGIL_TEST_ADMIN_URL'];
+const url = process.env['VIGIL_TEST_INGESTION_URL'];
 if (!adminURL || !url) throw new Error('Run pnpm test:integration');
 const admin = new Pool({ connectionString: adminURL });
 const pool = new Pool({ connectionString: url });
@@ -165,7 +165,7 @@ test('independent 10,000 source sequence manifest detects one missing item and d
 });
 test('CLI receives only public artifact and outputs safe processing summary; repeat invocation replays', async () => {
   const input = generateSimulation({ seed: 70306, paymentCount: 3 }).input;
-  const dir = await mkdtemp(join(tmpdir(), 'flow-ingestion-cli-'));
+  const dir = await mkdtemp(join(tmpdir(), 'vigil-ingestion-cli-'));
   const file = join(dir, 'input.json');
   await writeFile(file, stableJson(input) + '\n');
   const run = async () =>

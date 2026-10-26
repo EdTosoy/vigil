@@ -3,7 +3,7 @@ import {
   batchPayload,
   canonicalJson,
   type BatchCommand,
-} from '@flow/ingestion-domain';
+} from '@vigil/ingestion-domain';
 import {
   PostgresWorker,
   UnknownWorkerCommit,
@@ -12,7 +12,7 @@ import {
   type Claim,
   type Failure,
   type WorkerTelemetry,
-} from '@flow/worker-postgres';
+} from '@vigil/worker-postgres';
 import {
   STRIPE_API_VERSION,
   stripeMetric,
@@ -26,7 +26,7 @@ import {
   type EventEnvelope,
   type StripeReader,
   type JsonObject,
-} from '@flow/stripe-integration';
+} from '@vigil/stripe-integration';
 export interface SourceBinding {
   sourceAccountId: string;
   accountId: string;

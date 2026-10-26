@@ -1,10 +1,10 @@
 /** One-shot offline deployment administrator. Never imported by a serving application. */
 import { readFile } from 'node:fs/promises';
 import { Pool } from 'pg';
-import { PostgresIngestion } from '@flow/ingestion-postgres';
+import { PostgresIngestion } from '@vigil/ingestion-postgres';
 import { migrate } from './migrations';
 import { seedDemo, type DemoPools } from './ops-demo-seed';
-import type { SystemInput } from '@flow/simulator';
+import type { SystemInput } from '@vigil/simulator';
 
 const capabilities = {
   operations: 'flow_operations_reader',
@@ -31,7 +31,9 @@ async function main(): Promise<void> {
   if (!url || process.env['STRIPE_MODE'] !== 'sandbox')
     throw new Error('One-shot admin configuration required');
   const config = JSON.parse(
-    process.env['FLOW_PROVISIONING_CONFIG'] ?? '{}',
+    process.env['VIGIL_PROVISIONING_CONFIG'] ??
+      process.env['FLOW_PROVISIONING_CONFIG'] ??
+      '{}',
   ) as Configuration;
   if (
     !/^[0-9a-f-]{36}$/.test(config.bookId) ||

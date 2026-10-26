@@ -6,13 +6,13 @@ export {
   METRIC_NAMES,
 } from './telemetry';
 import Stripe from 'stripe';
-import { Money, currency } from '@flow/money';
+import { Money, currency } from '@vigil/money';
 import {
   canonicalJson,
   type Observation,
   type SettlementObservation,
   type ExternalEventObservation,
-} from '@flow/ingestion-domain';
+} from '@vigil/ingestion-domain';
 export const STRIPE_API_VERSION = '2026-09-30.endive';
 export const EVENT_TYPES = Object.freeze([
   'charge.succeeded',

@@ -1,11 +1,11 @@
 {
-  "name": "@flow/exception-postgres",
+  "name": "@vigil/exception-postgres",
   "version": "0.0.0",
   "private": true,
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "dependencies": {
-    "@flow/exception-domain": "workspace:*",
+    "@vigil/exception-domain": "workspace:*",
     "pg": "8.23.1"
   }
 }

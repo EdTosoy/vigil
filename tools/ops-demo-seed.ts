@@ -1,15 +1,15 @@
 /** Offline synthetic provisioner: consumes ONLY public simulator inputs. Never imported by runtime apps. */
 import { createHash } from 'node:crypto';
 import { Pool } from 'pg';
-import type { SystemInput } from '@flow/simulator';
-import { PostgresIngestion } from '@flow/ingestion-postgres';
-import { PostgresProcessor } from '@flow/processor-postgres';
-import { PostgresBank } from '@flow/bank-postgres';
-import { PostgresReconciliation } from '@flow/reconciliation-postgres';
-import { PostgresExceptions } from '@flow/exception-postgres';
-import { PostgresControls } from '@flow/control-postgres';
-import { PostgresWorker } from '@flow/worker-postgres';
-import { PostgresIntegrity } from '@flow/integrity-postgres';
+import type { SystemInput } from '@vigil/simulator';
+import { PostgresIngestion } from '@vigil/ingestion-postgres';
+import { PostgresProcessor } from '@vigil/processor-postgres';
+import { PostgresBank } from '@vigil/bank-postgres';
+import { PostgresReconciliation } from '@vigil/reconciliation-postgres';
+import { PostgresExceptions } from '@vigil/exception-postgres';
+import { PostgresControls } from '@vigil/control-postgres';
+import { PostgresWorker } from '@vigil/worker-postgres';
+import { PostgresIntegrity } from '@vigil/integrity-postgres';
 import { simulatorBatch } from './ingestion-input';
 import { simulatorSettlementBatch } from './processor-input';
 import { simulatorBankBatch } from './bank-input';

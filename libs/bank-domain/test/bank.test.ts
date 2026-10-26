@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import fc from 'fast-check';
-import { Money, MAX_MINOR_UNITS, MIN_MINOR_UNITS } from '@flow/money';
-import { normalize } from '@flow/ingestion-domain';
+import { Money, MAX_MINOR_UNITS, MIN_MINOR_UNITS } from '@vigil/money';
+import { normalize } from '@vigil/ingestion-domain';
 import { movement, calculatedClosing, semanticIdentity } from '../src/index';
 const bytes = (r: unknown) => Buffer.from(JSON.stringify(r));
 const m = (amountMinor: string, currency = 'PHP') => ({
