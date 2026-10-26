@@ -112,11 +112,8 @@ select {
   text-decoration: none;
 }
 .brand-mark {
-  background: #49b5a4;
-  color: var(--nav);
-  border-radius: 7px;
-  padding: 3px 11px;
-  font-size: 28px;
+  flex-shrink: 0;
+  object-fit: contain;
 }
 .brand-sub {
   width: 100%;

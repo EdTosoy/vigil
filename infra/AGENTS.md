@@ -1,4 +1,4 @@
-# Flow deployment boundaries
+# Vigil deployment boundaries
 
 Read root instructions, Phase 15 documentation and ADR-018 before changes.
 

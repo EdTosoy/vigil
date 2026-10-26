@@ -13,7 +13,7 @@ export function proxy(request: NextRequest) {
       status: access,
       headers: {
         'WWW-Authenticate':
-          'Basic realm="Flow ephemeral demo", charset="UTF-8"',
+          'Basic realm="Vigil ephemeral demo", charset="UTF-8"',
         'Cache-Control': 'no-store',
       },
     });

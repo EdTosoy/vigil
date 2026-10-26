@@ -1,6 +1,8 @@
-# Flow
+# Vigil
 
-Flow is a production-oriented financial reconciliation and exception-management system built as a portfolio project. It compares processor settlement evidence with bank observations, records explainable matches, and keeps discrepancies visible for investigation. An exact-money, immutable double-entry ledger remains a separate accounting boundary.
+Vigil is a production-oriented financial reconciliation and exception-management system built as a portfolio project. It compares processor settlement evidence with bank observations, records explainable matches, and keeps discrepancies visible for investigation. An exact-money, immutable double-entry ledger remains a separate accounting boundary.
+
+Vigil was originally developed under the internal project name Flow. Package scopes such as `@flow/*`, database/infrastructure identifiers and `flow.edtosoy.com` retain that name; historical verification reports retain their original context.
 
 Reconciliation is difficult because records can arrive late, repeat, change, or describe different parts of the same payment. Fees, refunds and grouped settlements complicate totals; matching amounts alone cannot prove that money arrived.
 
@@ -48,9 +50,9 @@ External observations never authorize payments or post ledger entries. The dotte
 
 ## Dashboard / demo
 
-The operations dashboard exposes reconciliation evidence, exceptions, control freshness, durable work and financial integrity. The existing screenshot shows actual **Phase 12 local synthetic data**, including financial FAIL and separate structural PASS. It predates hosted Stripe/AWS verification and is not a screenshot of the current cloud deployment.
+The operations dashboard exposes reconciliation evidence, exceptions, control freshness, durable work and financial integrity. The existing screenshot shows actual **Phase 12 local synthetic data**, including financial FAIL and separate structural PASS. It retains the original Flow branding, predates hosted Stripe/AWS verification and is not a screenshot of the current cloud deployment.
 
-![Flow's read-only synthetic operations overview, showing distinct financial FAIL, structural PASS and UNKNOWN source completeness](docs/phase12/screenshots/overview.png)
+![Historical Phase 12 operations overview under the original Flow name, showing distinct financial FAIL, structural PASS and UNKNOWN source completeness](docs/phase12/screenshots/overview.png)
 
 **The AWS demo environment is created on demand with Terraform and destroyed after demonstrations to avoid idle cloud cost.** The runtime at `flow.edtosoy.com` is intentionally offline after teardown. Use the [local dashboard workflow](docs/phase12/README.md#reproducible-local-workflow) to inspect it without AWS or Stripe credentials.
 
@@ -98,9 +100,9 @@ Integration tests create and clean their own disposable PostgreSQL containers; t
 
 ## Current scope and limitations
 
-Stripe is **sandbox-only**, the bank side is **synthetic**, and the dashboard is **read-only**. Flow does not initiate live payments, provide checkout/billing, or integrate with a real bank. Supported matching remains exact 1:1 and complete-declaration N:1; arbitrary N:M, partial allocations and FX are deferred.
+Stripe is **sandbox-only**, the bank side is **synthetic**, and the dashboard is **read-only**. Vigil does not initiate live payments, provide checkout/billing, or integrate with a real bank. Supported matching remains exact 1:1 and complete-declaration N:1; arbitrary N:M, partial allocations and FX are deferred.
 
-The AWS demo uses disposable Single-AZ RDS data, no HA/restore guarantee, and shared demo access rather than production identity. Local performance observations are not production SLAs. Flow is not presented as production-ready or compliance-certified. **Phase 16 AI work is explicitly deferred.**
+The AWS demo uses disposable Single-AZ RDS data, no HA/restore guarantee, and shared demo access rather than production identity. Local performance observations are not production SLAs. Vigil is not presented as production-ready or compliance-certified. **Phase 16 AI work is explicitly deferred.**
 
 ## Repository navigation
 

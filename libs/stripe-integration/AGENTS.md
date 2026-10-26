@@ -8,7 +8,7 @@ Read the repository root `AGENTS.md`, Phase 14 documentation, ADR-017, ingestion
 
 Stripe is an external source of processor evidence.
 
-Stripe does not directly define Flow's internal financial truth.
+Stripe does not directly define Vigil's internal financial truth.
 
 The intended boundary is:
 
@@ -21,7 +21,7 @@ immutable ingestion/provenance
     ↓
 asynchronous interpretation
     ↓
-provider-neutral Flow domains
+provider-neutral Vigil domains
 ```
 
 Keep Stripe-specific behavior at this boundary.
@@ -188,7 +188,7 @@ Preserve distinctions between:
 - Stripe event creation time
 - resource timestamps
 - balance-availability timing
-- Flow arrival time
+- Vigil arrival time
 - normalization time
 
 Do not use one timestamp as a substitute for another.
@@ -212,9 +212,9 @@ Do not leak Stripe SDK types into:
 - controls
 - integrity
 
-Map Stripe concepts into provider-neutral Flow contracts.
+Map Stripe concepts into provider-neutral Vigil contracts.
 
-If Stripe exposes a concept that Flow genuinely lacks, design a general domain concept rather than adding `Stripe.*` types to core packages.
+If Stripe exposes a concept that Vigil genuinely lacks, design a general domain concept rather than adding `Stripe.*` types to core packages.
 
 ## API enrichment
 
@@ -283,7 +283,7 @@ If membership cannot be proven, preserve uncertainty.
 
 ## Exact money
 
-Stripe integer amounts must be validated and converted into Flow Money safely.
+Stripe integer amounts must be validated and converted into Vigil Money safely.
 
 Do not use JavaScript floating point for financial calculations.
 
@@ -411,7 +411,7 @@ Do not assume one worker execution equals one economic effect.
 
 Normal runtime Phase 14 integration should remain read-oriented.
 
-Stripe POST operations used for sandbox event generation belong in test/demo tooling, not in Flow's financial runtime.
+Stripe POST operations used for sandbox event generation belong in test/demo tooling, not in Vigil's financial runtime.
 
 Do not add payment-creation product behavior here.
 

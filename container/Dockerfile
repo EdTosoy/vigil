@@ -21,6 +21,7 @@ FROM base AS ops
 ENV PORT=3000 HOSTNAME=0.0.0.0 NEXT_TELEMETRY_DISABLED=1 FLOW_DEPLOYMENT_MODE=demo
 COPY --from=build --chown=node:node /workspace/apps/ops/.next/standalone /app
 COPY --from=build --chown=node:node /workspace/apps/ops/.next/static /app/apps/ops/.next/static
+COPY --from=build --chown=node:node /workspace/apps/ops/public /app/apps/ops/public
 EXPOSE 3000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=30s CMD ["node", "-e", "fetch('http://127.0.0.1:3000/health/live').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
 CMD ["node", "apps/ops/server.js"]
