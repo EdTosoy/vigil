@@ -23,6 +23,8 @@ import { clean, witness } from './helpers/resilience';
 import { distribution } from './helpers/profile-reads';
 import { verifyLoading } from './helpers/operations-loading';
 import { verifyNavigation } from './helpers/operations-navigation';
+import { verifyOverview } from './helpers/operations-overview';
+import { verifyEvidence } from './helpers/operations-evidence';
 const exec = promisify(execFile);
 const keys: Record<keyof DemoPools, string> = {
   admin: 'ADMIN',
@@ -430,15 +432,38 @@ test(
       await page
         .getByRole('heading', { name: 'Reconciliation', exact: true })
         .waitFor();
+      if (process.env['VIGIL_OPS_SCREENSHOTS']) {
+        await mkdir(process.env['VIGIL_OPS_SCREENSHOTS'], { recursive: true });
+        await page.screenshot({
+          path: join(
+            process.env['VIGIL_OPS_SCREENSHOTS'],
+            'reconciliation-list.png',
+          ),
+          fullPage: true,
+        });
+      }
       await page.locator('main table a.identifier').first().click();
       await page
         .getByRole('heading', { name: 'Frozen reconciliation population' })
         .waitFor();
+      if (process.env['VIGIL_OPS_SCREENSHOTS'])
+        await page.screenshot({
+          path: join(
+            process.env['VIGIL_OPS_SCREENSHOTS'],
+            'reconciliation-detail.png',
+          ),
+          fullPage: true,
+        });
       assert((await page.getByText('CURRENT', { exact: false }).count()) > 0);
       await page.locator('nav a').filter({ hasText: 'Exceptions' }).click();
       await page.getByRole('heading', { name: 'Exception queue' }).waitFor();
       await page.locator('main table a.identifier').first().click();
       await page.getByRole('heading', { name: 'Operational case' }).waitFor();
+      if (process.env['VIGIL_OPS_SCREENSHOTS'])
+        await page.screenshot({
+          path: join(process.env['VIGIL_OPS_SCREENSHOTS'], 'case-detail.png'),
+          fullPage: true,
+        });
       await page
         .getByRole('heading', { name: 'Financial reconciliation', exact: true })
         .waitFor();
@@ -453,6 +478,14 @@ test(
       ] as const) {
         await page.locator('nav a').filter({ hasText: nav }).click();
         await page.getByRole('heading', { name: heading }).waitFor();
+        if (nav === 'Controls' && process.env['VIGIL_OPS_SCREENSHOTS'])
+          await page.screenshot({
+            path: join(
+              process.env['VIGIL_OPS_SCREENSHOTS'],
+              'controls-comparison.png',
+            ),
+            fullPage: true,
+          });
       }
       await page.goto(
         base + '/workers?book=' + demo.bookId + '&status=FAILED_TERMINAL',
@@ -501,6 +534,14 @@ test(
           await page.locator('main').getByRole('alert').isVisible(),
           true,
         );
+        if (process.env['VIGIL_OPS_SCREENSHOTS'])
+          await page.screenshot({
+            path: join(
+              process.env['VIGIL_OPS_SCREENSHOTS'],
+              'overview-unavailable.png',
+            ),
+            fullPage: true,
+          });
       } finally {
         await p.admin.query(
           'GRANT EXECUTE ON FUNCTION operations.read_v1(uuid,text,jsonb) TO flow_operations_reader',
@@ -526,6 +567,29 @@ test(
         join(
           process.env['VIGIL_OPS_SCREENSHOTS'] ?? join(dir, 'screenshots'),
           'navigation',
+        ),
+      );
+      await verifyOverview(
+        page,
+        reads,
+        base,
+        demo.bookId,
+        demo.evaluationId,
+        empty,
+        join(
+          process.env['VIGIL_OPS_SCREENSHOTS'] ?? join(dir, 'screenshots'),
+          'overview',
+        ),
+      );
+      await verifyEvidence(
+        page,
+        reads,
+        base,
+        demo.bookId,
+        demo.evaluationId,
+        join(
+          process.env['VIGIL_OPS_SCREENSHOTS'] ?? join(dir, 'screenshots'),
+          'evidence',
         ),
       );
       await page.goto(overview);

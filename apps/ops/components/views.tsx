@@ -1,6 +1,9 @@
 import Link from 'next/link';
 import { Panel, Status, Table, Time, Empty, Notice, Id, url } from './common';
 import { money, age } from './format';
+import { EvaluationScope } from './evaluation-scope';
+import { EvidenceValue } from './common';
+import type { ReactNode } from 'react';
 import {
   detailUrl,
   listFilters,
@@ -23,7 +26,15 @@ type Context = {
   from?: string | undefined;
   filters?: Query | undefined;
 };
-function Details({ data }: { data: Row }) {
+function Details({
+  data,
+  copy = [],
+  timestamps = [],
+}: {
+  data: Record<string, Json | undefined>;
+  copy?: string[];
+  timestamps?: string[];
+}) {
   // Field names are labels; scalar and nested evidence values remain exact.
   return (
     <dl className="details">
@@ -31,15 +42,59 @@ function Details({ data }: { data: Row }) {
         <div key={k}>
           <dt>{k.replaceAll(/([A-Z])/g, ' $1')}</dt>
           <dd>
-            {v !== null && typeof v === 'object' ? (
+            {timestamps.includes(k) ? (
+              <Time
+                value={v}
+                source
+                label={
+                  k.replaceAll(/([A-Z])/g, ' $1').toLowerCase() + ' timestamp'
+                }
+              />
+            ) : copy.includes(k) ? (
+              <EvidenceValue
+                value={v}
+                label={k.replaceAll(/([A-Z])/g, ' $1').toLowerCase()}
+                copy
+              />
+            ) : v !== null && typeof v === 'object' ? (
               <pre>{JSON.stringify(v, null, 2)}</pre>
             ) : (
-              t(v)
+              <span className="evidence-value">
+                {v === undefined ? 'Unavailable (not supplied)' : t(v)}
+              </span>
             )}
           </dd>
         </div>
       ))}
     </dl>
+  );
+}
+function EvidenceSection({
+  title,
+  children,
+}: {
+  title: string;
+  children: ReactNode;
+}) {
+  return (
+    <section className="evidence-section">
+      <h3>{title}</h3>
+      {children}
+    </section>
+  );
+}
+function RawEvidence({
+  data,
+  title = 'Raw approved read evidence',
+}: {
+  data: Row;
+  title?: string;
+}) {
+  return (
+    <details className="raw-evidence">
+      <summary>{title}</summary>
+      <pre>{JSON.stringify(data, null, 2)}</pre>
+    </details>
   );
 }
 function Currentness({
@@ -155,84 +210,415 @@ function workTimeValue(
   }
   return t(record[key]);
 }
-export function Overview({ model, book, evaluation, from }: Context) {
-  const data = model.data ?? {},
-    s = obj(data['integrity']),
-    e = obj(data['evaluation']);
+const overviewChecks: Record<string, { label: string; explanation: string }> = {
+  ledger: {
+    label: 'Ledger',
+    explanation: 'Balance and completeness assertions over posted history.',
+  },
+  sourceCompleteness: {
+    label: 'Source completeness',
+    explanation:
+      'Independent account-period closure is required. Successful processing does not prove completeness.',
+  },
+  processingCompleteness: {
+    label: 'Processing completeness',
+    explanation:
+      'Received records must retain explicit processing dispositions.',
+  },
+  processorControls: {
+    label: 'Processor controls',
+    explanation:
+      'Processor claims and settlement totals remain separate from bank truth.',
+  },
+  bankControls: {
+    label: 'Bank controls',
+    explanation:
+      'Bank statement membership, coverage and totals require supporting evidence.',
+  },
+  reconciliationCoverage: {
+    label: 'Reconciliation coverage',
+    explanation:
+      'Frozen outcomes and explicit mapping populations must be supported.',
+  },
+  allocationIntegrity: {
+    label: 'Allocation integrity',
+    explanation:
+      'Current allocation proof is independent of a historical match.',
+  },
+  exposureIntegrity: {
+    label: 'Exposure integrity',
+    explanation:
+      'Canonical exposure retains uncertainty and accepted-risk amounts.',
+  },
+  workerRecoverability: {
+    label: 'Worker recoverability',
+    explanation:
+      'Operational failures require investigation; worker success is not financial assurance.',
+  },
+};
+function suppliedCount(value: Json | undefined, zero: string) {
+  if (value === 0 || value === '0') return zero;
+  if (
+    (typeof value === 'number' && Number.isSafeInteger(value) && value > 0) ||
+    (typeof value === 'string' && /^[1-9][0-9]*$/.test(value))
+  )
+    return t(value);
+  return 'Unavailable (not supplied)';
+}
+export function Overview({
+  model,
+  book,
+  evaluation,
+  from,
+  filters = {},
+  evaluations,
+  evaluationChoicesUnavailable,
+}: Context & {
+  evaluations?: Model | null | undefined;
+  evaluationChoicesUnavailable?: boolean | undefined;
+}) {
+  const data = model.data ?? {};
+  const suppliedSweep = obj(data['integrity']);
+  const sweepAvailable = suppliedSweep['bookId'] === book;
+  const s = sweepAvailable ? suppliedSweep : {};
+  const e = obj(data['evaluation']);
+  const selected =
+    evaluation && e['id'] === evaluation && e['bookId'] === book ? e : null;
+  const scopedEvaluation = selected ? evaluation : undefined;
+  const investigate = (section: Section, id?: string, extra: Query = {}) =>
+    url(section, book, scopedEvaluation, id, { ...extra, from });
+  const bookData = obj(data['book']);
+  const runIds = [
+    ...new Set(
+      rows(selected?.['reconciliation'])
+        .map((row) => obj(row['scope'])['reconciliationRunId'])
+        .filter(
+          (value): value is string =>
+            typeof value === 'string' && value.length > 0,
+        ),
+    ),
+  ];
+  const caseIds = [
+    ...new Set(
+      rows(selected?.['cases'])
+        .map((row) => row['caseId'])
+        .filter(
+          (value): value is string =>
+            typeof value === 'string' && value.length > 0,
+        ),
+    ),
+  ];
+  const statusFor = (key: string) =>
+    sweepAvailable ? (model.checks?.[key] ?? 'UNKNOWN') : 'UNKNOWN';
+  const keys = Object.keys(overviewChecks);
+  const concerns = keys
+    .filter((key) => statusFor(key) !== 'PASS')
+    .sort(
+      (a, b) =>
+        Number(statusFor(b) === 'FAIL') - Number(statusFor(a) === 'FAIL'),
+    );
+  const otherChecks = keys.filter((key) => statusFor(key) === 'PASS');
+  const renderCheck = (key: string) => {
+    const check = overviewChecks[key]!;
+    return (
+      <li key={key}>
+        <div>
+          <b>{check.label}</b>{' '}
+          <Status
+            value={
+              sweepAvailable ? (model.checks?.[key] ?? 'UNKNOWN') : 'UNKNOWN'
+            }
+          />
+        </div>
+        <p>{check.explanation}</p>
+        {(!sweepAvailable || model.checks?.[key] === undefined) && (
+          <p>Check evidence unavailable (not supplied).</p>
+        )}
+        <Link
+          href={
+            investigate(
+              key === 'workerRecoverability' ? 'workers' : 'integrity',
+            ) + (key === 'workerRecoverability' ? '' : '#check-' + key)
+          }
+        >
+          Inspect{' '}
+          {key === 'workerRecoverability'
+            ? 'worker operations'
+            : check.label.toLowerCase() + ' in current sweep'}
+        </Link>
+      </li>
+    );
+  };
   return (
     <>
-      <div className="metric-grid">
-        <div className="metric">
-          <span>Financial assurance · current sweep</span>
-          <Status value={t(s['financialAssurance'])} />
-          <small>Evidence strength, independent of worker success</small>
-        </div>
-        <div className="metric">
-          <span>Structural integrity</span>
-          <Status value={t(s['integrity'])} />
-          <small>
-            Current-state verification, not tamper-proof attestation
-          </small>
-        </div>
-        <div className="metric">
-          <span>Open operational cases</span>
-          <strong>{t(obj(s['open'])['exceptions'])}</strong>
-          <small>Case count ≠ economic discrepancy count</small>
-        </div>
-        <div className="metric">
-          <span>Terminal work</span>
-          <strong className="negative">{t(obj(s['work'])['terminal'])}</strong>
-          <small>Retained for investigation</small>
-        </div>
-      </div>
-      <Panel
-        title="Financial assurance checks"
-        aside={
-          <Link href={url('integrity', book, evaluation, undefined, { from })}>
-            Inspect integrity →
-          </Link>
-        }
+      <section
+        className="panel overview-summary"
+        aria-labelledby="overview-assurance-title"
       >
-        <div className="check-grid">
-          {Object.entries(model.checks ?? {}).map(([k, v]) => (
-            <div key={k}>
-              <span>{k.replaceAll(/([A-Z])/g, ' $1')}</span>
-              <Status value={v} />
-            </div>
-          ))}
+        <div className="scope-strip overview-book">
+          <div>
+            <b>
+              {bookData['id'] === book ? t(bookData['code']) : 'Selected book'}
+            </b>
+            {bookData['id'] === book && (
+              <span className="evidence-value">
+                {' '}
+                {t(bookData['environment'])}
+              </span>
+            )}
+            <br />
+            Book <Id value={book} />
+          </div>
+          <span>
+            Queried <Time value={model.asOf} />
+          </span>
+          <Link href={url('overview', null)}>Change book</Link>
         </div>
-        <p className="footnote">
-          UNKNOWN source completeness means independent account-period closure
-          evidence is unavailable or insufficient. Successful processing does
-          not prove source completeness.
-        </p>
-      </Panel>
-      <Panel
-        title="Unreconciled exposure"
-        aside={<span className="eyebrow">FROZEN CONTROL EVALUATION</span>}
+        <div className="overview-primary">
+          <div className="overview-current">
+            <h2 id="overview-assurance-title">Current financial assurance</h2>
+            <p className="overview-assurance-state">
+              <Status value={t(s['financialAssurance'])} />
+            </p>
+            {sweepAvailable ? (
+              <p>
+                Current sweep at <Time value={s['asOf']} />. Reconciliation
+                scope follows the explicitly selected evaluation.
+              </p>
+            ) : (
+              <p>Current sweep evidence is unavailable. Assurance: UNKNOWN.</p>
+            )}
+            <p>
+              <Link href="#overview-checks">
+                Review current checks and evidence gaps
+              </Link>
+              . No single cause is supplied by this summary.
+            </p>
+            <p>
+              Structural integrity <Status value={t(s['integrity'])} />
+            </p>
+          </div>
+          <div className="overview-evaluation" id="evaluation-scope">
+            <EvaluationScope
+              book={book}
+              evaluation={evaluation}
+              choices={evaluations}
+              unavailable={evaluationChoicesUnavailable}
+              limit={filters['limit']}
+            />
+            {!evaluation ? (
+              <p>
+                No evaluation selected. Assurance: UNKNOWN for unselected frozen
+                controls and exposure; no reconciliation population is selected
+                for the sweep.
+              </p>
+            ) : !selected ? (
+              <Notice>
+                Selected evaluation <Id value={evaluation} /> is unavailable in
+                this book. Its assurance and exposure cannot be displayed. No
+                alternative evaluation was selected.
+              </Notice>
+            ) : (
+              <>
+                <h3>Selected evaluation</h3>
+                <p>
+                  Lifecycle <Status value={t(selected['state'])} />
+                </p>
+                <Evaluation data={selected} />
+                <p>
+                  <Link href={investigate('controls')}>
+                    Inspect selected evaluation controls
+                  </Link>
+                </p>
+              </>
+            )}
+          </div>
+          <div
+            className="overview-next"
+            aria-label="Investigation destinations"
+          >
+            <dl className="overview-concerns">
+              <div>
+                <dt>
+                  <Link href={investigate('exceptions')}>
+                    Review exception cases
+                  </Link>
+                </dt>
+                <dd>
+                  {suppliedCount(
+                    obj(s['open'])['exceptions'],
+                    'No open operational cases in this sweep',
+                  )}
+                </dd>
+              </div>
+              <div>
+                <dt>
+                  <Link
+                    href={investigate('workers', undefined, {
+                      status: 'FAILED_TERMINAL',
+                    })}
+                  >
+                    Inspect terminal work
+                  </Link>
+                </dt>
+                <dd>
+                  {suppliedCount(
+                    obj(s['work'])['terminal'],
+                    'No terminal work recorded in this sweep',
+                  )}
+                </dd>
+              </div>
+            </dl>
+            <p className="footnote">
+              Open cases are operational counts, not monetary exposure. The
+              exception queue includes resolved cases. Worker success never
+              establishes source completeness.
+            </p>
+            <p>
+              <Link href={investigate('reconciliation')}>
+                Browse book reconciliation runs
+              </Link>
+            </p>
+          </div>
+        </div>
+      </section>
+      <section
+        className="overview-exposure"
+        aria-label="Selected evaluation exposure"
       >
-        {!evaluation ? (
-          <Empty>
-            Select a control evaluation below. No financial population evaluated
-            for this view yet. Assurance: UNKNOWN.
-          </Empty>
-        ) : (
-          <>
-            <Evaluation data={e} />
-            <Exposure values={rows(e['exposure'])} />
-          </>
-        )}
-      </Panel>
-      <Panel title="Investigation scope">
-        <p>
-          Book <Id value={book} /> · Latest completed evaluation recorded{' '}
-          <Time value={data['latestEvaluationAt']} />
-        </p>
-        <p className="muted">
-          Choose an evaluation explicitly. Historical runs are never summed or
-          selected as financial truth by arrival order.
-        </p>
-      </Panel>
+        <Panel title="Unreconciled exposure">
+          {!evaluation ? (
+            <Empty>
+              <Link href="#overview-evaluation">Choose an evaluation</Link> to
+              inspect its frozen canonical exposure. No zero-exposure claim.
+            </Empty>
+          ) : !selected ? (
+            <Empty>
+              Selected evaluation exposure is unavailable. No zero-exposure
+              claim.
+            </Empty>
+          ) : (
+            <>
+              <p>
+                From selected evaluation <Id value={evaluation} />. The
+                applicability above qualifies these reported amounts.
+              </p>
+              {Array.isArray(selected['exposure']) ? (
+                <Exposure values={rows(selected['exposure'])} />
+              ) : (
+                <Empty>
+                  Exposure evidence is unavailable (not supplied). No
+                  zero-exposure claim.
+                </Empty>
+              )}
+              <p>
+                <Link
+                  href={investigate('controls', undefined, {
+                    category: 'EXPOSURE',
+                  })}
+                >
+                  Inspect frozen exposure controls
+                </Link>
+              </p>
+              <div className="overview-related">
+                <h3>Evaluation evidence destinations</h3>
+                {runIds.slice(0, 5).map((run) => (
+                  <p key={run}>
+                    <Link href={investigate('reconciliation', run)}>
+                      Inspect evaluation reconciliation run {run}
+                    </Link>
+                  </p>
+                ))}
+                {Array.isArray(selected['reconciliation']) &&
+                selected['reconciliation'].length === 0 ? (
+                  <p>
+                    No reconciliation results were recorded in this evaluation.
+                  </p>
+                ) : (
+                  runIds.length === 0 && (
+                    <p>
+                      This evaluation provides no direct reconciliation-run
+                      destination.
+                    </p>
+                  )
+                )}
+                {runIds.length > 5 && (
+                  <p>
+                    Showing five supplied run destinations. Browse
+                    reconciliation runs for further investigation.
+                  </p>
+                )}
+                {caseIds.slice(0, 5).map((id) => (
+                  <p key={id}>
+                    <Link href={investigate('exceptions', id)}>
+                      Inspect evaluation-linked case {id}
+                    </Link>
+                  </p>
+                ))}
+                {caseIds.length > 5 && (
+                  <p>
+                    Showing five supplied case links. Review the exception queue
+                    for further investigation.
+                  </p>
+                )}
+              </div>
+            </>
+          )}
+        </Panel>
+      </section>
+      <section
+        id="overview-checks"
+        className="overview-checks"
+        aria-labelledby="overview-checks-title"
+      >
+        <div className="panel">
+          <div className="panel-heading">
+            <h2 id="overview-checks-title">Financial assurance checks</h2>
+            <Link href={investigate('integrity')}>
+              Inspect current integrity sweep
+            </Link>
+          </div>
+          <p>
+            These are current sweep checks, not the selected evaluation's frozen
+            result. FAIL identifies a violation; UNKNOWN identifies insufficient
+            evidence.
+          </p>
+          {concerns.length === 0 && (
+            <p>
+              No failed or uncertain checks were reported in this supplied
+              snapshot. This does not expand the sweep’s coverage.
+            </p>
+          )}
+          <ul className="overview-check-list">{concerns.map(renderCheck)}</ul>
+          {otherChecks.length > 0 && (
+            <details className="overview-other-checks">
+              <summary>Other current checks</summary>
+              <ul className="overview-check-list">
+                {otherChecks.map(renderCheck)}
+              </ul>
+            </details>
+          )}
+          <p className="footnote">
+            The current read exposes grouped assertions, not a source-period
+            detail route or a single aggregate cause. Independent closure
+            evidence may be missing or insufficient even when processing
+            succeeds.
+          </p>
+          {selected && (
+            <p>
+              <Link
+                href={investigate('controls', undefined, {
+                  category: 'SOURCE_PERIOD',
+                })}
+              >
+                Inspect frozen source-period controls
+              </Link>
+              . These describe the selected evaluation, not a new current-source
+              assertion.
+            </p>
+          )}
+        </div>
+      </section>
     </>
   );
 }
@@ -240,6 +626,8 @@ function Exposure({ values }: { values: Row[] }) {
   return values.length ? (
     <>
       <Table
+        label="Canonical exposure by mapping and currency"
+        numeric={[1, 2, 3, 4, 5, 6]}
         headers={[
           'Mapping / currency',
           'Unreconciled exposure',
@@ -274,7 +662,7 @@ function Exposure({ values }: { values: Row[] }) {
             <td className="money">
               {money(v['pairResidualMinor'], v['currency'])}
             </td>
-            <td>
+            <td className="numeric">
               {t(v['unknownCount'])}
               {v['selectionStale'] === true && (
                 <>
@@ -329,6 +717,8 @@ export function Evaluations({
     <Panel title="Choose a control evaluation">
       {model.items?.length ? (
         <Table
+          label="Control evaluation history"
+          numeric={[]}
           headers={[
             'Evaluation',
             'Version / lifecycle',
@@ -383,6 +773,8 @@ export function Reconciliation({
     <Panel title="Reconciliation runs">
       {model.items?.length ? (
         <Table
+          label="Reconciliation runs"
+          numeric={[1, 3]}
           headers={[
             'Run / rule',
             'Population (processor / bank)',
@@ -415,7 +807,7 @@ export function Reconciliation({
                   <br />
                   <Status value={t(r['state'])} />
                 </td>
-                <td>
+                <td className="numeric">
                   {t(s['processorPopulation'])} / {t(s['bankPopulation'])}
                   <br />
                   <small>Each side has its own item count</small>
@@ -427,7 +819,7 @@ export function Reconciliation({
                     </div>
                   ))}
                 </td>
-                <td>
+                <td className="numeric">
                   {t(s['matchedGroups'])}
                   <br />
                   <small>
@@ -472,6 +864,8 @@ export function Exceptions({
     <Panel title="Exception queue">
       {model.items?.length ? (
         <Table
+          label="Exception case exposures"
+          numeric={[3]}
           headers={[
             'Case / financial state',
             'Operational state',
@@ -533,27 +927,34 @@ export function Exceptions({
                 <Time value={c['updatedAt']} />
               </td>
               <td>
-                <Link
-                  href={url(
-                    'reconciliation',
-                    book,
-                    evaluation,
-                    t(c['evidenceRunId']),
-                    {
-                      from:
-                        from ??
-                        JSON.stringify({
-                          book,
-                          section: 'exceptions',
-                          evaluation,
-                          filters: listFilters('exceptions', filters),
-                          record: t(c['id']),
-                        }),
-                    },
-                  )}
-                >
-                  Linked run {t(c['evidenceRunId'])} →
-                </Link>
+                {typeof c['evidenceRunId'] === 'string' &&
+                c['evidenceRunId'].length > 0 ? (
+                  <Link
+                    href={url(
+                      'reconciliation',
+                      book,
+                      evaluation,
+                      t(c['evidenceRunId']),
+                      {
+                        from:
+                          from ??
+                          JSON.stringify({
+                            book,
+                            section: 'exceptions',
+                            evaluation,
+                            filters: listFilters('exceptions', filters),
+                            record: t(c['id']),
+                          }),
+                      },
+                    )}
+                  >
+                    Linked run {t(c['evidenceRunId'])} →
+                  </Link>
+                ) : (
+                  <span>
+                    Related reconciliation run unavailable (not supplied).
+                  </span>
+                )}
               </td>
             </tr>
           ))}
@@ -608,25 +1009,46 @@ export function Case({ model, book, evaluation, from }: Context) {
             remains unreconciled unless separate fresh allocation proof exists.
           </Notice>
         )}
-        <Details
-          data={{
-            caseId: c['id'] ?? null,
-            classification: c['classification'] ?? null,
-            assignment:
-              c['assigneeId'] === null ? 'Unassigned' : t(c['assigneeId']),
-            side: c['side'] ?? null,
-            itemId: c['itemId'] ?? null,
-            exposureReason: c['exposureReason'] ?? null,
-            createdAt: c['createdAt'] ?? null,
-          }}
-        />
-        <Link
-          href={url('reconciliation', book, evaluation, t(c['evidenceRunId']), {
-            from,
-          })}
-        >
-          Inspect linked reconciliation run {t(c['evidenceRunId'])} →
-        </Link>
+        <EvidenceSection title="Identity and financial scope">
+          <Details
+            data={{
+              caseId: c['id'],
+              classification: c['classification'],
+              assignment:
+                c['assigneeId'] === null ? 'Unassigned' : c['assigneeId'],
+              side: c['side'],
+              currency: c['currency'],
+              itemId: c['itemId'],
+              exposureReason: c['exposureReason'],
+            }}
+            copy={['caseId', 'itemId']}
+          />
+        </EvidenceSection>
+        <EvidenceSection title="Case timestamps">
+          <Details
+            data={{ createdAt: c['createdAt'], updatedAt: c['updatedAt'] }}
+            timestamps={['createdAt', 'updatedAt']}
+          />
+        </EvidenceSection>
+        <h3 className="evidence-section-title">Related records</h3>
+        {typeof c['evidenceRunId'] === 'string' &&
+        c['evidenceRunId'].length > 0 ? (
+          <Link
+            href={url(
+              'reconciliation',
+              book,
+              evaluation,
+              t(c['evidenceRunId']),
+              {
+                from,
+              },
+            )}
+          >
+            Inspect linked reconciliation run {t(c['evidenceRunId'])} →
+          </Link>
+        ) : (
+          <p>Related reconciliation run unavailable (not supplied).</p>
+        )}
         <div>
           <p className="footnote">
             Linked control references: {t(c['linkedControlCount'])}. Showing at
@@ -645,6 +1067,7 @@ export function Case({ model, book, evaluation, from }: Context) {
             </p>
           ))}
         </div>
+        <RawEvidence data={c} />
       </Panel>
       <Panel title="Append-only case history and notes">
         {model.items?.length ? (
@@ -684,20 +1107,46 @@ export function Run({ model, book, evaluation, from }: Context) {
   return (
     <>
       <Panel title="Frozen reconciliation population">
-        <Details
-          data={{
-            runId: r['id'] ?? null,
-            ruleVersion: r['ruleVersion'] ?? null,
-            lifecycle: r['state'] ?? null,
-            currency: r['currency'] ?? null,
-            windowFrom: r['windowFrom'] ?? null,
-            windowTo: r['windowTo'] ?? null,
-            frozenAt: r['frozenAt'] ?? null,
-            processorItems: s['processorPopulation'] ?? null,
-            bankItems: s['bankPopulation'] ?? null,
-            populationHash: s['populationHash'] ?? null,
-          }}
-        />
+        <p>
+          Run{' '}
+          <EvidenceValue
+            value={r['id']}
+            label="reconciliation run identifier"
+            copy
+          />{' '}
+          <Status value={t(r['state'])} />
+        </p>
+        <EvidenceSection title="Identity and financial scope">
+          <Details
+            data={{
+              mappingId: r['mappingId'],
+              ruleVersion: r['ruleVersion'],
+              currency: r['currency'],
+            }}
+            copy={['mappingId']}
+          />
+        </EvidenceSection>
+        <EvidenceSection title="Frozen population">
+          <Details
+            data={{
+              processorItems: s['processorPopulation'],
+              bankItems: s['bankPopulation'],
+              populationHash: s['populationHash'],
+            }}
+          />
+        </EvidenceSection>
+        <EvidenceSection title="Window and processing times">
+          <Details
+            data={{
+              windowFrom: r['windowFrom'],
+              windowTo: r['windowTo'],
+              frozenAt: r['frozenAt'],
+              completedAt: r['completedAt'],
+            }}
+            timestamps={['windowFrom', 'windowTo', 'frozenAt', 'completedAt']}
+          />
+        </EvidenceSection>
+        <RawEvidence data={r} />
         <p className="footnote">
           Frozen evidence remains historical. Each group's current proof is
           evaluated separately; case closure changes no match.
@@ -710,14 +1159,14 @@ export function Run({ model, book, evaluation, from }: Context) {
               a = obj(m['allocation']);
             return (
               <article className="evidence-item" key={t(m['id'])}>
-                {m['processorProvenance'] && (
-                  <Details
-                    data={{ processorProvenance: m['processorProvenance'] }}
-                  />
-                )}
                 <div className="panel-heading">
                   <h3>
-                    {t(m['side'])} · <Id value={t(m['id'])} />
+                    {t(m['side'])} ·{' '}
+                    <EvidenceValue
+                      value={m['id']}
+                      label="evidence item identifier"
+                      copy
+                    />
                   </h3>
                   <Status value={t(m['outcome'])} />
                 </div>
@@ -729,33 +1178,68 @@ export function Run({ model, book, evaluation, from }: Context) {
                   At most 50 historical revisions/declarations are displayed,
                   with their full frozen counts.
                 </p>
-                <Details
-                  data={{
-                    processorEvidenceId: m['processorEvidenceId'] ?? null,
-                    bankEvidenceId: m['bankEvidenceId'] ?? null,
-                    itemExposureWhereEstablished: money(
-                      obj(m['cause'])['exposureMinor'],
-                      r['currency'],
-                    ),
-                    discrepancyReason:
-                      obj(m['cause'])['exposureReason'] ?? null,
-                    evidenceId: snap['evidenceId'] ?? null,
-                    sourceAccountId: snap['sourceAccountId'] ?? null,
-                    revisionId: snap['revisionId'] ?? null,
-                    reference: snap['reference'] ?? null,
-                    time: snap['time'] ?? null,
-                    reasons: snap['reasons'] ?? null,
-                    eligibility: snap['eligible'] ?? null,
-                    history: snap['history'] ?? null,
-                    historyCount: snap['historyCount'] ?? null,
-                    groupDeclarations: snap['groupVariants'] ?? null,
-                    groupDeclarationCount: snap['groupVariantCount'] ?? null,
-                  }}
-                />
+                <EvidenceSection title="Financial amount and discrepancy">
+                  <Details
+                    data={{
+                      itemExposureWhereEstablished: money(
+                        obj(m['cause'])['exposureMinor'],
+                        r['currency'],
+                      ),
+                      discrepancyReason: obj(m['cause'])['exposureReason'],
+                    }}
+                  />
+                </EvidenceSection>
+                <EvidenceSection title="Identity and source">
+                  <Details
+                    data={{
+                      processorEvidenceId: m['processorEvidenceId'],
+                      bankEvidenceId: m['bankEvidenceId'],
+                      evidenceId: snap['evidenceId'],
+                      sourceAccountId: snap['sourceAccountId'],
+                      revisionId: snap['revisionId'],
+                      reference: snap['reference'],
+                    }}
+                    copy={[
+                      'processorEvidenceId',
+                      'bankEvidenceId',
+                      'evidenceId',
+                      'reference',
+                    ]}
+                  />
+                </EvidenceSection>
+                <EvidenceSection title="Source time and eligibility">
+                  <Details
+                    data={{
+                      sourceTime: snap['time'],
+                      reasons: snap['reasons'],
+                      eligibility: snap['eligible'],
+                    }}
+                    timestamps={['sourceTime']}
+                  />
+                </EvidenceSection>
+                <details className="raw-evidence">
+                  <summary>
+                    Frozen provenance, revision history and declarations
+                  </summary>
+                  <Details
+                    data={{
+                      processorProvenance: m['processorProvenance'],
+                      history: snap['history'],
+                      historyCount: snap['historyCount'],
+                      groupDeclarations: snap['groupVariants'],
+                      groupDeclarationCount: snap['groupVariantCount'],
+                    }}
+                  />
+                </details>
                 {Object.keys(a).length > 0 && (
                   <>
                     <h3>
-                      {t(a['shape'])} allocation · <Id value={t(a['id'])} />
+                      {t(a['shape'])} allocation ·{' '}
+                      <EvidenceValue
+                        value={a['id']}
+                        label="allocation identifier"
+                        copy
+                      />
                     </h3>
                     <Currentness current={a['current']} />
                     <p className="money">
@@ -769,6 +1253,8 @@ export function Run({ model, book, evaluation, from }: Context) {
                       <Details data={obj(a['proof'])} />
                     </details>
                     <Table
+                      label="Allocation member contributions"
+                      numeric={[2]}
                       headers={[
                         'Member identity',
                         'Role',
@@ -801,6 +1287,7 @@ export function Run({ model, book, evaluation, from }: Context) {
                     · {t(c['state'])}
                   </p>
                 ))}
+                <RawEvidence data={m} title="Raw approved member evidence" />
               </article>
             );
           })
@@ -831,6 +1318,8 @@ export function Controls({
       </p>
       {model.items?.length ? (
         <Table
+          label="Frozen control comparisons"
+          numeric={[2, 3, 4]}
           headers={[
             'Control / scope',
             'Frozen result',
@@ -888,8 +1377,21 @@ export function Controls({
 }
 export function Control({ model, book, evaluation, from }: Context) {
   const c = model.data ?? {};
+  const cases = [
+    ...new Set(
+      Array.isArray(c['caseIds'])
+        ? c['caseIds'].filter(
+            (value): value is string =>
+              typeof value === 'string' && value.length > 0,
+          )
+        : [],
+    ),
+  ];
   return (
     <Panel title="Control evidence">
+      <p>
+        Control <EvidenceValue value={c['key']} label="control key" copy />
+      </p>
       <div className="two-column">
         <div>
           <h3>Frozen evaluation result</h3>
@@ -897,30 +1399,56 @@ export function Control({ model, book, evaluation, from }: Context) {
         </div>
         <Currentness current={c['current']} reason={c['currentReason']} />
       </div>
-      <Details
-        data={{
-          controlKey: c['key'] ?? null,
-          evaluationId: c['evaluationId'] ?? null,
-          evaluationVersion: c['evaluationVersion'] ?? null,
-          evaluatedAt: c['evaluatedAt'] ?? null,
-          type: c['type'] ?? null,
-          scope: c['scope'] ?? null,
-          expected: controlValue(c, 'expected'),
-          observed: controlValue(c, 'observed'),
-          discrepancy: controlValue(c, 'discrepancy'),
-          unit: c['unit'] ?? null,
-          details: c['details'] ?? null,
-          evidence: c['evidence'] ?? null,
-        }}
-      />
-      {Array.isArray(c['caseIds']) &&
-        c['caseIds'].map((v) => (
-          <p key={t(v)}>
-            <Link href={url('exceptions', book, evaluation, t(v), { from })}>
-              Linked case {t(v)} →
-            </Link>
-          </p>
-        ))}
+      <EvidenceSection title="Identity and evaluation">
+        <Details
+          data={{
+            evaluationId: c['evaluationId'],
+            evaluationVersion: c['evaluationVersion'],
+            type: c['type'],
+            unit: c['unit'],
+            currency: c['currency'],
+          }}
+          copy={['evaluationId']}
+        />
+      </EvidenceSection>
+      <EvidenceSection title="Expected, observed and discrepancy">
+        <Table
+          label="Control value comparison"
+          numeric={[0, 1, 2]}
+          headers={['Expected', 'Observed', 'Discrepancy']}
+        >
+          <tr>
+            <td className="money">{controlValue(c, 'expected')}</td>
+            <td className="money">{controlValue(c, 'observed')}</td>
+            <td className="money">{controlValue(c, 'discrepancy')}</td>
+          </tr>
+        </Table>
+        <p>
+          Unit: <span className="evidence-value">{t(c['unit'])}</span>
+          {c['currency'] !== undefined && <> / {t(c['currency'])}</>}
+        </p>
+      </EvidenceSection>
+      <EvidenceSection title="Financial scope and evaluation time">
+        <Details
+          data={{ scope: c['scope'], evaluationFrozenAt: c['evaluatedAt'] }}
+          timestamps={['evaluationFrozenAt']}
+        />
+      </EvidenceSection>
+      <EvidenceSection title="Supporting evidence">
+        <Details data={{ details: c['details'], evidence: c['evidence'] }} />
+      </EvidenceSection>
+      {cases.length > 0 && (
+        <EvidenceSection title="Related records">
+          {cases.map((id) => (
+            <p key={id}>
+              <Link href={url('exceptions', book, evaluation, id, { from })}>
+                Linked case {id} →
+              </Link>
+            </p>
+          ))}
+        </EvidenceSection>
+      )}
+      <RawEvidence data={c} />
     </Panel>
   );
 }
@@ -974,12 +1502,14 @@ export function Workers({
         </p>
         {model.items?.length ? (
           <Table
+            label="Worker operations"
+            numeric={[3]}
             headers={[
               'Work / event',
               'State',
               'Handler',
               'Attempts',
-              'Retry / lease (UTC)',
+              'Work timestamps (UTC)',
               'Failure class',
             ]}
           >
@@ -1012,17 +1542,36 @@ export function Workers({
                 <td>
                   {t(w['handler'])} v{t(w['handlerVersion'])}
                 </td>
-                <td>
+                <td className="numeric">
                   {t(w['attempts'])} / {t(w['maxAttempts'])}
                 </td>
                 <td>
-                  <Time
-                    value={
-                      w['nextAttemptAt'] ??
-                      w['leaseExpiresAt'] ??
-                      w['completedAt']
-                    }
-                  />
+                  {(
+                    ['nextAttemptAt', 'leaseExpiresAt', 'completedAt'] as const
+                  ).some((key) => w[key] !== null && w[key] !== undefined)
+                    ? (
+                        [
+                          'nextAttemptAt',
+                          'leaseExpiresAt',
+                          'completedAt',
+                        ] as const
+                      )
+                        .filter(
+                          (key) => w[key] !== null && w[key] !== undefined,
+                        )
+                        .map((key) => (
+                          <div key={key}>
+                            <span className="timestamp-meaning">
+                              {key === 'nextAttemptAt'
+                                ? 'Retry scheduled'
+                                : key === 'leaseExpiresAt'
+                                  ? 'Lease expires'
+                                  : 'Completed'}
+                            </span>
+                            <Time value={w[key]} />
+                          </div>
+                        ))
+                    : workTimeValue(w, 'completedAt')}
                 </td>
                 <td>
                   <FailureMetadata record={w} outcome={w['state']} />
@@ -1046,48 +1595,129 @@ export function Workers({
 }
 export function Work({ model }: Context) {
   const data = model.data ?? {};
-  const { state, ...metadata } = data;
+  const state = data['state'];
+  const known = new Set([
+    'id',
+    'state',
+    'handler',
+    'eventType',
+    'attempts',
+    'createdAt',
+    'completedAt',
+    'nextAttemptAt',
+    'leaseExpiresAt',
+    'failureClass',
+    'failureCode',
+  ]);
+  const extra = Object.fromEntries(
+    Object.entries(data).filter(([key]) => !known.has(key)),
+  );
   return (
     <>
       <Panel title="Durable work metadata">
         <p>
-          Operational state: <Status value={t(state)} />
+          Work{' '}
+          <EvidenceValue value={data['id']} label="worker identifier" copy />{' '}
+          <Status value={t(state)} />
         </p>
-        <Details
-          data={{
-            ...metadata,
-            failureClass: failureValue(data, 'failureClass', state),
-            failureCode: failureValue(data, 'failureCode', state),
-            nextAttemptAt: workTimeValue(data, 'nextAttemptAt'),
-            leaseExpiresAt: workTimeValue(data, 'leaseExpiresAt'),
-            completedAt: workTimeValue(data, 'completedAt'),
-          }}
-        />
+        <EvidenceSection title="Identity and source">
+          <Details
+            data={{
+              eventType: data['eventType'],
+              handler: data['handler'],
+              attempts: data['attempts'],
+            }}
+            copy={['eventType', 'handler']}
+          />
+        </EvidenceSection>
+        <EvidenceSection title="Operational failure metadata">
+          <Details
+            data={{
+              failureClass: failureValue(data, 'failureClass', state),
+              failureCode: failureValue(data, 'failureCode', state),
+            }}
+            copy={['failureClass', 'failureCode'].filter(
+              (key) => typeof data[key] === 'string',
+            )}
+          />
+        </EvidenceSection>
+        <EvidenceSection title="Work timestamps">
+          <dl className="details">
+            <div>
+              <dt>Created at</dt>
+              <dd>
+                <Time
+                  value={data['createdAt']}
+                  source
+                  label="worker creation timestamp"
+                />
+              </dd>
+            </div>
+            {(['nextAttemptAt', 'leaseExpiresAt', 'completedAt'] as const).map(
+              (key) => (
+                <div key={key}>
+                  <dt>{key.replaceAll(/([A-Z])/g, ' $1')}</dt>
+                  <dd>
+                    {data[key] === null || data[key] === undefined ? (
+                      workTimeValue(data, key)
+                    ) : (
+                      <Time
+                        value={data[key]}
+                        source
+                        label={
+                          key.replaceAll(/([A-Z])/g, ' $1').toLowerCase() +
+                          ' timestamp'
+                        }
+                      />
+                    )}
+                  </dd>
+                </div>
+              ),
+            )}
+          </dl>
+        </EvidenceSection>
+        {Object.keys(extra).length > 0 && (
+          <details className="raw-evidence">
+            <summary>Additional technical metadata</summary>
+            <Details data={extra} />
+          </details>
+        )}
+        <RawEvidence data={data} />
       </Panel>
       <Panel title="Append-only attempts">
-        <Table
-          headers={[
-            'Attempt',
-            'Outcome',
-            'Failure class / safe code',
-            'Recorded at (UTC)',
-          ]}
-        >
-          {model.items?.map((w) => (
-            <tr key={t(w['id'])}>
-              <td>{t(w['attempt'])}</td>
-              <td>
-                <Status value={t(w['kind'])} />
-              </td>
-              <td>
-                <FailureMetadata record={w} outcome={w['kind']} />
-              </td>
-              <td>
-                <Time value={w['cursorTime']} />
-              </td>
-            </tr>
-          ))}
-        </Table>
+        {model.items?.length ? (
+          <Table
+            label="Worker attempt history"
+            numeric={[0]}
+            headers={[
+              'Attempt',
+              'Outcome',
+              'Failure class / safe code',
+              'Recorded at (UTC)',
+            ]}
+          >
+            {model.items.map((w) => (
+              <tr key={t(w['id'])}>
+                <td className="numeric">{t(w['attempt'])}</td>
+                <td>
+                  <Status value={t(w['kind'])} />
+                </td>
+                <td>
+                  <FailureMetadata record={w} outcome={w['kind']} />
+                </td>
+                <td>
+                  <Time value={w['cursorTime']} />
+                </td>
+              </tr>
+            ))}
+          </Table>
+        ) : (
+          <Empty>No attempts on this page.</Empty>
+        )}
+        <RawEvidence
+          data={{ attempts: model.items ?? null }}
+          title="Raw approved attempt records"
+        />
       </Panel>
     </>
   );
@@ -1111,7 +1741,7 @@ export function Integrity({ model }: Context) {
         </p>
         <div className="check-grid">
           {Object.entries(model.checks ?? {}).map(([k, v]) => (
-            <div key={k}>
+            <div key={k} id={'check-' + k}>
               <span>{k.replaceAll(/([A-Z])/g, ' $1')}</span>
               <Status value={v} />
             </div>
@@ -1125,19 +1755,41 @@ export function Integrity({ model }: Context) {
         </p>
       </Panel>
       <Panel title="Invariant violations">
-        {rows(s['violations']).length ? (
+        {!Array.isArray(s['violations']) ? (
+          <Empty>
+            Structural violation evidence unavailable (not supplied).
+          </Empty>
+        ) : rows(s['violations']).length ? (
           <>
-            <Table headers={['Invariant', 'Entity IDs', 'Scope / evidence']}>
+            <Table
+              label="Integrity invariant violations"
+              headers={['Invariant', 'Entity IDs', 'Scope / evidence']}
+            >
               {rows(s['violations'])
                 .slice(0, 50)
                 .map((v, i) => (
                   <tr key={i}>
                     <td>{t(v['invariant'])}</td>
-                    <td>{t(v['entityIds'])}</td>
                     <td>
-                      {t(v['scope'])}
-                      <br />
-                      {t(v['evidence'])}
+                      {Array.isArray(v['entityIds'])
+                        ? v['entityIds'].map((id, i) => (
+                            <div key={i}>
+                              <EvidenceValue
+                                value={id}
+                                label="integrity entity identifier"
+                                copy
+                              />
+                            </div>
+                          ))
+                        : t(v['entityIds'])}
+                    </td>
+                    <td>
+                      <details>
+                        <summary>Scope and query evidence</summary>
+                        <Details
+                          data={{ scope: v['scope'], evidence: v['evidence'] }}
+                        />
+                      </details>
                     </td>
                   </tr>
                 ))}

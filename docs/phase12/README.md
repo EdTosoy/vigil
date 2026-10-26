@@ -55,6 +55,28 @@ selection even when a default book is configured; choosing a book clears prior
 evaluation, record and filter context. Invalid/unavailable requests retain
 correction controls and never silently substitute another financial record.
 
+Overview leads with the current sweep, its selected book code/environment/ID and
+an adjacent explicit evaluation selector. The read-time sweep and the selected
+evaluation's assurance/currentness remain separate. Frozen exposure retains its
+evaluation scope; no evaluation is chosen by latest time or list order. Missing
+counts and evidence remain unavailable, not zero. Links use supplied run/case
+relationships or explicitly named book-scoped queues; grouped current checks
+link to the current integrity sweep, never masquerading as historical controls.
+Source-period detail and a single aggregate cause are not exposed by this read
+contract. Evaluation-choice failure is reported separately from the successful
+main snapshot; a main Overview read failure blocks the financial presentation.
+
+Evidence details group supplied identity, scope, outcome, amounts and timestamps
+before secondary metadata, retaining the approved raw read projection in a
+disclosure. Opt-in copy buttons use original nonempty evidence strings and report
+clipboard success/failure; they never copy absence labels. Financial comparison
+headers/cells use right alignment and tabular numerals without changing amounts.
+UTC formatting requires an explicit offset and retains every supplied fractional
+digit. The original timestamp remains available; unsupported or unqualified
+values are shown without guessing an instant. The control read's `evaluatedAt`
+projects evaluation freeze time and is labelled accordingly. Ages remain
+non-authoritative presentation, never a freshness policy.
+
 Malformed request, missing/foreign scope, no configured database, unavailable query and no data have distinct visible states. Required verification failure blocks assurance rather than presenting a partially healthy summary. Structured server logs expose operation/category only, never SQL errors/payloads/stacks/URLs. Browser bundles are scanned for database strings/implementations. App/port/boundary gates reject privileged writers, pg outside server/, oracle/test/demo imports and client transitive server dependencies.
 
 ## Authentication and security scope

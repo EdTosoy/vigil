@@ -177,11 +177,20 @@ Label frozen evaluation results separately from supplied current applicability.
 A historical PASS does not establish current PASS; a missing currentness flag
 remains UNKNOWN.
 
+Keep the Overview's read-time sweep distinct from its explicitly selected
+evaluation and exposure. Place evaluation selection beside the information it
+governs; never choose scope by timestamps or list order, or present historical
+control links as proof of a current sweep condition.
+
 ## Time
 
 Do not use the browser clock to determine financial truth, lease validity, control validity, or reconciliation state.
 
 Browser/local time is presentation only.
+
+Render UTC only from an explicit source offset, retain supplied fractional
+precision, and keep the source literal recoverable. Missing or unqualified
+timestamps must not gain an inferred timezone or precision.
 
 ## Filtering
 

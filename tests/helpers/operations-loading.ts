@@ -41,13 +41,6 @@ export async function verifyLoading(
       await page.locator('.page-skeleton').getAttribute('aria-busy'),
       'true',
     );
-    const loadingMetrics = await page.locator('.metric-grid').boundingBox();
-    assert(loadingMetrics);
-    const loadingPanels = await page
-      .locator('.page-skeleton .panel')
-      .evaluateAll((elements) =>
-        elements.slice(0, 2).map((el) => el.getBoundingClientRect().y),
-      );
     assert.notEqual(
       await page
         .locator('.skeleton')
@@ -79,30 +72,21 @@ export async function verifyLoading(
     await page.setViewportSize({ width: 1440, height: 1000 });
     await blocker.query('ROLLBACK');
     await skeleton.waitFor({ state: 'hidden' });
-    const loadedMetrics = await page.locator('.metric-grid').boundingBox();
-    assert(loadedMetrics);
-    const loadedPanels = await page
-      .locator('main .panel')
-      .evaluateAll((elements) =>
-        elements.slice(0, 2).map((el) => el.getBoundingClientRect().y),
-      );
+    // The Overview hierarchy intentionally differs from the unchanged neutral
+    // skeleton. Verify the new content, rather than the former KPI-card geometry.
+    assert(await page.locator('.overview-summary').isVisible());
+    assert(
+      await page.getByLabel('Evaluation scope', { exact: true }).isVisible(),
+    );
+    assert.equal(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth > innerWidth,
+      ),
+      false,
+    );
     await page.screenshot({
       path: join(screenshotDir, 'overview-loaded-wide.png'),
     });
-    assert(
-      Math.abs(loadingMetrics.y - loadedMetrics.y) <= 4,
-      'Metric cards keep their vertical position',
-    );
-    assert(
-      Math.abs(loadingMetrics.height - loadedMetrics.height) <= 24,
-      `Metric placeholders approximate final height (${loadingMetrics.height} → ${loadedMetrics.height})`,
-    );
-    loadingPanels.forEach((position, i) =>
-      assert(
-        Math.abs(position - loadedPanels[i]!) <= 24,
-        'Summary panels keep their approximate position',
-      ),
-    );
     assert.equal(
       await page.getByRole('button', { name: 'Refresh data' }).isEnabled(),
       true,
@@ -144,6 +128,9 @@ export async function verifyLoading(
         .first()
         .innerHTML();
       const queried = await page.locator('.scope-strip').innerText();
+      const summary = (await page.locator('.overview-summary').count())
+        ? await page.locator('.overview-summary').innerHTML()
+        : null;
       const documentToken = await page.evaluate(() => {
         const token = Math.random().toString();
         document.documentElement.dataset['loadingCheck'] = token;
@@ -185,6 +172,12 @@ export async function verifyLoading(
           before,
         );
         assert.equal(await page.locator('.scope-strip').innerText(), queried);
+        if (summary !== null)
+          assert.equal(
+            await page.locator('.overview-summary').innerHTML(),
+            summary,
+            'Overview assurance, selection and evidence remain intact while refresh is pending',
+          );
         assert.equal(
           await page.evaluate(
             () => document.documentElement.dataset['loadingCheck'],
@@ -241,13 +234,17 @@ export async function verifyLoading(
       .getByText('No work matches this filter.', { exact: false })
       .waitFor();
     assert.equal(await skeleton.count(), 0);
+    await page.goto(overview);
+    await page.locator('.overview-summary').waitFor();
+    await retainedUpdate(
+      () => page.getByRole('button', { name: 'Refresh data' }).click(),
+      'Updating snapshot',
+    );
     await page.emulateMedia({ reducedMotion: 'no-preference' });
     console.log(
       'OPERATIONS_LOADING_BROWSER ' +
         JSON.stringify({
-          metricHeightChange: Math.abs(
-            loadingMetrics.height - loadedMetrics.height,
-          ),
+          overviewSummaryRetained: 'PASS',
           screenshots: screenshotDir,
           initial: 'PASS',
           navigation: 'PASS',

@@ -3,6 +3,7 @@
   --muted: #687981;
   --line: #dde4e5;
   --paper: #f4f6f5;
+  --surface: #ffffff;
   --teal: #086f69;
   --red: #a33132;
   --amber: #815b10;
@@ -10,6 +11,7 @@
   --mono: ui-monospace, SFMono-Regular, Consolas, monospace;
   color-scheme: light;
 }
+
 * {
   box-sizing: border-box;
 }
@@ -816,4 +818,223 @@ button:disabled {
     padding: 7px 9px;
     font-size: 11px;
   }
+}
+
+/* Overview keeps read-time assurance beside explicit frozen-evaluation scope. */
+.panel.overview-summary > .overview-book {
+  margin: 0;
+  padding: 16px 20px;
+}
+.overview-book b {
+  color: var(--ink);
+  font-size: 14px;
+}
+.panel.overview-summary > .overview-primary {
+  margin: 0;
+  padding: 20px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  grid-template-areas: 'current scope' 'next scope';
+  gap: 0 28px;
+}
+.overview-primary > div,
+.overview-check-list li {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.overview-assurance-state .status {
+  font-size: 22px;
+}
+.overview-primary .time {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.overview-current {
+  grid-area: current;
+}
+.overview-next {
+  grid-area: next;
+}
+.overview-evaluation {
+  grid-area: scope;
+  border-left: 1px solid var(--line);
+  padding-left: 28px;
+}
+.overview-evaluation .evaluation {
+  padding: 0;
+  margin: 10px 0;
+}
+.evaluation-selection form {
+  display: grid;
+  gap: 8px;
+}
+.evaluation-selection label {
+  font-weight: 700;
+}
+.evaluation-selection select {
+  width: 100%;
+  min-width: 0;
+  background: var(--surface);
+}
+.evaluation-selection button {
+  justify-self: start;
+}
+.overview-concerns {
+  margin: 18px 0;
+}
+.overview-concerns > div {
+  padding: 10px 0;
+  border-bottom: 1px solid var(--line);
+}
+.overview-concerns dt {
+  font-weight: 600;
+}
+.overview-concerns dd {
+  margin: 4px 0 0;
+}
+.overview-check-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0 24px;
+  list-style: none;
+  margin: 0;
+  padding: 0 20px 16px;
+}
+.overview-check-list li {
+  padding: 16px 0;
+  border-bottom: 1px solid var(--line);
+}
+.overview-check-list li > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.overview-related {
+  overflow-wrap: anywhere;
+}
+@media (max-width: 900px) {
+  .panel.overview-summary > .overview-primary {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas: 'current' 'scope' 'next';
+    gap: 20px;
+  }
+  .overview-evaluation {
+    border-left: 0;
+    border-top: 1px solid var(--line);
+    padding: 20px 0 0;
+  }
+  .overview-check-list {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.overview-other-checks > summary {
+  margin: 12px 20px;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+/* Evidence readability; financial values and table overflow stay intact. */
+.table-scroll th.numeric,
+.table-scroll td.numeric,
+.table-scroll td.money {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.table-scroll td.money {
+  min-width: 11rem;
+}
+.table-scroll td.numeric {
+  font-family: var(--mono);
+}
+.evidence-section {
+  margin: 18px 20px;
+  min-width: 0;
+}
+.evidence-item > .evidence-section {
+  margin-right: 0;
+  margin-left: 0;
+}
+.evidence-section > .details {
+  padding: 0;
+}
+.evidence-section-title {
+  margin: 18px 20px 10px;
+}
+.exact-evidence {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 5px 8px;
+  max-width: 100%;
+  min-width: 0;
+  vertical-align: baseline;
+}
+.exact-evidence > .evidence-value {
+  min-width: 0;
+  font-family: var(--mono);
+  font-size: 12px;
+}
+.copy-control {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 8px;
+  max-width: 100%;
+}
+.copy-button {
+  padding: 3px 7px;
+  background: var(--surface);
+  border-color: var(--line);
+  color: var(--teal);
+  font-size: 11px;
+  font-weight: 600;
+}
+.copy-button:hover {
+  color: var(--ink);
+  background: var(--paper);
+}
+.copy-feedback {
+  font-size: 11px;
+  color: var(--ink);
+  white-space: normal;
+}
+.timestamp {
+  display: inline-block;
+  max-width: 100%;
+}
+.timestamp-original,
+.timestamp-note,
+.timestamp-meaning {
+  display: block;
+  white-space: normal;
+  font-size: 11px;
+  margin-top: 3px;
+}
+.timestamp-original .evidence-value {
+  font-size: 11px;
+}
+.evidence-section .time {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.raw-evidence {
+  margin: 16px 20px;
+}
+.evidence-item > .raw-evidence {
+  margin-right: 0;
+  margin-left: 0;
+}
+.raw-evidence > summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+.raw-evidence pre {
+  font-family: var(--mono);
+  font-size: 11px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-width: 100%;
 }

@@ -225,6 +225,24 @@ async function renderPage({
       ? detailOps[selection.section]!
       : operations[selection.section];
     const model = await read(operation, book, filters);
+    let choices: Awaited<ReturnType<typeof read>> | null = null;
+    let evaluationChoicesUnavailable = false;
+    if (section === 'overview') {
+      try {
+        choices = await read('evaluations', book, {
+          cursor: filters['cursor'],
+          limit: filters['limit'],
+        });
+      } catch (error) {
+        unavailable(error);
+        evaluationChoicesUnavailable = true;
+      }
+    } else if (
+      (section === 'controls' && !evaluation) ||
+      section === 'integrity'
+    ) {
+      choices = await read('evaluations', book, {});
+    }
     const ctx = { model, book, evaluation, from: selection.from, filters };
     let content;
     if (id) {
@@ -241,7 +259,11 @@ async function renderPage({
     } else
       content =
         section === 'overview' ? (
-          <Views.Overview {...ctx} />
+          <Views.Overview
+            {...ctx}
+            evaluations={choices}
+            evaluationChoicesUnavailable={evaluationChoicesUnavailable}
+          />
         ) : section === 'exceptions' ? (
           <Views.Exceptions {...ctx} />
         ) : section === 'reconciliation' ? (
@@ -253,26 +275,19 @@ async function renderPage({
         ) : (
           <Views.Integrity {...ctx} />
         );
-    const choices =
-      section === 'overview' ||
-      (section === 'controls' && !evaluation) ||
-      section === 'integrity'
-        ? await read('evaluations', book, {
-            cursor: section === 'overview' ? filters['cursor'] : undefined,
-            limit: section === 'overview' ? filters['limit'] : undefined,
-          })
-        : null;
     return (
       <>
-        <div className="scope-strip">
-          <span>
-            Book <Id value={book} />
-          </span>
-          <span>
-            Queried <Time value={model.asOf} />
-          </span>
-          <Link href={url(section, null)}>Change book</Link>
-        </div>
+        {section !== 'overview' && (
+          <div className="scope-strip">
+            <span>
+              Book <Id value={book} />
+            </span>
+            <span>
+              Queried <Time value={model.asOf} />
+            </span>
+            <Link href={url(section, null)}>Change book</Link>
+          </div>
+        )}
         {!id && (
           <QueryControls
             navigation={selection}
@@ -307,7 +322,7 @@ async function renderPage({
             </Link>
           </div>
         )}
-        {choices && (
+        {choices && section !== 'overview' && (
           <>
             <Views.Evaluations
               model={choices}
@@ -315,15 +330,6 @@ async function renderPage({
               section={selection.section}
               filters={filters}
             />
-            {choices.nextCursor && section === 'overview' && (
-              <Link
-                href={url(section, book, evaluation, undefined, {
-                  cursor: choices.nextCursor,
-                })}
-              >
-                More evaluations →
-              </Link>
-            )}
           </>
         )}
       </>
@@ -368,6 +374,17 @@ async function renderPage({
               : undefined
           }
         />
+        {book &&
+          selection.section === 'overview' &&
+          selection.values['evaluation'] && (
+            <p>
+              Requested evaluation <Id value={selection.values['evaluation']} />{' '}
+              could not be opened in this book. No replacement was selected.{' '}
+              <Link href={url('overview', book)}>
+                Choose another evaluation in this book
+              </Link>
+            </p>
+          )}
         <ResultsReturn navigation={selection} detail={Boolean(id)} />
         <p>
           <Link
