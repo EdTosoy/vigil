@@ -10,8 +10,8 @@ import {
   type Json,
 } from './model';
 type Context = { model: Model; book: string; evaluation?: string | undefined };
-const cell = (v: Json | undefined) => t(v).replaceAll('_', ' ');
 function Details({ data }: { data: Row }) {
+  // Field names are labels; scalar and nested evidence values remain exact.
   return (
     <dl className="details">
       {Object.entries(data).map(([k, v]) => (
@@ -21,13 +21,126 @@ function Details({ data }: { data: Row }) {
             {v !== null && typeof v === 'object' ? (
               <pre>{JSON.stringify(v, null, 2)}</pre>
             ) : (
-              cell(v)
+              t(v)
             )}
           </dd>
         </div>
       ))}
     </dl>
   );
+}
+function Currentness({
+  current,
+  reason,
+}: {
+  current: Json | undefined;
+  reason?: Json | undefined;
+}) {
+  let status = 'UNKNOWN';
+  let explanation =
+    'A boolean currentness flag was not supplied; current applicability is unknown.';
+  if (current === true) {
+    status = 'CURRENT';
+    explanation = 'Applicable according to the supplied current proof.';
+  } else if (current === false) {
+    status = 'NOT CURRENT';
+    explanation = 'This result does not establish current assurance.';
+    if (reason === 'INCOMPLETE') status = 'INCOMPLETE';
+    else if (reason === 'INPUTS_CHANGED' || reason === 'EVALUATION_EXPIRED')
+      status = 'STALE';
+    else if (reason === 'CURRENT_POPULATION_UNSUPPORTED') {
+      status = 'UNKNOWN';
+      explanation =
+        'Current population proof is unavailable; this result does not establish current assurance.';
+    }
+  }
+  return (
+    <div className="currentness">
+      <p>
+        <b>Current applicability</b> <Status value={status} />
+      </p>
+      <p className="footnote">{explanation}</p>
+      <p className="footnote">
+        Reason:{' '}
+        <span className="evidence-value">
+          {reason === undefined || reason === null
+            ? 'Not supplied by this read'
+            : t(reason)}
+        </span>
+      </p>
+    </div>
+  );
+}
+
+function failureValue(
+  record: Row,
+  key: 'failureClass' | 'failureCode',
+  outcome: Json | undefined,
+) {
+  if (record[key] === undefined) return 'Unavailable (not supplied)';
+  // Explicit nulls have this meaning only in these established worker states/events.
+  if (
+    record['failureClass'] === null &&
+    record['failureCode'] === null &&
+    ['PENDING', 'PROCESSING', 'SUCCEEDED', 'STARTED', 'FENCED'].includes(
+      t(outcome),
+    )
+  )
+    return 'No failure recorded';
+  return t(record[key]);
+}
+
+function FailureMetadata({
+  record,
+  outcome,
+}: {
+  record: Row;
+  outcome: Json | undefined;
+}) {
+  const classification = failureValue(record, 'failureClass', outcome);
+  const code = failureValue(record, 'failureCode', outcome);
+  return (
+    <>
+      {classification}
+      {classification === 'No failure recorded' &&
+      code === classification ? null : (
+        <>
+          <br />
+          <small>{code}</small>
+        </>
+      )}
+    </>
+  );
+}
+
+function workTimeValue(
+  record: Row,
+  key: 'nextAttemptAt' | 'leaseExpiresAt' | 'completedAt',
+) {
+  if (record[key] === undefined) return 'Unavailable (not supplied)';
+  const state = t(record['state']);
+  if (
+    record[key] === null &&
+    [
+      'PENDING',
+      'PROCESSING',
+      'SUCCEEDED',
+      'RETRYABLE',
+      'FAILED_TERMINAL',
+    ].includes(state)
+  ) {
+    if (key === 'nextAttemptAt' && state !== 'RETRYABLE')
+      return 'No retry scheduled';
+    if (key === 'leaseExpiresAt' && state !== 'PROCESSING')
+      return 'No active lease';
+    if (
+      key === 'completedAt' &&
+      state !== 'SUCCEEDED' &&
+      state !== 'FAILED_TERMINAL'
+    )
+      return 'Not completed';
+  }
+  return t(record[key]);
 }
 export function Overview({ model, book, evaluation }: Context) {
   const data = model.data ?? {},
@@ -179,14 +292,12 @@ export function Evaluation({ data }: { data: Row }) {
         Evaluation <Id value={t(data['id'])} /> · {t(data['version'])}
       </span>
       <span>
-        <Status value={t(data['assurance'])} />{' '}
-        <Status
-          value={data['current'] === true ? 'CURRENT' : 'STALE / INCOMPLETE'}
-        />
+        Evaluation assurance: <Status value={t(data['assurance'])} />
       </span>
       <span>
-        Frozen <Time value={data['frozenAt']} /> · {cell(data['currentReason'])}
+        Frozen <Time value={data['frozenAt']} />
       </span>
+      <Currentness current={data['current']} reason={data['currentReason']} />
     </div>
   );
 }
@@ -279,8 +390,7 @@ export function Reconciliation({ model, book, evaluation }: Context) {
                 <td>
                   {rows(s['outcomes']).map((o, i) => (
                     <div key={i}>
-                      {cell(o['side'])} · {cell(o['outcome'])}:{' '}
-                      <b>{t(o['count'])}</b>
+                      {t(o['side'])} · {t(o['outcome'])}: <b>{t(o['count'])}</b>
                     </div>
                   ))}
                 </td>
@@ -344,7 +454,9 @@ export function Exceptions({ model, book, evaluation }: Context) {
                   value={
                     c['currentlyReconciled'] === true
                       ? 'CURRENTLY RECONCILED'
-                      : 'UNRECONCILED'
+                      : c['currentlyReconciled'] === false
+                        ? 'UNRECONCILED'
+                        : 'UNKNOWN'
                   }
                 />
               </td>
@@ -353,15 +465,15 @@ export function Exceptions({ model, book, evaluation }: Context) {
                 {c['resolution'] && (
                   <>
                     <br />
-                    {cell(c['resolution'])}
+                    {t(c['resolution'])}
                   </>
                 )}
               </td>
               <td>
-                {cell(c['classification'])}
+                {t(c['classification'])}
                 <br />
                 <small>
-                  {c['assigneeId'] ? t(c['assigneeId']) : 'Unassigned'}
+                  {c['assigneeId'] === null ? 'Unassigned' : t(c['assigneeId'])}
                 </small>
               </td>
               <td className="money">
@@ -407,7 +519,14 @@ export function Case({ model, book, evaluation }: Context) {
           <div>
             <h3>Operational status</h3>
             <Status value={t(c['state'])} />
-            <p>{cell(c['resolution'])}</p>
+            <p>
+              {c['resolution'] === null &&
+              ['OPEN', 'UNDER_REVIEW', 'AWAITING_EVIDENCE'].includes(
+                t(c['state']),
+              )
+                ? 'Not resolved'
+                : t(c['resolution'])}
+            </p>
           </div>
           <div>
             <h3>Financial reconciliation</h3>
@@ -415,7 +534,9 @@ export function Case({ model, book, evaluation }: Context) {
               value={
                 c['currentlyReconciled'] === true
                   ? 'CURRENTLY RECONCILED'
-                  : 'UNRECONCILED'
+                  : c['currentlyReconciled'] === false
+                    ? 'UNRECONCILED'
+                    : 'UNKNOWN'
               }
             />
             <p className="money">
@@ -434,7 +555,8 @@ export function Case({ model, book, evaluation }: Context) {
           data={{
             caseId: c['id'] ?? null,
             classification: c['classification'] ?? null,
-            assignment: c['assigneeId'] ?? null,
+            assignment:
+              c['assigneeId'] === null ? 'Unassigned' : t(c['assigneeId']),
             side: c['side'] ?? null,
             itemId: c['itemId'] ?? null,
             exposureReason: c['exposureReason'] ?? null,
@@ -471,17 +593,17 @@ export function Case({ model, book, evaluation }: Context) {
               <li key={t(e['id'])}>
                 <div>
                   <span className="eyebrow">VERSION {t(e['version'])}</span>{' '}
-                  <b>{cell(e['action'])}</b> <Time value={e['createdAt']} />
+                  <b>{t(e['action'])}</b> <Time value={e['createdAt']} />
                 </div>
                 <p>
-                  {cell(e['previousState'])} → {cell(e['state'])} ·{' '}
-                  {cell(e['resolution'])}
+                  {t(e['previousState'])} → {t(e['state'])} ·{' '}
+                  {t(e['resolution'])}
                 </p>
                 <p>{t(e['reason'])}</p>
                 {e['note'] && <blockquote>{t(e['note'])}</blockquote>}
                 <small>
-                  Actor: {t(e['actorId'])} · Assignment: {cell(e['assigneeId'])}{' '}
-                  · {cell(e['classification'])}
+                  Actor: {t(e['actorId'])} · Assignment: {t(e['assigneeId'])} ·{' '}
+                  {t(e['classification'])}
                 </small>
                 {Object.keys(obj(e['attachment'])).length > 0 && (
                   <Details data={obj(e['attachment'])} />
@@ -542,7 +664,7 @@ export function Run({ model, book, evaluation }: Context) {
                 <p className="money">
                   {money(snap['amountMinor'], snap['currency'])}
                 </p>
-                <p>{cell(m['reason'])}</p>
+                <p>{t(m['reason'])}</p>
                 <p className="footnote">
                   At most 50 historical revisions/declarations are displayed,
                   with their full frozen counts.
@@ -575,13 +697,7 @@ export function Run({ model, book, evaluation }: Context) {
                     <h3>
                       {t(a['shape'])} allocation · <Id value={t(a['id'])} />
                     </h3>
-                    <Status
-                      value={
-                        a['current'] === true
-                          ? 'CURRENT'
-                          : 'STALE / INVALIDATED'
-                      }
-                    />
+                    <Currentness current={a['current']} />
                     <p className="money">
                       Allocated {money(a['amountMinor'], a['currency'])}
                       <br />
@@ -604,7 +720,7 @@ export function Run({ model, book, evaluation }: Context) {
                           <td>
                             <Id value={t(v['itemId'])} />
                           </td>
-                          <td>{cell(v['role'])}</td>
+                          <td>{t(v['role'])}</td>
                           <td className="money">
                             {money(v['amountMinor'], a['currency'])}
                           </td>
@@ -620,7 +736,7 @@ export function Run({ model, book, evaluation }: Context) {
                     >
                       Case {t(c['id'])} →
                     </Link>{' '}
-                    · {cell(c['state'])}
+                    · {t(c['state'])}
                   </p>
                 ))}
               </article>
@@ -649,7 +765,7 @@ export function Controls({ model, book, evaluation }: Context) {
         <Table
           headers={[
             'Control / scope',
-            'Status',
+            'Frozen result',
             'Expected',
             'Observed',
             'Discrepancy',
@@ -664,7 +780,7 @@ export function Controls({ model, book, evaluation }: Context) {
                     key: t(c['key']),
                   })}
                 >
-                  {cell(c['type'])}
+                  {t(c['type'])}
                 </Link>
                 <br />
                 <Id value={t(c['key'])} />
@@ -678,7 +794,7 @@ export function Controls({ model, book, evaluation }: Context) {
               <td className="money">{controlValue(c, 'observed')}</td>
               <td className="money">{controlValue(c, 'discrepancy')}</td>
               <td>
-                {cell(c['unit'])}
+                {t(c['unit'])}
                 <br />
                 <small>{t(c['currency'])}</small>
               </td>
@@ -699,14 +815,19 @@ export function Control({ model, book }: Context) {
   const c = model.data ?? {};
   return (
     <Panel title="Control evidence">
-      <Status value={t(c['status'])} />
+      <div className="two-column">
+        <div>
+          <h3>Frozen evaluation result</h3>
+          <Status value={t(c['status'])} />
+        </div>
+        <Currentness current={c['current']} reason={c['currentReason']} />
+      </div>
       <Details
         data={{
           controlKey: c['key'] ?? null,
           evaluationId: c['evaluationId'] ?? null,
           evaluationVersion: c['evaluationVersion'] ?? null,
           evaluatedAt: c['evaluatedAt'] ?? null,
-          currentReason: c['currentReason'] ?? null,
           type: c['type'] ?? null,
           scope: c['scope'] ?? null,
           expected: controlValue(c, 'expected'),
@@ -731,20 +852,44 @@ export function Control({ model, book }: Context) {
 export function Workers({ model, book, evaluation }: Context) {
   const d = model.data ?? {},
     counts = obj(d['counts']);
+  const countsSupplied =
+    d['counts'] === null ||
+    (typeof d['counts'] === 'object' &&
+      !Array.isArray(d['counts']) &&
+      d['counts'] !== undefined);
+  const count = (key: string) =>
+    Object.hasOwn(counts, key)
+      ? t(counts[key])
+      : countsSupplied
+        ? '0'
+        : 'UNKNOWN';
   return (
     <>
       <div className="metric-grid">
         {['PENDING', 'PROCESSING', 'RETRYABLE', 'FAILED_TERMINAL'].map((k) => (
           <div className="metric" key={k}>
             <span>{k.replaceAll('_', ' ')}</span>
-            <strong>{t(counts[k] ?? '0')}</strong>
+            <strong>{count(k)}</strong>
           </div>
         ))}
       </div>
       <Panel title="Durable work">
         <p>
-          Oldest pending: <Time value={d['oldestPendingAt']} /> ·{' '}
-          {age(d['oldestPendingAt'], model.asOf)}
+          Oldest pending:{' '}
+          {d['oldestPendingAt'] === undefined ? (
+            'Unavailable (not supplied)'
+          ) : d['oldestPendingAt'] === null ? (
+            count('PENDING') === '0' ? (
+              'No pending work'
+            ) : (
+              'UNKNOWN'
+            )
+          ) : (
+            <>
+              <Time value={d['oldestPendingAt']} /> ·{' '}
+              {age(d['oldestPendingAt'], model.asOf)}
+            </>
+          )}
         </p>
         {model.items?.length ? (
           <Table
@@ -792,9 +937,7 @@ export function Workers({ model, book, evaluation }: Context) {
                   />
                 </td>
                 <td>
-                  {cell(w['failureClass'])}
-                  <br />
-                  <small>{t(w['failureCode'])}</small>
+                  <FailureMetadata record={w} outcome={w['state']} />
                 </td>
               </tr>
             ))}
@@ -814,10 +957,24 @@ export function Workers({ model, book, evaluation }: Context) {
   );
 }
 export function Work({ model }: Context) {
+  const data = model.data ?? {};
+  const { state, ...metadata } = data;
   return (
     <>
       <Panel title="Durable work metadata">
-        <Details data={model.data ?? {}} />
+        <p>
+          Operational state: <Status value={t(state)} />
+        </p>
+        <Details
+          data={{
+            ...metadata,
+            failureClass: failureValue(data, 'failureClass', state),
+            failureCode: failureValue(data, 'failureCode', state),
+            nextAttemptAt: workTimeValue(data, 'nextAttemptAt'),
+            leaseExpiresAt: workTimeValue(data, 'leaseExpiresAt'),
+            completedAt: workTimeValue(data, 'completedAt'),
+          }}
+        />
       </Panel>
       <Panel title="Append-only attempts">
         <Table
@@ -835,7 +992,7 @@ export function Work({ model }: Context) {
                 <Status value={t(w['kind'])} />
               </td>
               <td>
-                {cell(w['failureClass'])} · {cell(w['failureCode'])}
+                <FailureMetadata record={w} outcome={w['kind']} />
               </td>
               <td>
                 <Time value={w['cursorTime']} />

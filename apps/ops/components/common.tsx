@@ -14,13 +14,34 @@ export function url(
   for (const [k, v] of Object.entries(extra)) if (v) q.set(k, v);
   return `${section === 'overview' ? '/' : '/' + section}${id ? '/' + encodeURIComponent(id) : ''}${q.size ? '?' + q.toString() : ''}`;
 }
+const failedStatuses = new Set(['FAIL', 'FAILED', 'FAILED_TERMINAL']);
+const uncertainOrAdverseStatuses = new Set([
+  'UNKNOWN',
+  'STALE',
+  'INCOMPLETE',
+  'STALE / INCOMPLETE',
+  'STALE / INVALIDATED',
+  'NOT CURRENT',
+  'RETRYABLE',
+  'EXPIRED',
+  'EXPIRED · RECOVERABLE',
+  'FENCED',
+  'CONFLICT',
+  'INVALIDATED',
+  'SUPERSEDED',
+  'UNMATCHED',
+  'AMBIGUOUS',
+  'INELIGIBLE',
+  'UNRECONCILED',
+  'AWAITING_EVIDENCE',
+]);
 export function Status({ value }: { value: string }) {
   const tone =
     value === 'PASS'
       ? 'pass'
-      : value === 'FAIL'
+      : failedStatuses.has(value)
         ? 'fail'
-        : value === 'UNKNOWN'
+        : uncertainOrAdverseStatuses.has(value)
           ? 'unknown'
           : 'neutral';
   return (
@@ -34,7 +55,7 @@ export function Status({ value }: { value: string }) {
               ? '?'
               : '•'}
       </span>{' '}
-      {value.replaceAll('_', ' ')}
+      {value}
     </span>
   );
 }

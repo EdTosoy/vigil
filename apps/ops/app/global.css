@@ -352,7 +352,22 @@ small {
   font-size: 10px;
   font-weight: 700;
   letter-spacing: 0.4px;
-  white-space: nowrap;
+  white-space: pre;
+  overflow-x: auto;
+  max-width: 100%;
+}
+.currentness {
+  min-width: 0;
+}
+.currentness p {
+  margin: 6px 0;
+}
+.evaluation > .currentness {
+  width: 100%;
+}
+.evidence-value {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 .pass {
   color: #176950;
@@ -502,6 +517,7 @@ tbody tr:hover {
   font-size: 12px;
   font-family: var(--mono);
   overflow-wrap: anywhere;
+  white-space: pre-wrap;
 }
 .details pre {
   white-space: pre-wrap;

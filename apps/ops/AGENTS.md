@@ -19,6 +19,12 @@ PostgreSQL authoritative state
 
 Never move financial semantics into React or browser code.
 
+## Exact evidence values
+
+Humanize designated field labels only. Preserve evidence identifiers, references,
+event/status codes and technical values verbatim, with their full values
+recoverable. Missing fields do not establish legitimate absence.
+
 ## No financial calculations in the UI
 
 Do not implement authoritative calculations in React components, client utilities, or browser state.
@@ -166,6 +172,10 @@ Distinguish:
 - stale historical result
 
 Do not make historical evaluations appear live.
+
+Label frozen evaluation results separately from supplied current applicability.
+A historical PASS does not establish current PASS; a missing currentness flag
+remains UNKNOWN.
 
 ## Time
 
