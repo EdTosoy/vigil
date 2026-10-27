@@ -1,4 +1,4 @@
-/** Local-only D3C configuration. Never invokes AWS, Stripe, PostgreSQL or Terraform. */
+/** Local-only runtime preparation. Never invokes AWS, Stripe, PostgreSQL or Terraform. */
 import { constants } from 'node:fs';
 import { lstat, mkdir, open, rename, writeFile } from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
@@ -15,6 +15,10 @@ import {
 import { deployment, assertDeploymentEnvironment } from './deployment-guards';
 import { reportDeploymentFailure } from './deployment-preflight';
 import { sandboxKey } from '@vigil/stripe-integration';
+import {
+  assembleDeploymentSources,
+  verifyDeploymentAssembly,
+} from './deployment-sources';
 
 export const runtimeSecretKeys = [
   'admin_password',
@@ -210,6 +214,43 @@ export function validateRuntimeSecrets(
     );
   }
 }
+
+/** Only the RDS owner password is needed for the first, stopped infrastructure plan.
+ * The return value contains a secret: never serialize it into artifacts or stdout.
+ */
+export function initialRuntimePlanInputs(
+  config: Configuration,
+  values: unknown,
+) {
+  assertRuntimeInputConfiguration(config);
+  validateRuntimeSecrets(values, config);
+  check(
+    values.admin_password !== undefined,
+    'Initial runtime plan requires admin_password; enter it using the hidden local prompt',
+  );
+  const variables = {
+    aws_account_id: config.variables.aws_account_id,
+    aws_profile: config.variables.aws_profile,
+    aws_region: config.variables.aws_region,
+    hostname: config.variables.hostname,
+    stripe_account_id: config.variables.stripe_account_id,
+    availability_zones: config.variables.availability_zones,
+    images: config.variables.images,
+    secrets_version: config.variables.secrets_version,
+    start_services: false,
+    certificate_dns_confirmed: false,
+  };
+  return {
+    variables: {
+      ...variables,
+      initial_infrastructure_only: true,
+      defer_webhook_secret: true,
+      // Empty bindings use the existing disabled-service Terraform defaults.
+      // No endpoint or invented financial identity is a Terraform input here.
+    },
+    ephemeralSecrets: { admin_password: values.admin_password },
+  };
+}
 export function runtimePlanScope() {
   return {
     version: 1,
@@ -368,6 +409,20 @@ export function runtimeInputStore(repository: string) {
         missingSecretKeys: runtimeSecretKeys.filter(
           (k) => values[k] === undefined,
         ),
+        missingBeforeInitialPlanKeys:
+          values.admin_password === undefined ? ['admin_password'] : [],
+        deferredUntilProvisioning: [
+          'provisioning',
+          'operations_password',
+          'ingress_password',
+          'stripeworker_password',
+        ],
+        deferredUntilActivation: [
+          'stripe_key',
+          'demo_username',
+          'demo_password',
+        ],
+        deferredUntilWebhookRegistration: ['webhook_secrets'],
         missingBindings: ['ops_book_id', 'stripe_source_id'].filter(
           (k) =>
             config.variables[k as 'ops_book_id' | 'stripe_source_id'] === null,
@@ -380,7 +435,59 @@ export function runtimeInputStore(repository: string) {
         backendWritesAuthorized: false,
         planExecutable: false,
         reason:
-          'Local syntax/permissions only; real configured-identity, DNS and backend authorization checks remain required',
+          'Initial infrastructure plan requires only admin_password; endpoint/binding/DNS proof is required later for activation. Backend lock authorization and its bounded executor remain missing',
+      };
+    },
+    async preparePlan() {
+      await ensure();
+      const config = await configuration();
+      const values = await secrets(config);
+      const inputs = initialRuntimePlanInputs(config, values);
+      // No credentials are copied: the future child must reload and validate the
+      // ephemeral input privately at execution time, including saved-plan apply.
+      const assembly = await assembleDeploymentSources(
+        repository,
+        'demo',
+        randomUUID(),
+        'runtime-plan-preparation',
+      );
+      await verifyDeploymentAssembly(assembly);
+      const variableFile = assembly.context.path(
+        `${assembly.prefix}/initial.tfvars.json`,
+      );
+      await writeFile(
+        variableFile,
+        JSON.stringify(inputs.variables, null, 2) + '\n',
+        { mode: 0o600, flag: 'wx' },
+      );
+      await writeFile(
+        assembly.context.path(`${assembly.prefix}/plan-readiness.json`),
+        JSON.stringify(
+          {
+            version: 1,
+            target,
+            sourceManifest: assembly.manifest,
+            variableFile,
+            stage: 'initial-infrastructure-only',
+            ephemeralKeys: ['admin_password'],
+            backend: runtimePlanScope(),
+            terraformRun: false,
+            savedPlanCreated: false,
+            authorization: 'NOT_GRANTED',
+          },
+          null,
+          2,
+        ) + '\n',
+        { mode: 0o600, flag: 'wx' },
+      );
+      return {
+        prepared: true,
+        sourceManifest: assembly.manifest,
+        variableFile,
+        secretsCopied: false,
+        terraformRun: false,
+        savedPlanCreated: false,
+        backendWritesAuthorized: false,
       };
     },
   };
@@ -428,13 +535,15 @@ async function main() {
   check(
     !extra.length &&
       ((command === 'set' && runtimeSecretKeys.includes(key as SecretKey)) ||
-        (['init', 'check', 'plan-scope', 'plan'].includes(command ?? '') &&
+        (['init', 'check', 'prepare-plan', 'plan-scope', 'plan'].includes(
+          command ?? '',
+        ) &&
           key === undefined)),
-    'Use init, check, plan-scope or set <approved-key>; never pass secret values or overrides',
+    'Use init, check, prepare-plan, plan-scope or set <approved-key>; never pass secret values or overrides',
   );
   check(
     command !== 'plan',
-    'Runtime plan execution remains disabled in D3C; review plan-scope and obtain explicit lock-operation authorization. No Terraform was run',
+    'Runtime plan execution remains disabled; explicit lock-operation authorization and a verified bounded executor are required. No Terraform was run',
   );
   const repository = resolve(__dirname, '..');
   const store = runtimeInputStore(repository);
@@ -459,9 +568,11 @@ async function main() {
       ? await store.init()
       : command === 'check'
         ? await store.check()
-        : command === 'plan-scope'
-          ? runtimePlanScope()
-          : await store.set(key!, await hiddenInput());
+        : command === 'prepare-plan'
+          ? await store.preparePlan()
+          : command === 'plan-scope'
+            ? runtimePlanScope()
+            : await store.set(key!, await hiddenInput());
   console.log(JSON.stringify(result, null, 2));
 }
 if (require.main === module) void main().catch(reportDeploymentFailure);
