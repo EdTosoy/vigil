@@ -102,16 +102,6 @@ async function main(): Promise<void> {
       'Key=Name,Option=BeginsWith,Values=/flow/demo/',
     ])['Parameters'] as unknown[];
     requireProof(parameters.length === 0, 'Runtime SSM parameters remain');
-    const zone = aws([
-      'route53',
-      'get-hosted-zone',
-      '--id',
-      'Z01534402E4PPZIHFEDCR',
-    ]);
-    requireProof(
-      (zone['HostedZone'] as { Name: string }).Name === 'flow.edtosoy.com.',
-      'Bootstrap zone missing',
-    );
     const bucket = aws([
       's3api',
       'get-bucket-versioning',
@@ -137,7 +127,7 @@ async function main(): Promise<void> {
       '--account-id',
       deployment.account,
       '--budget-name',
-      'flow-demo-account-monthly',
+      deployment.budget,
     ]);
     requireProof(budget['Budget'], 'Budget missing');
     const state = JSON.parse(
@@ -155,7 +145,7 @@ async function main(): Promise<void> {
       ecsClusterRemoved: true,
       vpcRemoved: true,
       runtimeSecretsRemoved: true,
-      bootstrapZoneRetained: true,
+      manualCloudflareDnsInventoryRequired: true,
       stateVersioningRetained: true,
       ecrRetained: 3,
       budgetRetained: true,

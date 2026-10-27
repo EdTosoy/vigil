@@ -40,7 +40,8 @@
     "test:stripe": "tsx tools/test-postgres.ts tests/stripe.integration.test.ts",
     "test:stripe:contract": "tsx --test tests/stripe-http.test.ts",
     "aws:deploy": "tsx tools/deploy.ts",
-    "test:deployment": "tsx --test tests/deployment.test.ts tests/deployment-sydney.test.ts tests/demo-access.test.ts",
+    "aws:validate:offline": "tsx tools/validate-deployment.ts",
+    "test:deployment": "tsx --test tests/deployment.test.ts tests/deployment-sydney.test.ts tests/deployment-portability.test.ts tests/demo-access.test.ts",
     "aws:demo": "tsx tools/demo-deploy.ts",
     "aws:observe": "tsx tools/demo-observe.ts"
   },

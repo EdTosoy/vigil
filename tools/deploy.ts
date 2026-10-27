@@ -9,7 +9,6 @@ import {
   readdir,
 } from 'node:fs/promises';
 import { resolve } from 'node:path';
-import { Resolver } from 'node:dns/promises';
 import {
   deploymentContext,
   assertDeploymentPrepared,
@@ -125,22 +124,13 @@ async function identity(): Promise<void> {
   );
 }
 async function config(dns: boolean): Promise<void> {
-  const previous = (await exists(variables))
-    ? (JSON.parse(await readFile(variables, 'utf8')) as {
-        budget_email?: string;
-      })
-    : {};
-  const email =
-    process.env['VIGIL_BUDGET_EMAIL'] ??
-    process.env['FLOW_BUDGET_EMAIL'] ??
-    previous.budget_email;
-  if (!email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email))
+  if (dns)
     throw new Error(
-      'Supply the user-approved VIGIL_BUDGET_EMAIL; never infer a contact',
+      'Sydney DNS is manual Cloudflare configuration; no hosted zone is managed',
     );
   await privateWrite(
     variables,
-    JSON.stringify({ budget_email: email, create_dns_zone: dns }) + '\n',
+    JSON.stringify({ existing_budget_name: deployment.budget }) + '\n',
   );
 }
 async function fingerprint(): Promise<string> {
@@ -156,7 +146,7 @@ async function fingerprint(): Promise<string> {
 async function plan(dns: boolean): Promise<void> {
   if (dns && !(await exists(generatedBackend)))
     throw new Error(
-      'Migrate the seed state to S3 before creating the DNS zone',
+      'Sydney does not create a Route 53 zone; manual Cloudflare DNS gate required',
     );
   if (
     !(await exists(generatedBackend)) &&
@@ -316,38 +306,17 @@ async function apply(): Promise<void> {
   console.log(JSON.stringify(outputs, null, 2));
   if (saved.dns) {
     console.log(
-      'MANDATORY DNS CHECKPOINT: STOP. User must add the four output nameservers as Cloudflare NS records named flow. No delegation-dependent operation has run.',
+      'MANDATORY DNS CHECKPOINT: STOP. Only manual Cloudflare ACM validation for vigil.edtosoy.com is approved; no Route 53 zone or NS changes.',
     );
     return;
   }
   console.log(
-    'Seed applied. Next: bootstrap-migrate-state, then bootstrap-dns-plan and reviewed apply.',
+    'Seed applied. Stop for separate new-lineage remote-state migration review; no DNS creation is managed.',
   );
 }
 async function dns(): Promise<void> {
-  if (process.argv[3] !== '--confirmed')
-    throw new Error(
-      'User confirmation of manual Cloudflare delegation is required',
-    );
-  const value = JSON.parse(
-    await execute('terraform', ['output', '-json', 'name_servers']),
-  ) as string[];
-  if (value.length !== 4)
-    throw new Error('Expected four nameservers from the created public zone');
-  const expected = value.map((n) => n.toLowerCase().replace(/\.$/, '')).sort();
-  for (const server of ['1.1.1.1', '8.8.8.8']) {
-    const resolver = new Resolver({ timeout: 3000, tries: 2 });
-    resolver.setServers([server]);
-    const actual = (await resolver.resolveNs(deployment.domain))
-      .map((n) => n.toLowerCase().replace(/\.$/, ''))
-      .sort();
-    if (JSON.stringify(expected) !== JSON.stringify(actual))
-      throw new Error(
-        'Public delegation missing or different; do not request/validate certificates yet',
-      );
-  }
-  console.log(
-    'Public delegation verified through two independent recursive resolvers.',
+  throw new Error(
+    'Sydney requires manual Cloudflare ACM CNAME publication and independent DNS/HTTPS verification; no Route 53 delegation workflow',
   );
 }
 async function main(): Promise<void> {

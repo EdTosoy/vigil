@@ -1,5 +1,7 @@
 # Sydney D1A — identity guards and local isolation
 
+Dated D1A evidence below is preserved. [D1B](sydney-d1b.md) now adapts the tracked sources and selects manual Cloudflare DNS for `vigil.edtosoy.com`; its DNS procedure supersedes D1A's proposed child-zone sequence. Mutating wrappers remain disabled pending D2 and explicit provisioning approval.
+
 Implemented locally on 2026-10-27. This increment adds exact STS verification, isolated artifact/backend/receipt contracts and deterministic negative tests. It does not retarget Terraform resources or establish Sydney deployment readiness. No real AWS API call, Terraform command, image publication, cloud migration, Stripe request or DNS modification was made for D1A. No commit or push was made. The operator owns the Commit checkpoint after review; stop here before D1B.
 
 The approved target is profile `edtosoy`, account `747240980964`, region `ap-southeast-2`, STS assumed role `AccountFullAccessRole`. The account is on the Free Plan, with a $5 gross monthly budget, $120 credits observed at D0 and expiry April 26, 2027. These are dated planning inputs, not refreshed billing evidence. No account upgrade or budget-management operation is authorized.

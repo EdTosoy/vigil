@@ -1,5 +1,7 @@
 # Phase 15 — Ephemeral AWS portfolio deployment
 
+This page records the historical US East workflow. Current tracked infrastructure sources are prepared offline for Sydney; use the [Sydney D1B runbook](sydney-d1b.md). All mutating deployment wrappers remain disabled. Historical commands below are not current deployment instructions or authorization.
+
 Container packaging, separate Terraform roots and actual hosted application/Stripe verification are implemented. See [verification](verification.md) for the deployment and teardown evidence and [ADR-018](../architecture/adr/018-ephemeral-aws-demo.md) for decisions. This is a production-shaped demonstration, not a high-availability production environment. Phase 16 remains deferred.
 
 ## Approved boundaries

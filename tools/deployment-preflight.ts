@@ -110,7 +110,7 @@ export async function deploymentCommandPreflight(
         role: deployment.role,
         root: stage,
         artifacts: context.base,
-        deployment: 'disabled pending D1B',
+        deployment: 'disabled pending D2',
       }),
     );
     return true;
@@ -118,7 +118,7 @@ export async function deploymentCommandPreflight(
   if (command === 'prepare-backend-contract') {
     await prepareBackendContract(context);
     console.log(
-      'Private Sydney backend contract prepared locally; no Terraform execution or bucket creation. Deployment remains disabled pending D1B.',
+      'Private Sydney backend contract prepared locally; no Terraform execution or bucket creation. Deployment remains disabled pending D2.',
     );
     return true;
   }

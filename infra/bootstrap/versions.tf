@@ -6,20 +6,23 @@ terraform {
       version = "= 6.68.0"
     }
   }
-  # Initial seed uses local state. The workflow generates backend.generated.tf
-  # and migrates that state only AFTER this configuration creates the bucket.
+  # Sources are assembled into a fresh target-scoped work root.
+  # Initial bootstrap uses fresh LOCAL state; remote backend configuration
+  # is introduced only after separately approved creation and lineage review.
 }
 
 provider "aws" {
-  profile             = "iamadmin-general"
-  region              = "us-east-1"
-  allowed_account_ids = ["163596511125"]
+  profile             = var.aws_profile
+  region              = var.aws_region
+  allowed_account_ids = [var.aws_account_id]
   default_tags {
     tags = {
-      Project     = "flow"
-      Environment = "demo"
-      Lifecycle   = "persistent"
-      ManagedBy   = "terraform"
+      Project           = "vigil"
+      Environment       = "demo"
+      Lifecycle         = "persistent"
+      ManagedBy         = "terraform"
+      DeploymentAccount = var.aws_account_id
+      DeploymentRegion  = var.aws_region
     }
   }
 }

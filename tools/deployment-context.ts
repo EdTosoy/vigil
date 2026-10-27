@@ -232,9 +232,9 @@ export async function verifySavedPlan(
   }
 }
 
-/** Deliberately unconditional until isolated source roots and browser-login compatibility pass D1B. */
+/** Deliberately unconditional after offline D1B; live readiness and provisioning remain separate gates. */
 export function assertDeploymentPrepared(): never {
   throw new DeploymentSafetyError(
-    'Sydney deployment commands are disabled pending D1B Terraform/TLS/budget/DNS portability and later explicit resource-creation approval',
+    'Sydney deployment commands are disabled pending D2 Terraform/TLS/budget/DNS portability and later explicit resource-creation approval',
   );
 }

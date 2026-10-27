@@ -460,7 +460,7 @@ console.log(process.env.MOCK_IDENTITY);
       for (const command of commands) {
         const result = invoke(tool, command ? [command] : []);
         assert.equal(result.status, 1, result.stderr);
-        assert.match(result.stderr, /disabled pending D1B/);
+        assert.match(result.stderr, /disabled pending D2/);
         assert.doesNotMatch(result.stderr, /secret-fixture/);
       }
       const safe = invoke(tool, ['preflight']);

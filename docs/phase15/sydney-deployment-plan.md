@@ -1,6 +1,10 @@
 # Vigil deployment plan — new Sydney account
 
-D1A local guards and isolation are implemented; see the [D1A runbook](sydney-d1a.md) for commands, limits and approval gates. The planning baseline below remains historical input. No commit is authorized by the current D1A request; the operator controls the Commit checkpoint. All deployment workflows remain disabled pending D1B.
+D1A local guards and isolation are documented in the [D1A runbook](sydney-d1a.md). The planning baseline below remains historical input. The operator controls the Commit checkpoint; Codex must not commit or push. All mutating deployment workflows remain disabled after D1B.
+
+D1B offline portability is implemented in the [D1B runbook](sydney-d1b.md) and [ADR-019](../architecture/adr/019-sydney-offline-portability.md). The current planned hostname is `vigil.edtosoy.com`, managed manually in Cloudflare with ACM validation CNAMEs and a later DNS-only CNAME to the actual ALB hostname. Sydney bootstrap owns only new-target S3/ECR; the existing $5 gross budget is referenced read-only. This supersedes the baseline's proposed new Route 53 child zone and NS delegation workflow for Sydney. Historical `flow.edtosoy.com`, retained resources/state, financial identities and reports remain untouched. No mutating wrapper is enabled, and no commit/push is authorized. D2 is a separate readiness and plan-review gate.
+
+The cost JSON remains the dated D0 estimate, including a conservative $0.50/month hosted-zone allowance that the current manual Cloudflare design does not require. Retain its $1.80 first-window / $3.44 four-window estimates as conservative planning figures under their stated assumptions; do not claim a new quote, guaranteed spend, Free Plan eligibility or hard budget cap.
 
 Status: **planning only**. No AWS resources, account-plan settings, DNS records, Stripe destinations or deployment state were changed during this review. The next authorized work is local deployment-tooling preparation, followed by verification and a scoped commit. Provisioning requires a later, explicit deployment instruction.
 
