@@ -1,7 +1,7 @@
 import { readFile } from 'node:fs/promises';
-import { Money } from '@flow/money';
-import { evaluateGrouped } from '@flow/reconciliation-domain';
-import type { SystemInput } from '@flow/simulator';
+import { Money } from '@vigil/money';
+import { evaluateGrouped } from '@vigil/reconciliation-domain';
+import type { SystemInput } from '@vigil/simulator';
 async function main() {
   const path = process.argv[2];
   if (!path) throw new Error('Supply public simulator input.json');

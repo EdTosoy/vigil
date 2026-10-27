@@ -2,9 +2,9 @@ import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { readFile } from 'node:fs/promises';
 import { Pool } from 'pg';
-import { PostgresReconciliation } from '@flow/reconciliation-postgres';
-import type { SystemInput } from '@flow/simulator';
-import { PostgresIngestion } from '@flow/ingestion-postgres';
+import { PostgresReconciliation } from '@vigil/reconciliation-postgres';
+import type { SystemInput } from '@vigil/simulator';
+import { PostgresIngestion } from '@vigil/ingestion-postgres';
 async function main(): Promise<void> {
   const [path, bookId, runKey, mappingId, from, to] = process.argv.slice(2);
   if (!path || !bookId || !runKey || !mappingId || !from || !to)

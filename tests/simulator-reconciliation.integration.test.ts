@@ -3,12 +3,12 @@ import { randomUUID } from 'node:crypto';
 import { after, test } from 'node:test';
 import { Pool } from 'pg';
 import fc from 'fast-check';
-import { generateSimulation } from '@flow/simulator-oracle';
-import type { SystemInput } from '@flow/simulator';
-import { PostgresIngestion } from '@flow/ingestion-postgres';
-import { PostgresProcessor } from '@flow/processor-postgres';
-import { PostgresBank } from '@flow/bank-postgres';
-import { PostgresReconciliation } from '@flow/reconciliation-postgres';
+import { generateSimulation } from '@vigil/simulator-oracle';
+import type { SystemInput } from '@vigil/simulator';
+import { PostgresIngestion } from '@vigil/ingestion-postgres';
+import { PostgresProcessor } from '@vigil/processor-postgres';
+import { PostgresBank } from '@vigil/bank-postgres';
+import { PostgresReconciliation } from '@vigil/reconciliation-postgres';
 import { simulatorBatch } from '../tools/ingestion-input';
 import { simulatorSettlementBatch } from '../tools/processor-input';
 import { simulatorBankBatch } from '../tools/bank-input';
@@ -17,11 +17,11 @@ import { promisify } from 'node:util';
 import { mkdtemp, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-const au = process.env['FLOW_TEST_ADMIN_URL'],
-  ru = process.env['FLOW_TEST_RECONCILIATION_URL'],
-  iu = process.env['FLOW_TEST_INGESTION_URL'],
-  pu = process.env['FLOW_TEST_PROCESSOR_URL'],
-  bu = process.env['FLOW_TEST_BANK_URL'];
+const au = process.env['VIGIL_TEST_ADMIN_URL'],
+  ru = process.env['VIGIL_TEST_RECONCILIATION_URL'],
+  iu = process.env['VIGIL_TEST_INGESTION_URL'],
+  pu = process.env['VIGIL_TEST_PROCESSOR_URL'],
+  bu = process.env['VIGIL_TEST_BANK_URL'];
 if (!au || !ru || !iu || !pu || !bu)
   throw new Error('Run pnpm test:integration');
 const admin = new Pool({ connectionString: au }),
@@ -210,7 +210,7 @@ test('CLI runs the public pipeline with provisioned account mapping and replayab
     batchSizeRange: [2, 3],
   });
   const f = await pipeline(simulation.input);
-  const dir = await mkdtemp(join(tmpdir(), 'flow-recon-cli-')),
+  const dir = await mkdtemp(join(tmpdir(), 'vigil-recon-cli-')),
     path = join(dir, 'input.json');
   await writeFile(path, JSON.stringify(simulation.input));
   const invoke = async () =>

@@ -4,8 +4,8 @@ import {
   generateSimulation,
   generateGroupedSimulation,
   type SimulationConfig,
-} from '@flow/simulator-oracle';
-import { stableJson } from '@flow/simulator';
+} from '@vigil/simulator-oracle';
+import { stableJson } from '@vigil/simulator';
 
 async function physicalPath(value: string): Promise<string> {
   const absolute = path.resolve(value);

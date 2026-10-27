@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { test } from 'node:test';
 import fc from 'fast-check';
-import { Money, MAX_MINOR_UNITS } from '@flow/money';
+import { Money, MAX_MINOR_UNITS } from '@vigil/money';
 import { validatePost, type PostJournalCommand } from '../src';
 
 function command(amount: bigint): PostJournalCommand {

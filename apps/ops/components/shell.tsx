@@ -37,8 +37,7 @@ export function Shell({
             alt=""
             unoptimized
           />
-          Vigil
-          <span className="brand-sub">OPERATIONS</span>
+          Vigil <span className="brand-sub">OPERATIONS</span>
         </Link>
         <div className="nav-label">INVESTIGATION</div>
         <nav aria-label="Primary">
@@ -49,7 +48,9 @@ export function Shell({
               key={s}
               aria-current={s === section ? 'page' : undefined}
             >
-              <span className="nav-index">0{i + 1}</span>
+              <span className="nav-index" aria-hidden="true">
+                0{i + 1}
+              </span>
               {s[0]!.toUpperCase() + s.slice(1)}
             </Link>
           ))}

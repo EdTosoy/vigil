@@ -145,10 +145,10 @@ export default tseslint.config(
   },
   {
     files: ['**/*.{ts,tsx,js,mjs}'],
-    plugins: { 'flow-boundaries': oracleBoundary },
+    plugins: { 'vigil-boundaries': oracleBoundary },
     rules: {
-      'flow-boundaries/no-oracle-import': 'error',
-      'flow-boundaries/operations-browser': 'error',
+      'vigil-boundaries/no-oracle-import': 'error',
+      'vigil-boundaries/operations-browser': 'error',
     },
   },
   {
@@ -157,7 +157,7 @@ export default tseslint.config(
     rules: {
       'no-restricted-imports': [
         'error',
-        { patterns: ['stripe', 'stripe/*', '@flow/stripe-*'] },
+        { patterns: ['stripe', 'stripe/*', '@vigil/stripe-*'] },
       ],
     },
   },

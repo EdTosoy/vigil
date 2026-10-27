@@ -8,7 +8,7 @@ import {
   type BatchCommand,
   type NormalizationResult,
   type NormalizerVersion,
-} from '@flow/ingestion-domain';
+} from '@vigil/ingestion-domain';
 
 export class IngestionDatabaseError extends Error {
   constructor(readonly code: string) {

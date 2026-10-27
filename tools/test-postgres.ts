@@ -4,14 +4,14 @@ import { createServer } from 'node:net';
 import { randomUUID } from 'node:crypto';
 import { Pool } from 'pg';
 import { migrate } from './migrations';
-import { PostgresExceptions } from '@flow/exception-postgres';
-import { PostgresReconciliation } from '@flow/reconciliation-postgres';
+import { PostgresExceptions } from '@vigil/exception-postgres';
+import { PostgresReconciliation } from '@vigil/reconciliation-postgres';
 import { fixture as reconciliationFixture } from '../tests/helpers/reconciliation-fixture';
-import { PostgresBank } from '@flow/bank-postgres';
-import { PostgresProcessor } from '@flow/processor-postgres';
-import { PostgresIngestion } from '@flow/ingestion-postgres';
-import { PostgresWorker } from '@flow/worker-postgres';
-import { PostgresIntegrity } from '@flow/integrity-postgres';
+import { PostgresBank } from '@vigil/bank-postgres';
+import { PostgresProcessor } from '@vigil/processor-postgres';
+import { PostgresIngestion } from '@vigil/ingestion-postgres';
+import { PostgresWorker } from '@vigil/worker-postgres';
+import { PostgresIntegrity } from '@vigil/integrity-postgres';
 
 const exec = promisify(execFile);
 const image =
@@ -19,7 +19,7 @@ const image =
 
 /** Owns only its randomly named disposable container; never resets an existing database. */
 async function main(): Promise<void> {
-  const name = `flow-phase1-${randomUUID()}`;
+  const name = `vigil-phase1-${randomUUID()}`;
   let started = false;
   let admin: Pool | undefined;
   try {
@@ -585,7 +585,7 @@ async function main(): Promise<void> {
       phase8Cases.length,
     );
     const control = new (
-      await import('@flow/control-postgres')
+      await import('@vigil/control-postgres')
     ).PostgresControls(admin);
     await control.run({
       bookId: phase8Fixture.book,
@@ -869,57 +869,57 @@ async function main(): Promise<void> {
         {
           env: {
             ...process.env,
-            FLOW_TEST_ADMIN_URL: url,
-            FLOW_TEST_STRIPE_INGRESS_URL: url.replace(
+            VIGIL_TEST_ADMIN_URL: url,
+            VIGIL_TEST_STRIPE_INGRESS_URL: url.replace(
               'flow_test_admin',
               'flow_test_stripe_ingress',
             ),
-            FLOW_TEST_STRIPE_WORKER_URL: url.replace(
+            VIGIL_TEST_STRIPE_WORKER_URL: url.replace(
               'flow_test_admin',
               'flow_test_stripe_worker',
             ),
-            FLOW_TEST_OPERATIONS_URL: url.replace(
+            VIGIL_TEST_OPERATIONS_URL: url.replace(
               'flow_test_admin@',
               'flow_test_operations@',
             ),
-            FLOW_TEST_CONTAINER: name,
-            FLOW_TEST_INTEGRITY_URL: url.replace(
+            VIGIL_TEST_CONTAINER: name,
+            VIGIL_TEST_INTEGRITY_URL: url.replace(
               'flow_test_admin@',
               'flow_test_integrity@',
             ),
-            FLOW_TEST_WORKER_URL: url.replace(
+            VIGIL_TEST_WORKER_URL: url.replace(
               'flow_test_admin@',
               'flow_test_worker@',
             ),
-            FLOW_TEST_CONTROL_URL: url.replace(
+            VIGIL_TEST_CONTROL_URL: url.replace(
               'flow_test_admin@',
               'flow_test_control@',
             ),
-            FLOW_TEST_EXCEPTION_URL: url.replace(
+            VIGIL_TEST_EXCEPTION_URL: url.replace(
               'flow_test_admin@',
               'flow_test_exception@',
             ),
-            FLOW_TEST_RECONCILIATION_URL: url.replace(
+            VIGIL_TEST_RECONCILIATION_URL: url.replace(
               'flow_test_admin@',
               'flow_test_reconciliation@',
             ),
-            FLOW_TEST_BANK_URL: url.replace(
+            VIGIL_TEST_BANK_URL: url.replace(
               'flow_test_admin@',
               'flow_test_bank@',
             ),
-            FLOW_TEST_PROCESSOR_URL: url.replace(
+            VIGIL_TEST_PROCESSOR_URL: url.replace(
               'flow_test_admin@',
               'flow_test_processor@',
             ),
-            FLOW_TEST_INGESTION_URL: url.replace(
+            VIGIL_TEST_INGESTION_URL: url.replace(
               'flow_test_admin@',
               'flow_test_ingestion@',
             ),
-            FLOW_TEST_WRITER_URL: url.replace(
+            VIGIL_TEST_WRITER_URL: url.replace(
               'flow_test_admin@',
               'flow_test_writer@',
             ),
-            FLOW_TEST_READER_URL: url.replace(
+            VIGIL_TEST_READER_URL: url.replace(
               'flow_test_admin@',
               'flow_test_reader@',
             ),

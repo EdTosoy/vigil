@@ -15,6 +15,14 @@ import { resolve } from 'node:path';
 import { parseEnv } from 'node:util';
 import { createRequire } from 'node:module';
 import {
+  deploymentContext,
+  assertDeploymentPrepared,
+} from './deployment-context';
+import {
+  deploymentCommandPreflight,
+  reportDeploymentFailure,
+} from './deployment-preflight';
+import {
   deployment,
   assertDeploymentIdentity,
   assertDeploymentEnvironment,
@@ -27,14 +35,15 @@ import {
   object,
   EVENT_TYPES,
   STRIPE_API_VERSION,
-} from '@flow/stripe-integration';
-const root = resolve(__dirname, '..'),
-  directory = resolve(root, 'infra/demo'),
-  local = resolve(root, '.deployment');
-const configFile = resolve(local, 'demo.tfvars.json'),
-  secretFile = resolve(local, 'demo-secrets.json'),
-  planFile = resolve(local, 'demo.tfplan'),
-  receiptFile = resolve(local, 'demo-plan.json');
+} from '@vigil/stripe-integration';
+const root = resolve(__dirname, '..');
+const context = deploymentContext(root, 'demo');
+const directory = context.work,
+  local = context.base;
+const configFile = context.path('demo.tfvars.json'),
+  secretFile = context.path('demo-secrets.json'),
+  planFile = context.path('demo.tfplan'),
+  receiptFile = context.path('demo-plan.json');
 interface Config {
   images: Record<string, string>;
   stripe_account_id: string;
@@ -68,6 +77,8 @@ function environment(): NodeJS.ProcessEnv {
     AWS_PAGER: '',
     AWS_CLI_AUTO_PROMPT: 'off',
     TF_IN_AUTOMATION: '1',
+    TF_DATA_DIR: context.data,
+    TF_WORKSPACE: 'default',
   };
 }
 async function execute(
@@ -81,6 +92,7 @@ async function execute(
     env?: NodeJS.ProcessEnv;
   } = {},
 ): Promise<string> {
+  assertDeploymentPrepared();
   const env = { ...environment(), ...options.env };
   if (options.secrets) env['TF_VAR_secrets'] = JSON.stringify(options.secrets);
   const child = spawn(command, args, {
@@ -100,7 +112,7 @@ async function execute(
   const text = Buffer.concat(out).toString(),
     errors = Buffer.concat(err).toString();
   // Logs remain private even though ephemeral values should be redacted by Terraform.
-  await save(resolve(local, 'demo-last-command.json'), {
+  await save(context.path('demo-last-command.json'), {
     command,
     args: args.filter((a) => !a.startsWith('{')),
     stdout: options.sensitiveOutput ? '[redacted]' : text,
@@ -109,7 +121,7 @@ async function execute(
   });
   if (code !== 0)
     throw new Error(
-      'Deployment command failed; inspect .deployment/demo-last-command.json locally',
+      'Deployment command failed; inspect the private Sydney demo log locally',
     );
   return text;
 }
@@ -154,7 +166,7 @@ async function prepare(): Promise<void> {
     console.log('Existing private demo configuration retained.');
     return;
   }
-  const env = parseEnv(await readFile(resolve(root, '.env'), 'utf8'));
+  const env = parseEnv(await readFile(context.environment, 'utf8'));
   const key = sandboxKey(env['STRIPE_SECRET_KEY']),
     account = env['STRIPE_ACCOUNT_ID'];
   if (
@@ -233,7 +245,7 @@ async function images(): Promise<void> {
   }
   const tag = 'source-' + hash.digest('hex').slice(0, 24);
   const registry = `${deployment.account}.dkr.ecr.${deployment.region}.amazonaws.com`,
-    dockerConfig = resolve(local, 'docker');
+    dockerConfig = context.path('docker');
   await mkdir(dockerConfig, { mode: 0o700 });
   const token = await execute(
     'aws',
@@ -260,7 +272,7 @@ async function images(): Promise<void> {
         [
           'build',
           '--build-arg',
-          `FLOW_IMAGE_REVISION=${tag}`,
+          `VIGIL_IMAGE_REVISION=${tag}`,
           '--platform',
           'linux/amd64',
           '--target',
@@ -421,12 +433,12 @@ async function task(command?: string[]): Promise<Record<string, unknown>> {
       ? { overrides: { containerOverrides: [{ name: workload, command }] } }
       : {}),
   };
-  await save(resolve(local, 'run-task.json'), input);
+  await save(context.path('run-task.json'), input);
   const launched = await aws([
     'ecs',
     'run-task',
     '--cli-input-json',
-    `file://${resolve(local, 'run-task.json')}`,
+    `file://${context.path('run-task.json')}`,
   ]);
   const tasks = launched['tasks'] as { taskArn: string }[] | undefined;
   if (!tasks?.length) throw new Error('Admin task did not launch');
@@ -464,7 +476,7 @@ async function task(command?: string[]): Promise<Record<string, unknown>> {
         '--task',
         arn,
         '--reason',
-        'Flow one-shot command time limit',
+        'Vigil one-shot command time limit',
       ]);
       throw new Error('One-shot task exceeded its bounded execution window');
     }
@@ -487,13 +499,13 @@ async function task(command?: string[]): Promise<Record<string, unknown>> {
         return v;
       }
       if (v['externalSandbox'] === 'PASS') {
-        await save(resolve(local, 'sandbox-verification.json'), v);
+        await save(context.path('sandbox-verification.json'), v);
         console.log(JSON.stringify(v));
       }
       if (v['operation'] === 'hosted-stripe-proof' && v['outcome'] === 'PASS')
         return v;
       if (v['received'] !== undefined) {
-        const historyPath = resolve(local, 'backfill-history.json');
+        const historyPath = context.path('backfill-history.json');
         const history = (await exists(historyPath))
           ? (JSON.parse(await readFile(historyPath, 'utf8')) as unknown[])
           : [];
@@ -632,7 +644,7 @@ async function retireDestination(): Promise<void> {
   const deleted = await client.webhookEndpoints.del(endpoint.id);
   if (!deleted.deleted || deleted.id !== endpoint.id)
     throw new Error('Destination retirement not confirmed');
-  await save(resolve(local, 'destination-retired.json'), {
+  await save(context.path('destination-retired.json'), {
     endpointId: endpoint.id,
     sandbox: true,
     deleted: true,
@@ -645,7 +657,7 @@ async function retireDestination(): Promise<void> {
 }
 async function reset(): Promise<void> {
   if (
-    !(await exists(resolve(local, 'destroy-proof.json'))) ||
+    !(await exists(context.path('destroy-proof.json'))) ||
     (await execute('terraform', ['state', 'list'])).trim()
   )
     throw new Error(
@@ -654,7 +666,7 @@ async function reset(): Promise<void> {
   const { config, secret } = await load();
   if (secret.webhookEndpointId)
     throw new Error('Retire the hosted sandbox destination first');
-  const archive = resolve(local, 'history', secret.bookId);
+  const archive = context.path(`history/${secret.bookId}`);
   await mkdir(archive, { recursive: true, mode: 0o700 });
   for (const name of [
     'deployment-proof.json',
@@ -669,7 +681,7 @@ async function reset(): Promise<void> {
     'hosted-dashboard.png',
     'iam-proof.json',
   ]) {
-    const path = resolve(local, name);
+    const path = context.path(name);
     if (await exists(path)) await rename(path, resolve(archive, name));
   }
   secret.bookId = randomUUID();
@@ -714,7 +726,7 @@ async function payment(): Promise<void> {
     !payment.latest_charge
   )
     throw new Error('Sandbox capture failed');
-  await save(resolve(local, 'sandbox-payment.json'), {
+  await save(context.path('sandbox-payment.json'), {
     paymentIntent: payment.id,
     charge: payment.latest_charge,
     at: new Date().toISOString(),
@@ -728,6 +740,17 @@ async function payment(): Promise<void> {
   );
 }
 async function main(): Promise<void> {
+  if (
+    await deploymentCommandPreflight(
+      root,
+      'demo',
+      process.argv[2],
+      process.env,
+      undefined,
+      process.argv.slice(3),
+    )
+  )
+    return;
   await mkdir(local, { recursive: true, mode: 0o700 });
   await chmod(local, 0o700);
   await identity();
@@ -781,10 +804,10 @@ async function main(): Promise<void> {
       break;
     case 'proof': {
       const payment = JSON.parse(
-        await readFile(resolve(local, 'sandbox-payment.json'), 'utf8'),
+        await readFile(context.path('sandbox-payment.json'), 'utf8'),
       ) as { charge: string };
       const result = await task(['node', 'tools/proof.cjs', payment.charge]);
-      const path = resolve(local, 'hosted-proof-before.json');
+      const path = context.path('hosted-proof-before.json');
       if (await exists(path)) {
         const before = JSON.parse(await readFile(path, 'utf8')) as Record<
           string,
@@ -799,7 +822,7 @@ async function main(): Promise<void> {
         ])
           if (JSON.stringify(before[key]) !== JSON.stringify(result[key]))
             throw new Error('Webhook/backfill logical evidence changed');
-        await save(resolve(local, 'hosted-proof-after.json'), result);
+        await save(context.path('hosted-proof-after.json'), result);
         console.log(
           'Hosted webhook/backfill deduplication PASS: unchanged raw digest, event, completion and economic derivation identities.',
         );
@@ -816,23 +839,4 @@ async function main(): Promise<void> {
       );
   }
 }
-void main().catch(async (error: unknown) => {
-  const detail = error as {
-    name?: string;
-    message?: string;
-    type?: string;
-    code?: string;
-    statusCode?: number;
-  };
-  await save(resolve(local, 'demo-error.json'), {
-    name: detail.name,
-    message: detail.message,
-    type: detail.type,
-    code: detail.code,
-    status: detail.statusCode,
-  });
-  console.error(
-    'Demo command failed safely; inspect ignored .deployment/demo-last-command.json or protected task logs. No completion is claimed.',
-  );
-  process.exitCode = 1;
-});
+void main().catch(reportDeploymentFailure);

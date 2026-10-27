@@ -3,7 +3,7 @@ import {
   serializeCommand,
   type RunCommand,
   type RunResult,
-} from '@flow/reconciliation-domain';
+} from '@vigil/reconciliation-domain';
 export class ReconciliationDatabaseError extends Error {
   constructor(readonly code: string) {
     super('Reconciliation command rejected (' + code + ')');

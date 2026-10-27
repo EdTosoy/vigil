@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import fc from 'fast-check';
-import { Money } from '@flow/money';
+import { Money } from '@vigil/money';
 import {
   evaluate,
   evidence,

@@ -1,4 +1,4 @@
-import { Money, type MoneyJson } from '@flow/money';
+import { Money, type MoneyJson } from '@vigil/money';
 import {
   sha256,
   stableJson,
@@ -10,7 +10,7 @@ import {
   type SourceEvent,
   type CaptureAttempt,
   type ScenarioManifest,
-} from '@flow/simulator';
+} from '@vigil/simulator';
 import {
   resolveConfig,
   ANOMALY_KINDS,

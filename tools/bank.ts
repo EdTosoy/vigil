@@ -2,9 +2,9 @@ import { readFile } from 'node:fs/promises';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { Pool } from 'pg';
-import type { SystemInput } from '@flow/simulator';
-import { PostgresIngestion } from '@flow/ingestion-postgres';
-import { PostgresBank } from '@flow/bank-postgres';
+import type { SystemInput } from '@vigil/simulator';
+import { PostgresIngestion } from '@vigil/ingestion-postgres';
+import { PostgresBank } from '@vigil/bank-postgres';
 import { simulatorBankBatch } from './bank-input';
 async function main(): Promise<void> {
   const [inputPath, bookId, runKey] = process.argv.slice(2);

@@ -2,14 +2,17 @@ import { fileURLToPath } from 'node:url';
 /** Read-only, including the protected ephemeral demo. No assurance cache. */
 export default {
   output: 'standalone',
-  generateBuildId: async () => process.env['FLOW_IMAGE_REVISION'] ?? null,
+  generateBuildId: async () =>
+    process.env['VIGIL_IMAGE_REVISION'] ??
+    process.env['FLOW_IMAGE_REVISION'] ??
+    null,
   outputFileTracingRoot: fileURLToPath(new URL('../../', import.meta.url)),
   poweredByHeader: false,
   serverExternalPackages: ['pg'],
   transpilePackages: [
-    '@flow/operations-read-postgres',
-    '@flow/integrity-postgres',
-    '@flow/money',
+    '@vigil/operations-read-postgres',
+    '@vigil/integrity-postgres',
+    '@vigil/money',
   ],
   async headers() {
     // React uses eval for development debugging; production keeps it forbidden.

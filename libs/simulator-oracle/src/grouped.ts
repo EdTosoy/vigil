@@ -1,11 +1,11 @@
-import { Money } from '@flow/money';
+import { Money } from '@vigil/money';
 import {
   sha256,
   stableJson,
   type BankObservation,
   type SettlementReport,
   type SystemInput,
-} from '@flow/simulator';
+} from '@vigil/simulator';
 import { generateSimulation, type SimulationConfig } from './index';
 /** Private source generator: declares processor transfer membership BEFORE producing bank artifacts. */
 function freeze<T>(value: T): T {

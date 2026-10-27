@@ -1,4 +1,4 @@
-import { Money, currency, type Currency } from '@flow/money';
+import { Money, currency, type Currency } from '@vigil/money';
 
 export type EntrySide = 'debit' | 'credit';
 export type AccountClassification =

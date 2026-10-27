@@ -12,35 +12,35 @@
     "skipLibCheck": false,
     "baseUrl": ".",
     "paths": {
-      "@flow/money": ["libs/money/src/index.ts"],
-      "@flow/ledger-domain": ["libs/ledger-domain/src/index.ts"],
-      "@flow/ledger-postgres": ["libs/ledger-postgres/src/index.ts"],
-      "@flow/simulator": ["libs/simulator/src/index.ts"],
-      "@flow/simulator-oracle": ["libs/simulator-oracle/src/index.ts"],
-      "@flow/ingestion-domain": ["libs/ingestion-domain/src/index.ts"],
-      "@flow/ingestion-postgres": ["libs/ingestion-postgres/src/index.ts"],
-      "@flow/processor-domain": ["libs/processor-domain/src/index.ts"],
-      "@flow/processor-postgres": ["libs/processor-postgres/src/index.ts"],
-      "@flow/bank-domain": ["libs/bank-domain/src/index.ts"],
-      "@flow/bank-postgres": ["libs/bank-postgres/src/index.ts"],
-      "@flow/reconciliation-domain": [
+      "@vigil/money": ["libs/money/src/index.ts"],
+      "@vigil/ledger-domain": ["libs/ledger-domain/src/index.ts"],
+      "@vigil/ledger-postgres": ["libs/ledger-postgres/src/index.ts"],
+      "@vigil/simulator": ["libs/simulator/src/index.ts"],
+      "@vigil/simulator-oracle": ["libs/simulator-oracle/src/index.ts"],
+      "@vigil/ingestion-domain": ["libs/ingestion-domain/src/index.ts"],
+      "@vigil/ingestion-postgres": ["libs/ingestion-postgres/src/index.ts"],
+      "@vigil/processor-domain": ["libs/processor-domain/src/index.ts"],
+      "@vigil/processor-postgres": ["libs/processor-postgres/src/index.ts"],
+      "@vigil/bank-domain": ["libs/bank-domain/src/index.ts"],
+      "@vigil/bank-postgres": ["libs/bank-postgres/src/index.ts"],
+      "@vigil/reconciliation-domain": [
         "libs/reconciliation-domain/src/index.ts"
       ],
-      "@flow/reconciliation-postgres": [
+      "@vigil/reconciliation-postgres": [
         "libs/reconciliation-postgres/src/index.ts"
       ],
-      "@flow/exception-domain": ["libs/exception-domain/src/index.ts"],
-      "@flow/exception-postgres": ["libs/exception-postgres/src/index.ts"],
-      "@flow/control-domain": ["libs/control-domain/src/index.ts"],
-      "@flow/control-postgres": ["libs/control-postgres/src/index.ts"],
-      "@flow/worker-postgres": ["libs/worker-postgres/src/index.ts"],
-      "@flow/integrity-postgres": ["libs/integrity-postgres/src/index.ts"],
-      "@flow/operations-read-postgres": [
+      "@vigil/exception-domain": ["libs/exception-domain/src/index.ts"],
+      "@vigil/exception-postgres": ["libs/exception-postgres/src/index.ts"],
+      "@vigil/control-domain": ["libs/control-domain/src/index.ts"],
+      "@vigil/control-postgres": ["libs/control-postgres/src/index.ts"],
+      "@vigil/worker-postgres": ["libs/worker-postgres/src/index.ts"],
+      "@vigil/integrity-postgres": ["libs/integrity-postgres/src/index.ts"],
+      "@vigil/operations-read-postgres": [
         "libs/operations-read-postgres/src/index.ts"
       ],
-      "@flow/stripe-integration": ["libs/stripe-integration/src/index.ts"],
-      "@flow/stripe-postgres": ["libs/stripe-postgres/src/index.ts"],
-      "@flow/integrations": ["apps/integrations/src/index.ts"]
+      "@vigil/stripe-integration": ["libs/stripe-integration/src/index.ts"],
+      "@vigil/stripe-postgres": ["libs/stripe-postgres/src/index.ts"],
+      "@vigil/integrations": ["apps/integrations/src/index.ts"]
     }
   }
 }

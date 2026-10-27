@@ -19,10 +19,12 @@ export function proxy(request: NextRequest) {
     });
   const id = randomUUID();
   const headers = new Headers(request.headers);
+  headers.set('x-vigil-request-id', id);
   headers.set('x-flow-request-id', id);
   // Credentials terminate at the access boundary, not in read-model/log headers.
   headers.delete('authorization');
   const response = NextResponse.next({ request: { headers } });
+  response.headers.set('x-vigil-request-id', id);
   response.headers.set('x-flow-request-id', id);
   return response;
 }

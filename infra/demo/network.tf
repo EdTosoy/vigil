@@ -1,6 +1,6 @@
 locals {
   prefix = "flow-demo"
-  zones  = ["us-east-1a", "us-east-1b"]
+  zones  = var.availability_zones
 }
 resource "aws_vpc" "demo" {
   cidr_block           = "10.42.0.0/16"

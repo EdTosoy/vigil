@@ -74,7 +74,10 @@ test('exact financial formatting preserves signs, large aggregate values and cur
   assert.equal(percentage('0', '0'), 'Not evaluated');
   assert.equal(percentage('2', '3'), '66.6%');
   assert.equal(percentage('9007199254740993', '9007199254740993'), '100.0%');
-  assert(timestamp('2026-01-01T08:00:00+08:00').endsWith('00:00:00.000 UTC'));
+  assert.equal(
+    timestamp('2026-01-01T08:00:00+08:00'),
+    '2026-01-01 00:00:00 UTC',
+  );
 });
 test('UNKNOWN, FAIL and empty views never render as green or zero exposure', () => {
   const unknown = renderToStaticMarkup(<Status value="UNKNOWN" />);

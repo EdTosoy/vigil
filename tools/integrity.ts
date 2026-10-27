@@ -1,5 +1,5 @@
 import { Pool } from 'pg';
-import { PostgresIntegrity, health } from '@flow/integrity-postgres';
+import { PostgresIntegrity, health } from '@vigil/integrity-postgres';
 
 async function main() {
   const [book, ...runs] = process.argv.slice(2);

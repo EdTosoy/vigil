@@ -44,7 +44,7 @@ resource "aws_iam_role" "execution" {
     Version = "2012-10-17", Statement = [{
       Effect = "Allow", Principal = {
         Service = "ecs-tasks.amazonaws.com"
-      }, Action = "sts:AssumeRole", Condition = { StringEquals = { "aws:SourceAccount" = "163596511125" }, ArnLike = { "aws:SourceArn" = "arn:aws:ecs:us-east-1:163596511125:*" } }
+      }, Action = "sts:AssumeRole", Condition = { StringEquals = { "aws:SourceAccount" = var.aws_account_id }, ArnLike = { "aws:SourceArn" = "arn:aws:ecs:${var.aws_region}:${var.aws_account_id}:*" } }
     }]
   })
 }
@@ -65,7 +65,7 @@ resource "aws_iam_role_policy" "execution" {
         Effect = "Allow", Action = ["ecr:GetAuthorizationToken"], Resource = "*"
       },
       {
-        Effect = "Allow", Action = ["ecr:BatchCheckLayerAvailability", "ecr:GetDownloadUrlForLayer", "ecr:BatchGetImage"], Resource = "arn:aws:ecr:us-east-1:163596511125:repository/flow-demo/${each.key == "ingress" || each.key == "worker" ? "stripe" : each.key == "verify" ? "admin" : each.key}"
+        Effect = "Allow", Action = ["ecr:BatchCheckLayerAvailability", "ecr:GetDownloadUrlForLayer", "ecr:BatchGetImage"], Resource = "arn:aws:ecr:${var.aws_region}:${var.aws_account_id}:repository/flow-demo/${each.key == "ingress" || each.key == "worker" ? "stripe" : each.key == "verify" ? "admin" : each.key}"
       },
       {
         Effect = "Allow", Action = ["logs:CreateLogStream", "logs:PutLogEvents"], Resource = "${aws_cloudwatch_log_group.app[each.key].arn}:*"
@@ -115,7 +115,7 @@ resource "aws_ecs_task_definition" "app" {
     }],
     logConfiguration = {
       logDriver = "awslogs", options = {
-        awslogs-group = aws_cloudwatch_log_group.app[each.key].name, awslogs-region = "us-east-1", awslogs-stream-prefix = "flow"
+        awslogs-group = aws_cloudwatch_log_group.app[each.key].name, awslogs-region = var.aws_region, awslogs-stream-prefix = "flow"
       }
     }
 
@@ -124,7 +124,7 @@ resource "aws_ecs_task_definition" "app" {
   lifecycle {
     create_before_destroy = true
     precondition {
-      condition     = !var.start_services || (can(regex("^[0-9a-f-]{36}$", var.stripe_source_id)) && can(regex("^[0-9a-f-]{36}$", var.ops_book_id)))
+      condition     = !var.start_services || (var.certificate_dns_confirmed && can(regex("^[0-9a-f-]{36}$", var.stripe_source_id)) && can(regex("^[0-9a-f-]{36}$", var.ops_book_id)))
       error_message = "Provision and verify narrow source credentials before starting services."
     }
 
@@ -133,7 +133,7 @@ resource "aws_ecs_task_definition" "app" {
 }
 resource "aws_ecs_service" "app" {
   for_each = {
-    for name, value in local.workloads : name => value if contains(["ops", "ingress", "worker"], name)
+    for name, value in local.workloads : name => value if contains(["ops", "ingress", "worker"], name) && var.certificate_dns_confirmed
   }
   name                               = "flow-demo-${each.key}"
   cluster                            = aws_ecs_cluster.demo.id

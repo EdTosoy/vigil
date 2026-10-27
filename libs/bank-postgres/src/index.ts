@@ -4,7 +4,7 @@ import {
   type DerivationResult,
   type EvaluationResult,
   type BankSummary,
-} from '@flow/bank-domain';
+} from '@vigil/bank-domain';
 export class BankDatabaseError extends Error {
   constructor(readonly code: string) {
     super('Bank command rejected (' + code + ')');

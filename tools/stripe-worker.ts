@@ -3,8 +3,8 @@ import {
   stripeReader,
   object,
   stripeMetricSnapshot,
-} from '@flow/stripe-integration';
-import { StripeEvidenceWorker } from '@flow/stripe-postgres';
+} from '@vigil/stripe-integration';
+import { StripeEvidenceWorker } from '@vigil/stripe-postgres';
 import { stripeConfig } from './stripe-config';
 async function main(): Promise<void> {
   const config = stripeConfig('worker'),

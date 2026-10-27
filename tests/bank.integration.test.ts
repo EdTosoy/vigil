@@ -9,13 +9,13 @@ import {
   normalize,
   type RawInput,
   type NormalizerVersion,
-} from '@flow/ingestion-domain';
-import { PostgresIngestion } from '@flow/ingestion-postgres';
-import { PostgresBank, UnknownBankCommit } from '@flow/bank-postgres';
+} from '@vigil/ingestion-domain';
+import { PostgresIngestion } from '@vigil/ingestion-postgres';
+import { PostgresBank, UnknownBankCommit } from '@vigil/bank-postgres';
 import { commitDropProxy } from './helpers/commit-proxy';
-const au = process.env['FLOW_TEST_ADMIN_URL'],
-  bu = process.env['FLOW_TEST_BANK_URL'],
-  iu = process.env['FLOW_TEST_INGESTION_URL'];
+const au = process.env['VIGIL_TEST_ADMIN_URL'],
+  bu = process.env['VIGIL_TEST_BANK_URL'],
+  iu = process.env['VIGIL_TEST_INGESTION_URL'];
 if (!au || !bu || !iu) throw new Error('Run pnpm test:integration');
 const admin = new Pool({ connectionString: au }),
   bp = new Pool({ connectionString: bu, max: 20 }),

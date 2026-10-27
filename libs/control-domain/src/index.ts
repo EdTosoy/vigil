@@ -1,4 +1,4 @@
-import { Money, type Currency, type MoneyJson } from '@flow/money';
+import { Money, type Currency, type MoneyJson } from '@vigil/money';
 export const CONTROL_VERSION = 'financial-controls-v1';
 export type Status = 'PASS' | 'FAIL' | 'UNKNOWN';
 export type ControlType =

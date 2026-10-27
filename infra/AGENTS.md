@@ -2,11 +2,15 @@
 
 Read root instructions, Phase 15 documentation and ADR-018 before changes.
 
-- Use only `iamadmin-general`, account `163596511125`, region `us-east-1`.
+- Historical Phase 15 evidence used `iamadmin-general`, account `163596511125`, region `us-east-1`; its state/resources are foreign to the Sydney preparation. Never use them as fallback or migrate/copy their state.
+- Sydney D1A/D1B permit only offline preparation and read-only STS preflight with explicit `edtosoy`, account `747240980964`, `ap-southeast-2`, exact STS assumed role `AccountFullAccessRole` (rotating session suffixes allowed). Reject inherited credential/profile/region/endpoint/Terraform overrides. Recheck actual STS identity immediately before every future mutation; a cached receipt is never authorization.
+- Sydney artifacts belong only under `.deployment/747240980964/ap-southeast-2/{bootstrap,demo}/`, including isolated work roots, `TF_DATA_DIR`, seed state, backends, plans, environment/secrets, logs and history. Reject traversal/symlinks and foreign/missing backend or plan metadata; never read legacy private files to populate the new namespace.
+- All mutating deployment/observer workflows remain disabled after D1B, pending D2 readiness, concrete reviewed plans and explicit approval. Tracked Terraform sources now describe Sydney; ignored backends/state/caches in the source roots remain foreign. Never invoke Terraform directly there. `pnpm aws:validate:offline [bootstrap|demo]` copies only allowlisted sources/lockfiles/tests into fresh private work/data directories and permits only backend-disabled init, validation and mocked plan-only tests. Remote init, migration, unlocking, image publication, resource creation/destruction and DNS changes remain unauthorized.
 - `bootstrap` owns persistent prerequisites; `demo` owns disposable runtime.
 - Inspect saved plans and verify identity before every apply. Deployment tooling rejects bootstrap deletes and unexpected resource types.
 - State is sensitive, encrypted and versioned; use native S3 locking. Never commit state, saved plans, generated backend configuration or local variable files.
-- Creating the public `flow.edtosoy.com` child zone is a mandatory STOP checkpoint. Report its actual nameservers and wait for the user to add Cloudflare NS records. Verify public delegation after confirmation before certificate validation or HTTPS deployment.
+- Sydney uses manual Cloudflare DNS for `vigil.edtosoy.com`, ACM validation CNAME outputs and a later ALB CNAME. No Route 53 zone/record is managed or discovered. STOP for actual ACM CNAME publication and public verification before enabling certificate validation/listeners/services. Keep records DNS-only for initial verification. Never modify `flow.edtosoy.com`; its historical child-NS checkpoint is historical evidence only.
+- The existing `mdp-monthly-gross-usd-5` budget is read-only: account-wide monthly USD 5, excluding credits/refunds and including tax. Never import, duplicate, update or destroy this other-owned account guardrail. Verify notification delivery separately before billable work.
 - Never migrate the Cloudflare parent zone or require Cloudflare tokens/providers.
 - No NAT, public database, workload AdministratorAccess, live Stripe, alternate queue or financial semantic changes.
 - Runtime credentials remain narrow. Owner credentials belong only to one-shot migration/provisioning. Never expose secrets through outputs, plans/logs shared with users, task environment literals or images.

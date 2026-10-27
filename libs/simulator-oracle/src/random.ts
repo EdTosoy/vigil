@@ -1,4 +1,4 @@
-import { sha256 } from '@flow/simulator';
+import { sha256 } from '@vigil/simulator';
 
 /** Versioned xorshift32; arithmetic is bitwise uint32, not financial arithmetic. */
 export class Random {

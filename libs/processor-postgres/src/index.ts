@@ -3,7 +3,7 @@ import {
   INTERPRETER_VERSION,
   type DerivationResult,
   type EvaluationResult,
-} from '@flow/processor-domain';
+} from '@vigil/processor-domain';
 export class ProcessorDatabaseError extends Error {
   constructor(readonly code: string) {
     super('Processor command rejected (' + code + ')');

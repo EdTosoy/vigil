@@ -1,0 +1,155 @@
+{
+  "retrievedAt": "2026-10-26T23:15:12.651Z",
+  "region": "ap-southeast-2",
+  "currency": "USD",
+  "model": "Gross public on-demand list prices before credits, tax, billing rounding, CPU surplus and unexpected traffic. Allowances are planning assumptions, not AWS guarantees. Decimal arithmetic. 730-hour month.",
+  "rates": {
+    "fargate_vcpu_hour": {
+      "service": "AmazonECS",
+      "sku": "MMQG9GMCKV4JUBKW",
+      "usageType": "APS2-Fargate-vCPU-Hours:perCPU",
+      "operation": "",
+      "unit": "hours",
+      "usd": "0.0485600000",
+      "source": "AWS Price List GetProducts, location Asia Pacific (Sydney)"
+    },
+    "fargate_gb_hour": {
+      "service": "AmazonECS",
+      "sku": "RWBFR84TYF5JT44P",
+      "usageType": "APS2-Fargate-GB-Hours",
+      "operation": "",
+      "unit": "hours",
+      "usd": "0.0053200000",
+      "source": "AWS Price List GetProducts, location Asia Pacific (Sydney)"
+    },
+    "rds_instance_hour": {
+      "service": "AmazonRDS",
+      "sku": "MGQEJQ9TZUN7KB8H",
+      "usageType": "APS2-InstanceUsage:db.t4g.micro",
+      "operation": "CreateDBInstance:0014",
+      "unit": "Hrs",
+      "usd": "0.0250000000",
+      "source": "AWS Price List GetProducts, location Asia Pacific (Sydney)"
+    },
+    "rds_gp3_gb_month": {
+      "service": "AmazonRDS",
+      "sku": "XVCEBKZQD46QGPYP",
+      "usageType": "APS2-RDS:GP3-Storage",
+      "operation": "CreateDBInstance:0014",
+      "unit": "GB-Mo",
+      "usd": "0.1380000000",
+      "source": "AWS Price List GetProducts, location Asia Pacific (Sydney)"
+    },
+    "alb_hour": {
+      "service": "AWSELB",
+      "sku": "M84CYHYUVJ4USFHD",
+      "usageType": "APS2-LoadBalancerUsage",
+      "operation": "LoadBalancing:Application",
+      "unit": "Hrs",
+      "usd": "0.0252000000",
+      "source": "AWS Price List GetProducts, location Asia Pacific (Sydney)"
+    },
+    "alb_lcu_hour": {
+      "service": "AWSELB",
+      "sku": "6CFSD9EDEA5XS33F",
+      "usageType": "APS2-LCUUsage",
+      "operation": "LoadBalancing:Application",
+      "unit": "LCU-Hrs",
+      "usd": "0.0080000000",
+      "source": "AWS Price List GetProducts, location Asia Pacific (Sydney)"
+    },
+    "ec2_x86_hour": {
+      "service": "AmazonEC2",
+      "sku": "5ZTHF34UHKZZBAYK",
+      "usageType": "APS2-BoxUsage:t3.medium",
+      "operation": "RunInstances",
+      "unit": "Hrs",
+      "usd": "0.0528000000",
+      "source": "AWS Price List GetProducts, location Asia Pacific (Sydney)"
+    },
+    "ec2_arm_hour": {
+      "service": "AmazonEC2",
+      "sku": "9TP3ARTXQ46KEGHK",
+      "usageType": "APS2-BoxUsage:t4g.medium",
+      "operation": "RunInstances",
+      "unit": "Hrs",
+      "usd": "0.0424000000",
+      "source": "AWS Price List GetProducts, location Asia Pacific (Sydney)"
+    },
+    "ebs_gp3_gb_month": {
+      "service": "AmazonEC2",
+      "sku": "QR74UAP3E9WUYT9B",
+      "usageType": "APS2-EBS:VolumeUsage.gp3",
+      "operation": "",
+      "unit": "GB-Mo",
+      "usd": "0.0960000000",
+      "source": "AWS Price List GetProducts, location Asia Pacific (Sydney)"
+    },
+    "public_ipv4_hour": {
+      "usd": "0.005",
+      "unit": "address-hour",
+      "source": "https://aws.amazon.com/vpc/pricing/"
+    },
+    "hosted_zone_month": {
+      "usd": "0.50",
+      "unit": "zone-month",
+      "source": "https://aws.amazon.com/route53/pricing/"
+    },
+    "ecr_gb_month": {
+      "usd": "0.10",
+      "unit": "GB-month",
+      "source": "https://aws.amazon.com/ecr/pricing/"
+    }
+  },
+  "assumptions": {
+    "hoursPerMonth": 730,
+    "sessionHoursIncludingProvisionAndTeardown": 4,
+    "sessionsPerMonth": 4,
+    "serviceCount": 3,
+    "vcpuPerService": "0.25",
+    "memoryGbByService": {
+      "ops": "1",
+      "ingress": "0.5",
+      "worker": "0.5"
+    },
+    "rdsStorageGiB": 20,
+    "publicIpv4Addresses": 5,
+    "averageAlbLcu": "1",
+    "retainedEcrBillingGb": "2",
+    "stateAndRequestAllowanceUsd": "0.05",
+    "logAllowanceUsd": "0.25",
+    "transferAllowanceUsd": "0.25",
+    "oneShotHoursPerMonth": "2",
+    "oneShotVcpu": "0.25",
+    "oneShotMemoryGb": "1",
+    "oneShotAdditionalIpv4": 1,
+    "vmStorageGiB": 20,
+    "vmBackupAllowanceUsd": "1.00"
+  },
+  "results": {
+    "steadyServiceVcpu": "0.75",
+    "steadyServiceMemoryGb": "2.0",
+    "fargateServicesUsdPerHour": "0.047060000000",
+    "fullActiveUsdPerHourExcludingStorage": "0.130260000000",
+    "rdsStorageUsdFullMonth": "2.7600000000",
+    "persistentMonthlyUsd": "0.75",
+    "variableMonthlyAllowancesUsd": "0.50",
+    "oneShotUsdPerHour": "0.022460000000",
+    "oneFourHourSessionMonthUsd": "1.797393287671232876712328767",
+    "fourFourHourSessionsMonthUsd": "3.439573150684931506849315068",
+    "alwaysOnFullStackMonthUsd": "99.144720000000",
+    "alwaysOnFullStackZeroLcuMonthUsd": "93.304720000000",
+    "alwaysOnEc2X86MonthUsd": "46.3640000000",
+    "alwaysOnEc2ArmMonthUsd": "38.7720000000",
+    "sixteenHourBudgetHeadroomBeforeTaxUsd": "1.560426849315068493150684932"
+  },
+  "formulas": {
+    "fargate_services_per_hour": "(3 * 0.25 * fargate_vcpu_hour) + ((1 + 0.5 + 0.5) * fargate_gb_hour)",
+    "active_per_hour": "fargate_services_per_hour + rds_instance_hour + alb_hour + (5 * public_ipv4_hour) + (averageAlbLcu * alb_lcu_hour)",
+    "persistent_monthly": "hosted_zone_month + (retainedEcrBillingGb * ecr_gb_month) + stateAndRequestAllowanceUsd",
+    "one_shot_per_hour": "0.25 * fargate_vcpu_hour + 1 * fargate_gb_hour + public_ipv4_hour",
+    "ephemeral_month": "hours * active_per_hour + (20 * rds_gp3_gb_month * hours / 730) + persistent_monthly + logAllowanceUsd + transferAllowanceUsd + oneShotHours * one_shot_per_hour",
+    "always_on_full_stack_month": "730 * active_per_hour + 20 * rds_gp3_gb_month + persistent_monthly + logAllowanceUsd + transferAllowanceUsd + 2 * one_shot_per_hour",
+    "always_on_vm_month": "730 * ec2_hour + 20 * ebs_gp3_gb_month + 730 * public_ipv4_hour + persistent_monthly + logAllowanceUsd + transferAllowanceUsd + vmBackupAllowanceUsd"
+  }
+}

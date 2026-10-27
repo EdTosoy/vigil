@@ -1,7 +1,7 @@
 /** Offline synthetic demo CLI; public input only. */
 import { readFile } from 'node:fs/promises';
 import { Pool } from 'pg';
-import type { SystemInput } from '@flow/simulator';
+import type { SystemInput } from '@vigil/simulator';
 import { seedDemo, type DemoPools } from './ops-demo-seed';
 export { seedDemo, type DemoPools } from './ops-demo-seed';
 async function main() {

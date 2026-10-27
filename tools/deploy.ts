@@ -9,7 +9,14 @@ import {
   readdir,
 } from 'node:fs/promises';
 import { resolve } from 'node:path';
-import { Resolver } from 'node:dns/promises';
+import {
+  deploymentContext,
+  assertDeploymentPrepared,
+} from './deployment-context';
+import {
+  deploymentCommandPreflight,
+  reportDeploymentFailure,
+} from './deployment-preflight';
 import {
   deployment,
   assertDeploymentIdentity,
@@ -19,11 +26,12 @@ import {
 } from './deployment-guards';
 
 const root = resolve(__dirname, '..');
-const directory = resolve(root, 'infra/bootstrap');
-const local = resolve(root, '.deployment');
-const variables = resolve(local, 'bootstrap.tfvars.json');
-const planPath = resolve(local, 'bootstrap.tfplan');
-const receiptPath = resolve(local, 'bootstrap-plan.json');
+const context = deploymentContext(root, 'bootstrap');
+const directory = context.work;
+const local = context.base;
+const variables = context.path('bootstrap.tfvars.json');
+const planPath = context.path('bootstrap.tfplan');
+const receiptPath = context.path('bootstrap-plan.json');
 const generatedBackend = resolve(directory, 'backend.generated.tf');
 
 async function exists(path: string): Promise<boolean> {
@@ -46,6 +54,8 @@ function environment(): NodeJS.ProcessEnv {
     AWS_PAGER: '',
     AWS_CLI_AUTO_PROMPT: 'off',
     TF_IN_AUTOMATION: '1',
+    TF_DATA_DIR: context.data,
+    TF_WORKSPACE: 'default',
   };
 }
 async function execute(
@@ -53,6 +63,7 @@ async function execute(
   args: string[],
   logged = false,
 ): Promise<string> {
+  assertDeploymentPrepared();
   const child = spawn(command, args, {
     cwd: directory,
     env: environment(),
@@ -69,12 +80,12 @@ async function execute(
   const out = Buffer.concat(chunks).toString();
   const err = Buffer.concat(errors).toString();
   if (logged && command === 'terraform' && /^[a-z-]+$/.test(args[0] ?? ''))
-    await privateWrite(resolve(local, `terraform-${args[0]}.log`), out + err);
+    await privateWrite(context.path(`terraform-${args[0]}.log`), out + err);
   if (logged || code !== 0)
-    await privateWrite(resolve(local, 'last-command.log'), out + err);
+    await privateWrite(context.path('last-command.log'), out + err);
   if (code !== 0)
     throw new Error(
-      'Deployment command failed; inspect ignored .deployment/last-command.log locally',
+      'Deployment command failed; inspect the private Sydney bootstrap log locally',
     );
   return out;
 }
@@ -113,19 +124,13 @@ async function identity(): Promise<void> {
   );
 }
 async function config(dns: boolean): Promise<void> {
-  const previous = (await exists(variables))
-    ? (JSON.parse(await readFile(variables, 'utf8')) as {
-        budget_email?: string;
-      })
-    : {};
-  const email = process.env['FLOW_BUDGET_EMAIL'] ?? previous.budget_email;
-  if (!email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email))
+  if (dns)
     throw new Error(
-      'Supply the user-approved FLOW_BUDGET_EMAIL; never infer a contact',
+      'Sydney DNS is manual Cloudflare configuration; no hosted zone is managed',
     );
   await privateWrite(
     variables,
-    JSON.stringify({ budget_email: email, create_dns_zone: dns }) + '\n',
+    JSON.stringify({ existing_budget_name: deployment.budget }) + '\n',
   );
 }
 async function fingerprint(): Promise<string> {
@@ -141,7 +146,7 @@ async function fingerprint(): Promise<string> {
 async function plan(dns: boolean): Promise<void> {
   if (dns && !(await exists(generatedBackend)))
     throw new Error(
-      'Migrate the seed state to S3 before creating the DNS zone',
+      'Sydney does not create a Route 53 zone; manual Cloudflare DNS gate required',
     );
   if (
     !(await exists(generatedBackend)) &&
@@ -236,7 +241,7 @@ async function backend(migrate: boolean): Promise<void> {
       );
     await chmod(resolve(directory, 'terraform.tfstate'), 0o600);
     await privateWrite(
-      resolve(local, 'seed-state.backup'),
+      context.path('seed-state.backup'),
       await readFile(resolve(directory, 'terraform.tfstate'), 'utf8'),
     );
   }
@@ -301,41 +306,31 @@ async function apply(): Promise<void> {
   console.log(JSON.stringify(outputs, null, 2));
   if (saved.dns) {
     console.log(
-      'MANDATORY DNS CHECKPOINT: STOP. User must add the four output nameservers as Cloudflare NS records named flow. No delegation-dependent operation has run.',
+      'MANDATORY DNS CHECKPOINT: STOP. Only manual Cloudflare ACM validation for vigil.edtosoy.com is approved; no Route 53 zone or NS changes.',
     );
     return;
   }
   console.log(
-    'Seed applied. Next: bootstrap-migrate-state, then bootstrap-dns-plan and reviewed apply.',
+    'Seed applied. Stop for separate new-lineage remote-state migration review; no DNS creation is managed.',
   );
 }
 async function dns(): Promise<void> {
-  if (process.argv[3] !== '--confirmed')
-    throw new Error(
-      'User confirmation of manual Cloudflare delegation is required',
-    );
-  const value = JSON.parse(
-    await execute('terraform', ['output', '-json', 'name_servers']),
-  ) as string[];
-  if (value.length !== 4)
-    throw new Error('Expected four nameservers from the created public zone');
-  const expected = value.map((n) => n.toLowerCase().replace(/\.$/, '')).sort();
-  for (const server of ['1.1.1.1', '8.8.8.8']) {
-    const resolver = new Resolver({ timeout: 3000, tries: 2 });
-    resolver.setServers([server]);
-    const actual = (await resolver.resolveNs(deployment.domain))
-      .map((n) => n.toLowerCase().replace(/\.$/, ''))
-      .sort();
-    if (JSON.stringify(expected) !== JSON.stringify(actual))
-      throw new Error(
-        'Public delegation missing or different; do not request/validate certificates yet',
-      );
-  }
-  console.log(
-    'Public delegation verified through two independent recursive resolvers.',
+  throw new Error(
+    'Sydney requires manual Cloudflare ACM CNAME publication and independent DNS/HTTPS verification; no Route 53 delegation workflow',
   );
 }
 async function main(): Promise<void> {
+  if (
+    await deploymentCommandPreflight(
+      root,
+      'bootstrap',
+      process.argv[2],
+      process.env,
+      undefined,
+      process.argv.slice(3),
+    )
+  )
+    return;
   await mkdir(local, { recursive: true, mode: 0o700 });
   await chmod(local, 0o700);
   await identity();
@@ -364,13 +359,4 @@ async function main(): Promise<void> {
       );
   }
 }
-void main().catch((error: unknown) => {
-  // Never print SDK/CLI errors: they can include URLs, payloads or credential details.
-  console.error(
-    error instanceof Error &&
-      error.message.startsWith('Deployment command failed')
-      ? error.message
-      : 'Deployment safety check failed; inspect configuration and the ignored local command log.',
-  );
-  process.exitCode = 1;
-});
+void main().catch(reportDeploymentFailure);

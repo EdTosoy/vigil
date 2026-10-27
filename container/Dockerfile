@@ -3,13 +3,14 @@ FROM node:24.21.0-bookworm-slim@sha256:d6aa754f16b3197301076f047b5def2f02ea1dbbc
 WORKDIR /workspace
 ENV NEXT_TELEMETRY_DISABLED=1 NX_DAEMON=false
 ARG FLOW_IMAGE_REVISION=local
-ENV FLOW_IMAGE_REVISION=$FLOW_IMAGE_REVISION
+ARG VIGIL_IMAGE_REVISION=$FLOW_IMAGE_REVISION
+ENV VIGIL_IMAGE_REVISION=$VIGIL_IMAGE_REVISION
 RUN npm install --global pnpm@11.27.0
 COPY . .
 RUN pnpm install --frozen-lockfile
 RUN node tools/build-containers.mjs
 RUN pnpm exec tsc -b libs/operations-read-postgres libs/money
-RUN pnpm --filter @flow/ops build
+RUN pnpm --filter @vigil/ops build
 
 FROM node:24.21.0-bookworm-slim@sha256:d6aa754f16b3197301076f047b5def2f02ea1dbbc2ca920407d46d7ec7f87b20 AS base
 WORKDIR /app
@@ -18,7 +19,7 @@ COPY --chown=node:node container/rds-ca.pem /app/rds-ca.pem
 USER node
 
 FROM base AS ops
-ENV PORT=3000 HOSTNAME=0.0.0.0 NEXT_TELEMETRY_DISABLED=1 FLOW_DEPLOYMENT_MODE=demo
+ENV PORT=3000 HOSTNAME=0.0.0.0 NEXT_TELEMETRY_DISABLED=1 VIGIL_DEPLOYMENT_MODE=demo
 COPY --from=build --chown=node:node /workspace/apps/ops/.next/standalone /app
 COPY --from=build --chown=node:node /workspace/apps/ops/.next/static /app/apps/ops/.next/static
 COPY --from=build --chown=node:node /workspace/apps/ops/public /app/apps/ops/public

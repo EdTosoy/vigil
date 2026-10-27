@@ -1,5 +1,5 @@
 output "url" {
-  value = "https://flow.edtosoy.com"
+  value = "https://${var.hostname}"
 }
 output "database_address" {
   value = aws_db_instance.demo.address
@@ -40,4 +40,18 @@ output "alb_arn" {
 }
 output "certificate_arn" {
   value = aws_acm_certificate.demo.arn
+}
+
+output "acm_validation_records" {
+  description = "STOP: publish these actual CNAMEs DNS-only in Cloudflare; never infer values."
+  value = [for option in aws_acm_certificate.demo.domain_validation_options : {
+    name = option.resource_record_name, type = option.resource_record_type, value = option.resource_record_value
+  }]
+}
+output "alb_dns_name" {
+  description = "Future Cloudflare DNS-only CNAME target for vigil; unknown until approved ALB creation."
+  value       = aws_lb.demo.dns_name
+}
+output "stripe_webhook_url" {
+  value = "https://${var.hostname}/webhooks/stripe"
 }

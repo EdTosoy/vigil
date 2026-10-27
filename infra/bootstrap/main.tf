@@ -1,5 +1,5 @@
 locals {
-  bucket_name = "flow-demo-tfstate-163596511125-us-east-1"
+  bucket_name = "flow-demo-tfstate-${var.aws_account_id}-${var.aws_region}"
   images      = toset(["ops", "stripe", "admin"])
 }
 
@@ -76,38 +76,21 @@ resource "aws_ecr_lifecycle_policy" "image" {
   })
 }
 
-resource "aws_budgets_budget" "demo" {
-  name         = "flow-demo-account-monthly"
-  budget_type  = "COST"
-  limit_amount = "10"
-  limit_unit   = "USD"
-  time_unit    = "MONTHLY"
-  # Account-wide so untagged infrastructure and bootstrap costs are not omitted.
-  # Existing non-Flow spend also contributes. Alerts are not a spending cap.
-  dynamic "notification" {
-    for_each = [50, 80, 100]
-    content {
-      comparison_operator        = "GREATER_THAN"
-      notification_type          = "ACTUAL"
-      threshold                  = notification.value
-      threshold_type             = "PERCENTAGE"
-      subscriber_email_addresses = [var.budget_email]
+# Existing account-wide budget belongs to its current owner. Never import,
+# duplicate, update or destroy it from Vigil. This data source is a future read.
+data "aws_budgets_budget" "existing" {
+  account_id = var.aws_account_id
+  name       = var.existing_budget_name
+  lifecycle {
+    postcondition {
+      condition = try(
+        self.budget_type == "COST" && self.time_unit == "MONTHLY" &&
+        tonumber(self.budget_limit[0].amount) == 5 && self.budget_limit[0].unit == "USD" &&
+        !self.cost_types[0].include_credit && !self.cost_types[0].include_refund && self.cost_types[0].include_tax &&
+        length(self.cost_filter) == 0 && (self.billing_view_arn == null || self.billing_view_arn == ""),
+        false
+      )
+      error_message = "Existing budget must cover gross account-wide monthly costs: USD 5, excluding credits/refunds, including tax."
     }
   }
-  notification {
-    comparison_operator        = "GREATER_THAN"
-    notification_type          = "FORECASTED"
-    threshold                  = 100
-    threshold_type             = "PERCENTAGE"
-    subscriber_email_addresses = [var.budget_email]
-  }
-  lifecycle { prevent_destroy = true }
-}
-
-resource "aws_route53_zone" "flow" {
-  count         = var.create_dns_zone ? 1 : 0
-  name          = "flow.edtosoy.com"
-  comment       = "Persistent delegated Flow demo child zone; parent stays on Cloudflare"
-  force_destroy = false
-  lifecycle { prevent_destroy = true }
 }

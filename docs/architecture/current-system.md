@@ -2,7 +2,7 @@
 
 Vigil is a TypeScript modular monolith for financial reconciliation and exception management. Shared domain libraries run in a Next.js read-only operations app, Node.js Stripe ingress and PostgreSQL workers, with CLI/one-shot workflows for administrative and financial operations. PostgreSQL is the authoritative durability boundary. This page describes the implemented Phase 1–15 system; the [original design catalog](README.md) preserves the Phase 0 proposal.
 
-Vigil was originally developed under the internal project name Flow. Product branding now uses Vigil; `@flow/*` packages, `flow_*` database roles, environment variables, telemetry names and AWS/DNS identifiers remain unchanged. Phase verification reports and the Phase 12 screenshot retain their historical names and evidence. This branding pass changes no financial behavior or infrastructure resources.
+Vigil was originally developed under the internal project name Flow. Product branding and `@vigil/*` packages now use Vigil. Persisted `flow_*` database roles, telemetry contracts and AWS/DNS identities remain compatible; new Vigil environment names retain their legacy fallbacks. Phase verification reports and the Phase 12 screenshot retain their historical names and evidence. See the [rename and compatibility record](../branding-migration.md). Financial behavior and deployed infrastructure remain unchanged.
 
 ## Evidence and financial authority
 

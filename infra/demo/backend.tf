@@ -1,10 +1,10 @@
 terraform {
   backend "s3" {
-    bucket              = "flow-demo-tfstate-163596511125-us-east-1"
+    bucket              = "flow-demo-tfstate-747240980964-ap-southeast-2"
     key                 = "demo/terraform.tfstate"
-    region              = "us-east-1"
-    profile             = "iamadmin-general"
-    allowed_account_ids = ["163596511125"]
+    region              = "ap-southeast-2"
+    profile             = "edtosoy"
+    allowed_account_ids = ["747240980964"]
     encrypt             = true
     use_lockfile        = true
   }

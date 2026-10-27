@@ -6,13 +6,13 @@ import {
   Telemetry,
   type ReadObservation,
   classify,
-} from '@flow/operations-read-postgres';
+} from '@vigil/operations-read-postgres';
 const context = new AsyncLocalStorage<{ id: string; failed: boolean }>();
 const state = globalThis as typeof globalThis & {
-  flowOpsTelemetry?: Telemetry;
+  vigilOpsTelemetry?: Telemetry;
 };
 const threshold = Number(process.env['OPS_SLOW_READ_MS'] ?? '500');
-export const telemetry = (state.flowOpsTelemetry ??= new Telemetry(threshold));
+export const telemetry = (state.vigilOpsTelemetry ??= new Telemetry(threshold));
 export function log(
   operation: string,
   outcome: string,
@@ -50,7 +50,11 @@ export async function request<T>(
   operation: string,
   execute: () => Promise<T>,
 ): Promise<T> {
-  const id = (await headers()).get('x-flow-request-id') ?? randomUUID();
+  const requestHeaders = await headers();
+  const id =
+    requestHeaders.get('x-vigil-request-id') ??
+    requestHeaders.get('x-flow-request-id') ??
+    randomUUID();
   return context.run({ id, failed: false }, async () => {
     const start = performance.now();
     try {

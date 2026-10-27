@@ -41,8 +41,8 @@ Use the existing pinned toolchain and disposable PostgreSQL runner. The optional
 
 ```sh
 pnpm test:integration tests/observability.integration.test.ts
-FLOW_PROFILE_READS=/tmp/flow-phase13-profile.json pnpm test:integration tests/operations-browser.integration.test.ts
-FLOW_PROFILE_LARGE=1 FLOW_PROFILE_READS=/tmp/flow-phase13-large.json pnpm test:integration tests/operations-browser.integration.test.ts
+VIGIL_PROFILE_READS=/tmp/vigil-phase13-profile.json pnpm test:integration tests/operations-browser.integration.test.ts
+VIGIL_PROFILE_LARGE=1 VIGIL_PROFILE_READS=/tmp/vigil-phase13-large.json pnpm test:integration tests/operations-browser.integration.test.ts
 pnpm verify
 ```
 

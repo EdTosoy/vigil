@@ -1,14 +1,9 @@
-variable "budget_email" {
-  description = "User-approved notification address. Supply through ignored local configuration."
+variable "existing_budget_name" {
+  description = "Read-only reference to the already existing account-wide gross budget; never owned by Vigil."
   type        = string
+  default     = "mdp-monthly-gross-usd-5"
   validation {
-    condition     = can(regex("^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$", var.budget_email))
-    error_message = "An explicit budget notification email is required."
+    condition     = var.existing_budget_name == "mdp-monthly-gross-usd-5"
+    error_message = "Use the existing five-dollar gross account budget."
   }
-}
-
-variable "create_dns_zone" {
-  description = "Enable only after the seed state has migrated to S3. Creation triggers the manual DNS STOP checkpoint."
-  type        = bool
-  default     = false
 }

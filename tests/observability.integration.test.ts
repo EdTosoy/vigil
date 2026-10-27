@@ -5,9 +5,9 @@ import {
   PostgresOperations,
   ReadUnavailable,
   type ReadObservation,
-} from '@flow/operations-read-postgres';
-import { PostgresReconciliation } from '@flow/reconciliation-postgres';
-import { PostgresControls } from '@flow/control-postgres';
+} from '@vigil/operations-read-postgres';
+import { PostgresReconciliation } from '@vigil/reconciliation-postgres';
+import { PostgresControls } from '@vigil/control-postgres';
 import {
   fixture,
   importEvidence,
@@ -26,11 +26,11 @@ const pools = [
   'OPERATIONS',
 ].map(
   (key) =>
-    new Pool({ connectionString: process.env['FLOW_TEST_' + key + '_URL'] }),
+    new Pool({ connectionString: process.env['VIGIL_TEST_' + key + '_URL'] }),
 );
 const [admin, ingestion, processor, bank, recon, controls, operations] =
   pools as [Pool, Pool, Pool, Pool, Pool, Pool, Pool];
-if (!process.env['FLOW_TEST_OPERATIONS_URL'])
+if (!process.env['VIGIL_TEST_OPERATIONS_URL'])
   throw new Error('Use pnpm test:integration');
 after(async () => {
   await Promise.all(pools.map((p) => p.end()));
@@ -109,7 +109,7 @@ test('batched proofs and revision aggregate exactly preserve original frozen/cur
   await clean(admin, f.book, [run.id]);
 });
 test('readiness and reads bound a stalled real PostgreSQL response and discard the client', async () => {
-  const proxy = await readDelayProxy(process.env['FLOW_TEST_OPERATIONS_URL']!);
+  const proxy = await readDelayProxy(process.env['VIGIL_TEST_OPERATIONS_URL']!);
   const pool = new Pool({
     connectionString: proxy.url,
     max: 1,

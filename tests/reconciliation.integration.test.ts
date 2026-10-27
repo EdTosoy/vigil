@@ -3,11 +3,11 @@ import { randomUUID } from 'node:crypto';
 import { before, after, test } from 'node:test';
 import { Pool } from 'pg';
 import fc from 'fast-check';
-import { PostgresIngestion } from '@flow/ingestion-postgres';
+import { PostgresIngestion } from '@vigil/ingestion-postgres';
 import {
   PostgresReconciliation,
   UnknownReconciliationCommit,
-} from '@flow/reconciliation-postgres';
+} from '@vigil/reconciliation-postgres';
 import {
   fixture,
   installInvariantSweeps,
@@ -18,11 +18,11 @@ import {
 } from './helpers/reconciliation-fixture';
 import { commitDropProxy } from './helpers/commit-proxy';
 installInvariantSweeps();
-const au = process.env['FLOW_TEST_ADMIN_URL'],
-  ru = process.env['FLOW_TEST_RECONCILIATION_URL'],
-  iu = process.env['FLOW_TEST_INGESTION_URL'],
-  pu = process.env['FLOW_TEST_PROCESSOR_URL'],
-  bu = process.env['FLOW_TEST_BANK_URL'];
+const au = process.env['VIGIL_TEST_ADMIN_URL'],
+  ru = process.env['VIGIL_TEST_RECONCILIATION_URL'],
+  iu = process.env['VIGIL_TEST_INGESTION_URL'],
+  pu = process.env['VIGIL_TEST_PROCESSOR_URL'],
+  bu = process.env['VIGIL_TEST_BANK_URL'];
 if (!au || !ru || !iu || !pu || !bu)
   throw new Error('Run pnpm test:integration');
 const admin = new Pool({ connectionString: au }),

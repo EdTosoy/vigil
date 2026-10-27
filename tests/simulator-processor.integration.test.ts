@@ -8,15 +8,15 @@ import { mkdtemp, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import fc from 'fast-check';
-import { generateSimulation } from '@flow/simulator-oracle';
-import { stableJson, type SystemInput } from '@flow/simulator';
-import { PostgresIngestion } from '@flow/ingestion-postgres';
-import { PostgresProcessor } from '@flow/processor-postgres';
+import { generateSimulation } from '@vigil/simulator-oracle';
+import { stableJson, type SystemInput } from '@vigil/simulator';
+import { PostgresIngestion } from '@vigil/ingestion-postgres';
+import { PostgresProcessor } from '@vigil/processor-postgres';
 import { simulatorBatch } from '../tools/ingestion-input';
 import { simulatorSettlementBatch } from '../tools/processor-input';
-const adminUrl = process.env['FLOW_TEST_ADMIN_URL'],
-  url = process.env['FLOW_TEST_PROCESSOR_URL'],
-  iu = process.env['FLOW_TEST_INGESTION_URL'];
+const adminUrl = process.env['VIGIL_TEST_ADMIN_URL'],
+  url = process.env['VIGIL_TEST_PROCESSOR_URL'],
+  iu = process.env['VIGIL_TEST_INGESTION_URL'];
 if (!adminUrl || !url || !iu) throw new Error('Run pnpm test:integration');
 const admin = new Pool({ connectionString: adminUrl }),
   pp = new Pool({ connectionString: url }),
@@ -188,7 +188,7 @@ test('CLI prints only processor summary and unchanged keys reproduce frozen resu
     paymentCount: 8,
     partialRefundCount: 2,
   }).input;
-  const dir = await mkdtemp(join(tmpdir(), 'flow-processor-cli-')),
+  const dir = await mkdtemp(join(tmpdir(), 'vigil-processor-cli-')),
     file = join(dir, 'input.json');
   await writeFile(file, stableJson(input) + '\n');
   const run = () =>

@@ -6,7 +6,7 @@ import fc from 'fast-check';
 import {
   PostgresIngestion,
   UnknownIngestionCommit,
-} from '@flow/ingestion-postgres';
+} from '@vigil/ingestion-postgres';
 import {
   canonicalJson,
   batchPayload,
@@ -14,10 +14,10 @@ import {
   sha256,
   type BatchCommand,
   type RawInput,
-} from '@flow/ingestion-domain';
+} from '@vigil/ingestion-domain';
 import { commitDropProxy } from './helpers/commit-proxy';
-const adminUrl = process.env['FLOW_TEST_ADMIN_URL'];
-const url = process.env['FLOW_TEST_INGESTION_URL'];
+const adminUrl = process.env['VIGIL_TEST_ADMIN_URL'];
+const url = process.env['VIGIL_TEST_INGESTION_URL'];
 if (!adminUrl || !url)
   throw new Error('Run pnpm test:integration with disposable PostgreSQL');
 const admin = new Pool({ connectionString: adminUrl });

@@ -9,12 +9,12 @@ terraform {
 
 }
 provider "aws" {
-  profile             = "iamadmin-general"
-  region              = "us-east-1"
-  allowed_account_ids = ["163596511125"]
+  profile             = var.aws_profile
+  region              = var.aws_region
+  allowed_account_ids = [var.aws_account_id]
   default_tags {
     tags = {
-      Project = "flow", Environment = "demo", Lifecycle = "ephemeral", ManagedBy = "terraform"
+      Project = "vigil", Environment = "demo", Lifecycle = "ephemeral", ManagedBy = "terraform", DeploymentAccount = var.aws_account_id, DeploymentRegion = var.aws_region
     }
 
   }

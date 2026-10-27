@@ -3,16 +3,19 @@ import { randomUUID } from 'node:crypto';
 import { after, test } from 'node:test';
 import { Pool } from 'pg';
 import fc from 'fast-check';
-import { Money } from '@flow/money';
-import { PostgresControls, UnknownControlCommit } from '@flow/control-postgres';
+import { Money } from '@vigil/money';
+import {
+  PostgresControls,
+  UnknownControlCommit,
+} from '@vigil/control-postgres';
 import {
   serializeControl,
   type ControlCommand,
   type ControlSummary,
-} from '@flow/control-domain';
-import { PostgresReconciliation } from '@flow/reconciliation-postgres';
-import { PostgresExceptions } from '@flow/exception-postgres';
-import { PostgresLedger } from '@flow/ledger-postgres';
+} from '@vigil/control-domain';
+import { PostgresReconciliation } from '@vigil/reconciliation-postgres';
+import { PostgresExceptions } from '@vigil/exception-postgres';
+import { PostgresLedger } from '@vigil/ledger-postgres';
 import {
   fixture,
   installInvariantSweeps,
@@ -23,20 +26,20 @@ import {
 } from './helpers/reconciliation-fixture';
 import { commitDropProxy } from './helpers/commit-proxy';
 installInvariantSweeps();
-const cu = process.env['FLOW_TEST_CONTROL_URL']!;
+const cu = process.env['VIGIL_TEST_CONTROL_URL']!;
 if (!cu) throw new Error('Run pnpm test:integration');
 const admin = new Pool({
-    connectionString: process.env['FLOW_TEST_ADMIN_URL'],
+    connectionString: process.env['VIGIL_TEST_ADMIN_URL'],
   }),
   cp = new Pool({ connectionString: cu, max: 16 }),
-  ip = new Pool({ connectionString: process.env['FLOW_TEST_INGESTION_URL'] }),
-  pp = new Pool({ connectionString: process.env['FLOW_TEST_PROCESSOR_URL'] }),
-  bp = new Pool({ connectionString: process.env['FLOW_TEST_BANK_URL'] }),
+  ip = new Pool({ connectionString: process.env['VIGIL_TEST_INGESTION_URL'] }),
+  pp = new Pool({ connectionString: process.env['VIGIL_TEST_PROCESSOR_URL'] }),
+  bp = new Pool({ connectionString: process.env['VIGIL_TEST_BANK_URL'] }),
   rp = new Pool({
-    connectionString: process.env['FLOW_TEST_RECONCILIATION_URL'],
+    connectionString: process.env['VIGIL_TEST_RECONCILIATION_URL'],
   }),
-  ep = new Pool({ connectionString: process.env['FLOW_TEST_EXCEPTION_URL'] }),
-  lp = new Pool({ connectionString: process.env['FLOW_TEST_WRITER_URL'] });
+  ep = new Pool({ connectionString: process.env['VIGIL_TEST_EXCEPTION_URL'] }),
+  lp = new Pool({ connectionString: process.env['VIGIL_TEST_WRITER_URL'] });
 const controls = new PostgresControls(cp),
   recon = new PostgresReconciliation(rp),
   exceptions = new PostgresExceptions(ep);

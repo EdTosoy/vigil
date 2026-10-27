@@ -1,15 +1,15 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { Pool } from 'pg';
-import { generateSimulation } from '@flow/simulator-oracle';
-import { captureCommand } from '@flow/simulator';
-import { PostgresLedger } from '@flow/ledger-postgres';
+import { generateSimulation } from '@vigil/simulator-oracle';
+import { captureCommand } from '@vigil/simulator';
+import { PostgresLedger } from '@vigil/ledger-postgres';
 
 /** Independent verifier owns oracle; execute receives only public command attempts. */
 test('simulated omissions/duplicate attempts use real public ledger commands and recover exactly once', async () => {
-  const adminUrl = process.env['FLOW_TEST_ADMIN_URL'];
-  const writerUrl = process.env['FLOW_TEST_WRITER_URL'];
-  const readerUrl = process.env['FLOW_TEST_READER_URL'];
+  const adminUrl = process.env['VIGIL_TEST_ADMIN_URL'];
+  const writerUrl = process.env['VIGIL_TEST_WRITER_URL'];
+  const readerUrl = process.env['VIGIL_TEST_READER_URL'];
   if (!adminUrl || !writerUrl || !readerUrl)
     throw new Error('Run pnpm test:integration');
   const admin = new Pool({ connectionString: adminUrl });

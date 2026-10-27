@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import fc from 'fast-check';
-import { Money, MAX_MINOR_UNITS } from '@flow/money';
-import { normalize, canonicalJson } from '@flow/ingestion-domain';
+import { Money, MAX_MINOR_UNITS } from '@vigil/money';
+import { normalize, canonicalJson } from '@vigil/ingestion-domain';
 import {
   interpret,
   lifecycle,

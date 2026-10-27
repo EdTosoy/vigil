@@ -1,12 +1,12 @@
 {
-  "name": "@flow/integrations",
+  "name": "@vigil/integrations",
   "version": "0.0.0",
   "private": true,
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "dependencies": {
-    "@flow/stripe-integration": "workspace:*",
-    "@flow/stripe-postgres": "workspace:*",
+    "@vigil/stripe-integration": "workspace:*",
+    "@vigil/stripe-postgres": "workspace:*",
     "pg": "8.23.1"
   }
 }

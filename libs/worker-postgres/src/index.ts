@@ -4,7 +4,7 @@ import {
   normalizerVersion,
   canonicalJson,
   type NormalizerVersion,
-} from '@flow/ingestion-domain';
+} from '@vigil/ingestion-domain';
 
 export type FailureClass =
   'TRANSIENT' | 'DOMAIN_REJECTION' | 'POISON' | 'UNSUPPORTED' | 'TIMEOUT';

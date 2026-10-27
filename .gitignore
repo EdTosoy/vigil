@@ -18,6 +18,8 @@ test-results/
 *.tfplan
 *.tfvars
 *.tfvars.json
+*.tfbackend
+*.tfbackend.json
 **/backend.generated.tf
 .deployment/
 

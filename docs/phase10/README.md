@@ -4,7 +4,7 @@ Database transaction = financial truth. Async work = processing of durable inten
 
 ## Scope and durable intent inventory
 
-Migration 009 adds `worker.contract`, `policy`, `registration`, `work_item`, append-only `attempt_event`, and read-only `status`/`metrics` views. Original migrations 001–008, outbox rows/payloads/versions/timestamps, domain commands and financial invariants are unchanged. Runtime package `@flow/worker-postgres` depends only on existing ingestion-domain and pg; lower domains never import workers.
+Migration 009 adds `worker.contract`, `policy`, `registration`, `work_item`, append-only `attempt_event`, and read-only `status`/`metrics` views. Original migrations 001–008, outbox rows/payloads/versions/timestamps, domain commands and financial invariants are unchanged. Runtime package `@vigil/worker-postgres` depends only on existing ingestion-domain and pg; lower domains never import workers.
 
 The installed explicit contract registry has one effect handler: `normalize-batch` version 1 consumes `ingestion.normalization_requested`, schema/aggregate version 1. It uses the exact existing pinned normalizer (movement v1/v2, settlement v1/group v1, bank entry/statement v1). Unsupported versions become durable terminal `UNSUPPORTED`; malformed envelopes become `POISON`. Raw parse failures are successful execution of the normalization request with existing durable `FAILED` ingestion dispositions; they are never discarded or marked normalized.
 

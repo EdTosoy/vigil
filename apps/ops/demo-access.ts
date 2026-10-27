@@ -6,12 +6,13 @@ export function demoAccess(
   authorization: string | null,
   env: NodeJS.ProcessEnv,
 ): 200 | 401 | 503 {
-  if (env['FLOW_DEPLOYMENT_MODE'] === undefined) return 200;
-  if (env['FLOW_DEPLOYMENT_MODE'] !== 'demo') return 503;
+  const mode = env['VIGIL_DEPLOYMENT_MODE'] ?? env['FLOW_DEPLOYMENT_MODE'];
+  if (mode === undefined) return 200;
+  if (mode !== 'demo') return 503;
   // Exact cheap technical probes only. Financial diagnostics and metrics remain protected.
   if (path === '/health/live' || path === '/health/ready') return 200;
-  const user = env['FLOW_DEMO_USERNAME'],
-    password = env['FLOW_DEMO_PASSWORD'];
+  const user = env['VIGIL_DEMO_USERNAME'] ?? env['FLOW_DEMO_USERNAME'],
+    password = env['VIGIL_DEMO_PASSWORD'] ?? env['FLOW_DEMO_PASSWORD'];
   if (
     !user ||
     !/^[A-Za-z0-9_-]{1,64}$/.test(user) ||

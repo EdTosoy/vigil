@@ -1,5 +1,5 @@
 import type { Pool, PoolClient } from 'pg';
-import { Money, currency } from '@flow/money';
+import { Money, currency } from '@vigil/money';
 import {
   effectiveTime,
   text,
@@ -13,7 +13,7 @@ import {
   type PostedJournal,
   type PostJournalCommand,
   type ReverseJournalCommand,
-} from '@flow/ledger-domain';
+} from '@vigil/ledger-domain';
 
 export class LedgerDatabaseError extends Error {
   constructor(

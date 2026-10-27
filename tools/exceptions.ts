@@ -2,8 +2,8 @@ import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { readFile } from 'node:fs/promises';
 import { Pool } from 'pg';
-import { PostgresExceptions } from '@flow/exception-postgres';
-import type { CaseCommand } from '@flow/exception-domain';
+import { PostgresExceptions } from '@vigil/exception-postgres';
+import type { CaseCommand } from '@vigil/exception-domain';
 async function main(): Promise<void> {
   const [operation, ...args] = process.argv.slice(2);
   const url = process.env['DATABASE_EXCEPTION_URL'];

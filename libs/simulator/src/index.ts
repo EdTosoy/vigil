@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
-import { Money, type MoneyJson } from '@flow/money';
-import { validatePost, type PostJournalCommand } from '@flow/ledger-domain';
+import { Money, type MoneyJson } from '@vigil/money';
+import { validatePost, type PostJournalCommand } from '@vigil/ledger-domain';
 
 export interface InternalExpectation {
   readonly id: string;

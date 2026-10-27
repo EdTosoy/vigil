@@ -7,15 +7,7 @@ output "image_repositories" {
   value = { for name, repository in aws_ecr_repository.image : name => repository.repository_url }
 }
 
-output "hosted_zone_id" {
-  value = try(aws_route53_zone.flow[0].zone_id, null)
-}
-
-output "name_servers" {
-  description = "MANDATORY STOP: ask the user to delegate flow with these four actual NS values."
-  value       = try(aws_route53_zone.flow[0].name_servers, [])
-}
-
 output "budget_name" {
-  value = aws_budgets_budget.demo.name
+  description = "Read-only observed name; no management or notification-delivery claim."
+  value       = data.aws_budgets_budget.existing.name
 }

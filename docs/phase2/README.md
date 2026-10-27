@@ -12,8 +12,8 @@ Internal capture/refund expectations are generated from economics, independently
 
 ## Packages and trust boundary
 
-- `@flow/simulator`: runtime-safe JSON contracts, canonical JSON/checksum helpers and capture-command adapter; depends only on money and ledger-domain. It cannot generate truth or access the oracle.
-- `@flow/simulator-oracle`: test-only seeded canonical economics, corruption, private expected relationships/control totals/anomalies and replay configuration. Depends on simulator and money; never on ledger persistence.
+- `@vigil/simulator`: runtime-safe JSON contracts, canonical JSON/checksum helpers and capture-command adapter; depends only on money and ledger-domain. It cannot generate truth or access the oracle.
+- `@vigil/simulator-oracle`: test-only seeded canonical economics, corruption, private expected relationships/control totals/anomalies and replay configuration. Depends on simulator and money; never on ledger persistence.
 - `tools/simulator.ts`: explicit local test harness; writes public and optional private artifacts to separately specified directories. It never passes the private object to application code.
 
 Nx tags restrict runtime libraries. A repository ESLint rule additionally denies oracle imports/re-exports/dynamic imports/require from every file except oracle code and the named generation/integration harnesses, including relative paths and new untagged applications. A dependency check denies runtime package dependencies on test-only projects. These are accidental-dependency controls, not an OS security sandbox: running SUT code with the generator's filesystem permissions would violate the boundary. Mount **only the public output directory** into a future SUT process; never give it the oracle package, private directory or generator credentials. No application host exists in Phase 2.
@@ -83,10 +83,10 @@ Private oracle: canonical payment-to-activity-to-settlement relationships, signe
 ## Generate and replay locally
 
 ```sh
-pnpm simulator generate --seed 828192 --payments 10000 --out /tmp/flow-input
+pnpm simulator generate --seed 828192 --payments 10000 --out /tmp/vigil-input
 # Explicit debug-only oracle export into a separate private directory:
-pnpm simulator generate --config /tmp/config.json --out /tmp/flow-input-2 --oracle-out /tmp/flow-private
-pnpm simulator replay --replay /tmp/flow-private/oracle.json --out /tmp/flow-replayed
+pnpm simulator generate --config /tmp/config.json --out /tmp/vigil-input-2 --oracle-out /tmp/vigil-private
+pnpm simulator replay --replay /tmp/vigil-private/oracle.json --out /tmp/vigil-replayed
 ```
 
 Without `--out`, only safe scenario ID/seed/version/input hash/delivered counts are printed. Oracle details are never printed by default. Output directories must be new, have existing parents and be disjoint, including resolved symlink ancestry. Files/directories are owner-only; existing outputs are never overwritten. This permission mode protects against other OS users, not a same-user process: isolate future SUT mounts/identities as specified above. Replay verifies the recorded input hash and fails explicitly on compatibility drift. An explicit debug reader can inspect `oracle.json`; do not supply it to SUT code.

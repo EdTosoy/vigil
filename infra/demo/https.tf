@@ -1,21 +1,14 @@
-data "aws_route53_zone" "flow" {
-  name         = "flow.edtosoy.com."
-  private_zone = false
-}
 resource "aws_acm_certificate" "demo" {
-  domain_name       = "flow.edtosoy.com"
+  domain_name       = var.hostname
   validation_method = "DNS"
 }
-resource "aws_route53_record" "validation" {
-  zone_id = data.aws_route53_zone.flow.zone_id
-  name    = one(aws_acm_certificate.demo.domain_validation_options).resource_record_name
-  type    = one(aws_acm_certificate.demo.domain_validation_options).resource_record_type
-  ttl     = 60
-  records = [one(aws_acm_certificate.demo.domain_validation_options).resource_record_value]
-}
+# Manual Cloudflare CNAME publication is a STOP checkpoint. The default omits
+# this waiter; the full root still describes billable infrastructure.
 resource "aws_acm_certificate_validation" "demo" {
+  count                   = var.certificate_dns_confirmed ? 1 : 0
   certificate_arn         = aws_acm_certificate.demo.arn
-  validation_record_fqdns = [aws_route53_record.validation.fqdn]
+  validation_record_fqdns = [for option in aws_acm_certificate.demo.domain_validation_options : option.resource_record_name]
+  timeouts { create = "10m" }
 }
 resource "aws_lb" "demo" {
   name                       = "flow-demo"
@@ -48,6 +41,7 @@ resource "aws_lb_target_group" "app" {
 
 }
 resource "aws_lb_listener" "http" {
+  count             = var.certificate_dns_confirmed ? 1 : 0
   load_balancer_arn = aws_lb.demo.arn
   port              = 80
   protocol          = "HTTP"
@@ -63,11 +57,12 @@ resource "aws_lb_listener" "http" {
 
 }
 resource "aws_lb_listener" "https" {
+  count             = var.certificate_dns_confirmed ? 1 : 0
   load_balancer_arn = aws_lb.demo.arn
   port              = 443
   protocol          = "HTTPS"
   ssl_policy        = "ELBSecurityPolicy-TLS13-1-2-2021-06"
-  certificate_arn   = aws_acm_certificate_validation.demo.certificate_arn
+  certificate_arn   = aws_acm_certificate_validation.demo[0].certificate_arn
   default_action {
     type             = "forward"
     target_group_arn = aws_lb_target_group.app["ops"].arn
@@ -75,7 +70,8 @@ resource "aws_lb_listener" "https" {
 
 }
 resource "aws_lb_listener_rule" "stripe" {
-  listener_arn = aws_lb_listener.https.arn
+  count        = var.certificate_dns_confirmed ? 1 : 0
+  listener_arn = aws_lb_listener.https[0].arn
   priority     = 10
   action {
     type             = "forward"
@@ -85,17 +81,6 @@ resource "aws_lb_listener_rule" "stripe" {
     path_pattern {
       values = ["/webhooks/stripe"]
     }
-  }
-
-}
-resource "aws_route53_record" "alb" {
-  zone_id = data.aws_route53_zone.flow.zone_id
-  name    = "flow.edtosoy.com"
-  type    = "A"
-  alias {
-    name                   = aws_lb.demo.dns_name
-    zone_id                = aws_lb.demo.zone_id
-    evaluate_target_health = true
   }
 
 }

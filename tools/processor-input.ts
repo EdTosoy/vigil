@@ -1,5 +1,5 @@
-import type { SystemInput } from '@flow/simulator';
-import { canonicalJson, type BatchCommand } from '@flow/ingestion-domain';
+import type { SystemInput } from '@vigil/simulator';
+import { canonicalJson, type BatchCommand } from '@vigil/ingestion-domain';
 /** Only public processor reports. No bank stream or internal/oracle expectations are interpreted. */
 export function simulatorSettlementBatch(
   input: SystemInput,

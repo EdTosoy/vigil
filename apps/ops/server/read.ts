@@ -3,44 +3,15 @@ import { Pool } from 'pg';
 import { observe, telemetry, log } from './telemetry';
 import {
   PostgresOperations,
-  identifier,
-  InvalidRead,
   ReadUnavailable,
   type Operation,
-} from '@flow/operations-read-postgres';
-export type Search = Record<string, string | string[] | undefined>;
+} from '@vigil/operations-read-postgres';
+import { navigation } from './navigation';
+export type { Search } from '../components/navigation';
+import type { Search } from '../components/navigation';
 let pool: Pool | undefined;
-export function scope(search: Search): {
-  book: string | null;
-  evaluation: string | undefined;
-  filters: Record<string, string | undefined>;
-} {
-  const filters: Record<string, string | undefined> = {};
-  for (const [key, value] of Object.entries(search)) {
-    if (Array.isArray(value)) throw new InvalidRead();
-    if (key === 'book') continue;
-    if (
-      ![
-        'evaluation',
-        'status',
-        'category',
-        'currency',
-        'cursor',
-        'limit',
-        'id',
-        'key',
-      ].includes(key)
-    )
-      throw new InvalidRead();
-    filters[key] = value;
-  }
-  const book = search['book'] ?? process.env['OPS_BOOK_ID'];
-  if (Array.isArray(book)) throw new InvalidRead();
-  return {
-    book: book ? identifier(book) : null,
-    evaluation: filters['evaluation'],
-    filters,
-  };
+export function scope(search: Search, section: string, id?: string) {
+  return navigation(search, section, id, process.env['OPS_BOOK_ID']);
 }
 function reader() {
   const url = process.env['DATABASE_OPERATIONS_URL'];

@@ -5,13 +5,22 @@ import { resolve } from 'node:path';
 import { resolve4 } from 'node:dns/promises';
 import { connect } from 'node:tls';
 import {
+  deploymentContext,
+  assertDeploymentPrepared,
+} from './deployment-context';
+import {
+  deploymentCommandPreflight,
+  reportDeploymentFailure,
+} from './deployment-preflight';
+import {
   deployment,
   assertDeploymentIdentity,
   assertDeploymentEnvironment,
 } from './deployment-guards';
 const root = resolve(__dirname, '..'),
-  local = resolve(root, '.deployment');
+  context = deploymentContext(root, 'demo');
 function run(command: string, args: string[]): string {
+  assertDeploymentPrepared();
   assertDeploymentEnvironment(process.env);
   const r = spawnSync(command, args, {
     cwd: root,
@@ -45,11 +54,22 @@ function requireProof(ok: unknown, reason: string): asserts ok {
   if (!ok) throw new Error(reason);
 }
 async function privateSave(name: string, value: unknown): Promise<void> {
-  const p = resolve(local, name);
+  const p = context.path(name);
   await writeFile(p, JSON.stringify(value, null, 2) + '\n', { mode: 0o600 });
   await chmod(p, 0o600);
 }
 async function main(): Promise<void> {
+  if (
+    await deploymentCommandPreflight(
+      root,
+      'demo',
+      process.argv[2],
+      process.env,
+      undefined,
+      process.argv.slice(3),
+    )
+  )
+    return;
   const caller = aws(['sts', 'get-caller-identity']);
   assertDeploymentIdentity(String(caller['Account']), String(caller['Arn']));
   const databases = aws(['rds', 'describe-db-instances'])[
@@ -82,16 +102,6 @@ async function main(): Promise<void> {
       'Key=Name,Option=BeginsWith,Values=/flow/demo/',
     ])['Parameters'] as unknown[];
     requireProof(parameters.length === 0, 'Runtime SSM parameters remain');
-    const zone = aws([
-      'route53',
-      'get-hosted-zone',
-      '--id',
-      'Z01534402E4PPZIHFEDCR',
-    ]);
-    requireProof(
-      (zone['HostedZone'] as { Name: string }).Name === 'flow.edtosoy.com.',
-      'Bootstrap zone missing',
-    );
     const bucket = aws([
       's3api',
       'get-bucket-versioning',
@@ -117,11 +127,11 @@ async function main(): Promise<void> {
       '--account-id',
       deployment.account,
       '--budget-name',
-      'flow-demo-account-monthly',
+      deployment.budget,
     ]);
     requireProof(budget['Budget'], 'Budget missing');
     const state = JSON.parse(
-      run('terraform', ['-chdir=infra/demo', 'state', 'pull']),
+      run('terraform', [`-chdir=${context.work}`, 'state', 'pull']),
     ) as { resources: unknown[] };
     requireProof(
       state.resources.every((r) => (r as { mode: string }).mode === 'data'),
@@ -135,7 +145,7 @@ async function main(): Promise<void> {
       ecsClusterRemoved: true,
       vpcRemoved: true,
       runtimeSecretsRemoved: true,
-      bootstrapZoneRetained: true,
+      manualCloudflareDnsInventoryRequired: true,
       stateVersioningRetained: true,
       ecrRetained: 3,
       budgetRetained: true,
@@ -155,7 +165,7 @@ async function main(): Promise<void> {
     'Unsafe or unavailable RDS',
   );
   const o = JSON.parse(
-    run('terraform', ['-chdir=infra/demo', 'output', '-json']),
+    run('terraform', [`-chdir=${context.work}`, 'output', '-json']),
   ) as Record<string, { value: unknown }>;
   const cluster = String(o['cluster']!.value),
     services = o['services']!.value as Record<string, string>;
@@ -282,10 +292,10 @@ async function main(): Promise<void> {
   });
   requireProof(tls.authorized, 'Invalid HTTPS certificate');
   const config = JSON.parse(
-    await readFile(resolve(local, 'demo.tfvars.json'), 'utf8'),
+    await readFile(context.path('demo.tfvars.json'), 'utf8'),
   ) as { ops_book_id: string };
   const secret = JSON.parse(
-    await readFile(resolve(local, 'demo-secrets.json'), 'utf8'),
+    await readFile(context.path('demo-secrets.json'), 'utf8'),
   ) as { values: Record<string, string> };
   const get = (path: string, headers?: Record<string, string>) =>
     fetch(`https://${deployment.domain}${path}`, {
@@ -328,7 +338,7 @@ async function main(): Promise<void> {
     signal: AbortSignal.timeout(10000),
   });
   requireProof(unsigned.status === 400, 'Unsigned webhook admitted');
-  const state = run('terraform', ['-chdir=infra/demo', 'state', 'pull']);
+  const state = run('terraform', [`-chdir=${context.work}`, 'state', 'pull']);
   const passwords = JSON.parse(secret.values['provisioning']!) as {
     passwords: Record<string, string>;
   };
@@ -377,15 +387,4 @@ async function main(): Promise<void> {
   await privateSave('deployment-proof.json', proof);
   console.log(JSON.stringify(proof));
 }
-void main().catch(async (error: unknown) => {
-  await privateSave('observe-error.json', {
-    reason:
-      error instanceof Error
-        ? error.message
-        : 'Unexpected verification failure',
-  });
-  console.error(
-    'Read-only deployed verification failed; no success is claimed.',
-  );
-  process.exitCode = 1;
-});
+void main().catch(reportDeploymentFailure);

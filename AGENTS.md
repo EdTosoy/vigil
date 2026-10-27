@@ -47,11 +47,11 @@ The repository currently uses:
 Current financial-core dependency direction:
 
 ```text
-@flow/money
+@vigil/money
     ↑
-@flow/ledger-domain
+@vigil/ledger-domain
     ↑
-@flow/ledger-postgres
+@vigil/ledger-postgres
 ```
 
 Dependencies must remain acyclic.

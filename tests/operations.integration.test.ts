@@ -7,14 +7,14 @@ import {
   ReadUnavailable,
   InvalidRead,
   type RecordJson,
-} from '@flow/operations-read-postgres';
-import { PostgresReconciliation } from '@flow/reconciliation-postgres';
-import { PostgresControls } from '@flow/control-postgres';
-import { PostgresExceptions } from '@flow/exception-postgres';
+} from '@vigil/operations-read-postgres';
+import { PostgresReconciliation } from '@vigil/reconciliation-postgres';
+import { PostgresControls } from '@vigil/control-postgres';
+import { PostgresExceptions } from '@vigil/exception-postgres';
 import { fixture, entry } from './helpers/reconciliation-fixture';
 import { witness, clean } from './helpers/resilience';
 const pool = (key: string) =>
-  new Pool({ connectionString: process.env['FLOW_TEST_' + key + '_URL'] });
+  new Pool({ connectionString: process.env['VIGIL_TEST_' + key + '_URL'] });
 const admin = pool('ADMIN'),
   ip = pool('INGESTION'),
   pp = pool('PROCESSOR'),
@@ -23,7 +23,7 @@ const admin = pool('ADMIN'),
   cp = pool('CONTROL'),
   ep = pool('EXCEPTION'),
   op = pool('OPERATIONS');
-if (!process.env['FLOW_TEST_OPERATIONS_URL'])
+if (!process.env['VIGIL_TEST_OPERATIONS_URL'])
   throw new Error('Run pnpm test:integration');
 const reads = new PostgresOperations(op),
   recon = new PostgresReconciliation(rp),

@@ -2,8 +2,8 @@ import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { readFile } from 'node:fs/promises';
 import { Pool } from 'pg';
-import { PostgresControls } from '@flow/control-postgres';
-import type { ControlCommand } from '@flow/control-domain';
+import { PostgresControls } from '@vigil/control-postgres';
+import type { ControlCommand } from '@vigil/control-domain';
 async function main() {
   const [operation, ...args] = process.argv.slice(2),
     url = process.env['DATABASE_CONTROL_URL'];

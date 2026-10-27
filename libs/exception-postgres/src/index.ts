@@ -5,7 +5,7 @@ import {
   type CaseCommand,
   type CaseView,
   type ExceptionSummary,
-} from '@flow/exception-domain';
+} from '@vigil/exception-domain';
 export class ExceptionDatabaseError extends Error {
   constructor(readonly code: string) {
     super('Exception command rejected (' + code + ')');

@@ -1,5 +1,5 @@
-import { Money, type Currency } from '@flow/money';
-import { boundedText, canonicalJson } from '@flow/ingestion-domain';
+import { Money, type Currency } from '@vigil/money';
+import { boundedText, canonicalJson } from '@vigil/ingestion-domain';
 export const INTERPRETER_VERSION = 'bank-v1';
 export type BankDirection = 'CREDIT' | 'DEBIT';
 export interface BankMovement {

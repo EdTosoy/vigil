@@ -6,6 +6,7 @@ import {
   assertDeploymentIdentity,
   type BootstrapPlan,
   assertDemoPlan,
+  assertGrossBudget,
 } from '../tools/deployment-guards';
 
 test('refreshed write-only SSM values may be empty sentinels but never contain plaintext', () => {
@@ -116,7 +117,9 @@ test('demo refuses bootstrap resources, public database/task ingress, plaintext 
     ),
   );
   const container = {
-    image: 'repo@sha256:' + 'a'.repeat(64),
+    image:
+      '747240980964.dkr.ecr.ap-southeast-2.amazonaws.com/flow-demo/ops@sha256:' +
+      'a'.repeat(64),
     environment: [{ name: 'STRIPE_MODE', value: 'sandbox' }],
   };
   assertDemoPlan(
@@ -176,8 +179,8 @@ test('destroy requires a separate reviewed demo-only deletion plan', () => {
 
 test('deployment refuses wrong account, root and credential/argument overrides', () => {
   assertDeploymentIdentity(
-    '163596511125',
-    'arn:aws:iam::163596511125:user/Iamadmin',
+    '747240980964',
+    'arn:aws:sts::747240980964:assumed-role/AccountFullAccessRole/browser-session',
   );
   for (const [account, arn] of [
     ['872353350564', 'arn:aws:iam::872353350564:user/kuyas'],
@@ -191,8 +194,18 @@ test('deployment refuses wrong account, root and credential/argument overrides',
     'TF_LOG',
     'TF_VAR_budget_email',
   ])
-    assert.throws(() => assertDeploymentEnvironment({ [key]: 'fixture' }));
-  assertDeploymentEnvironment({ AWS_PROFILE: 'default' }); // The command explicitly selects the approved profile.
+    assert.throws(() =>
+      assertDeploymentEnvironment({
+        AWS_PROFILE: 'edtosoy',
+        AWS_REGION: 'ap-southeast-2',
+        [key]: 'fixture',
+      }),
+    );
+  assert.throws(() => assertDeploymentEnvironment({ AWS_PROFILE: 'default' }));
+  assertDeploymentEnvironment({
+    AWS_PROFILE: 'edtosoy',
+    AWS_REGION: 'ap-southeast-2',
+  });
 });
 
 test('bootstrap rejects runtime infrastructure, deletion and parent-zone takeover', () => {
@@ -210,9 +223,11 @@ test('bootstrap rejects runtime infrastructure, deletion and parent-zone takeove
       },
     ],
   });
-  assertBootstrapPlan(
-    plan('aws_route53_zone', ['create'], { name: 'flow.edtosoy.com' }),
-    true,
+  assert.throws(() =>
+    assertBootstrapPlan(
+      plan('aws_route53_zone', ['create'], { name: 'vigil.edtosoy.com' }),
+      true,
+    ),
   );
   assert.throws(() =>
     assertBootstrapPlan(
@@ -257,26 +272,57 @@ test('bootstrap rejects runtime infrastructure, deletion and parent-zone takeove
   );
 });
 
-test('budget guard accepts exact provider-normalized ten dollars without admitting a different limit', () => {
-  const plan = (amount: string): BootstrapPlan => ({
-    resource_changes: [
-      {
-        address: 'aws_budgets_budget.demo',
-        mode: 'managed',
-        type: 'aws_budgets_budget',
-        change: {
-          actions: ['no-op'],
-          after: {
-            limit_amount: amount,
-            limit_unit: 'USD',
-            time_unit: 'MONTHLY',
-          },
-        },
-      },
+test('budget is a read-only five-dollar gross account guard, never managed by Vigil', () => {
+  const budget = {
+    account_id: '747240980964',
+    name: 'mdp-monthly-gross-usd-5',
+    budget_type: 'COST',
+    time_unit: 'MONTHLY',
+    budget_limit: [{ amount: '5.000', unit: 'USD' }],
+    cost_types: [
+      { include_credit: false, include_refund: false, include_tax: true },
     ],
-  });
-  for (const amount of ['10', '10.0', '10.000'])
-    assertBootstrapPlan(plan(amount), true);
-  for (const amount of ['100', '10.01', '9.99', '1e1', '010', 'NaN'])
-    assert.throws(() => assertBootstrapPlan(plan(amount), true));
+    cost_filter: [],
+  };
+  assertGrossBudget(budget);
+  for (const amount of ['10', '100', '5.01', '4.99', '5e0', '05', 'NaN', '5\n'])
+    assert.throws(() =>
+      assertGrossBudget({ ...budget, budget_limit: [{ amount, unit: 'USD' }] }),
+    );
+  for (const change of [
+    { account_id: '163596511125' },
+    { name: 'flow-demo-account-monthly' },
+    { time_unit: 'DAILY' },
+    { cost_filter: [{ name: 'TagKeyValue', values: ['vigil'] }] },
+    { billing_view_arn: 'arn:foreign' },
+    {
+      cost_types: [
+        { include_credit: true, include_refund: false, include_tax: true },
+      ],
+    },
+    {
+      cost_types: [
+        { include_credit: false, include_refund: true, include_tax: true },
+      ],
+    },
+    {
+      cost_types: [
+        { include_credit: false, include_refund: false, include_tax: false },
+      ],
+    },
+  ])
+    assert.throws(() => assertGrossBudget({ ...budget, ...change }));
+  for (const actions of [['create'], ['update'], ['no-op'], ['delete']])
+    assert.throws(() =>
+      assertBootstrapPlan({
+        resource_changes: [
+          {
+            mode: 'managed',
+            type: 'aws_budgets_budget',
+            address: 'aws_budgets_budget.foreign',
+            change: { actions, after: budget },
+          },
+        ],
+      }),
+    );
 });

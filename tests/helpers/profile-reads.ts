@@ -6,7 +6,7 @@ import { cpus, totalmem, release } from 'node:os';
 import {
   PostgresOperations,
   type ReadObservation,
-} from '@flow/operations-read-postgres';
+} from '@vigil/operations-read-postgres';
 import { previousReadDefinitions } from './previous-read-definitions';
 export function distribution(samples: number[]) {
   const sorted = [...samples].sort((a, b) => a - b);
@@ -74,7 +74,7 @@ export async function profileReads(
         );
       return value;
     }
-    for (const phase of process.env['FLOW_PROFILE_LARGE']
+    for (const phase of process.env['VIGIL_PROFILE_LARGE']
       ? ['optimized']
       : ['optimized', 'baseline']) {
       const measurements: Record<string, unknown> = {};
@@ -216,9 +216,9 @@ export async function profileReads(
       assert.equal(observations.at(-1)!.queryCount, 5);
     }
     report.adapterObservations = observations;
-    report.equivalent = !process.env['FLOW_PROFILE_LARGE'];
+    report.equivalent = !process.env['VIGIL_PROFILE_LARGE'];
     await writeFile(
-      process.env['FLOW_PROFILE_READS']!,
+      process.env['VIGIL_PROFILE_READS']!,
       JSON.stringify(report, null, 2) + '\n',
     );
     console.log(

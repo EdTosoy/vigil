@@ -1,5 +1,5 @@
-import type { SystemInput } from '@flow/simulator';
-import { canonicalJson, type BatchCommand } from '@flow/ingestion-domain';
+import type { SystemInput } from '@vigil/simulator';
+import { canonicalJson, type BatchCommand } from '@vigil/ingestion-domain';
 /** Only public booked bank evidence; received rows do not establish expected source counts. */
 export function simulatorBankBatch(
   input: SystemInput,

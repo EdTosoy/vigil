@@ -3,14 +3,14 @@ import { randomUUID } from 'node:crypto';
 import { before, after, afterEach, test } from 'node:test';
 import { Pool, type PoolClient } from 'pg';
 import fc from 'fast-check';
-import { PostgresIngestion } from '@flow/ingestion-postgres';
-import { normalize, type BatchCommand } from '@flow/ingestion-domain';
+import { PostgresIngestion } from '@vigil/ingestion-postgres';
+import { normalize, type BatchCommand } from '@vigil/ingestion-domain';
 import {
   PostgresWorker,
   LostLease,
   UnknownWorkerCommit,
   type Claim,
-} from '@flow/worker-postgres';
+} from '@vigil/worker-postgres';
 import { commitDropProxy } from './helpers/commit-proxy';
 import { clean } from './helpers/resilience';
 const sweepBooks = new Set<string>();
@@ -21,9 +21,9 @@ afterEach(async () => {
     sweepBooks.clear();
   }
 });
-const adminUrl = process.env['FLOW_TEST_ADMIN_URL']!,
-  url = process.env['FLOW_TEST_WORKER_URL']!,
-  ingestionUrl = process.env['FLOW_TEST_INGESTION_URL']!;
+const adminUrl = process.env['VIGIL_TEST_ADMIN_URL']!,
+  url = process.env['VIGIL_TEST_WORKER_URL']!,
+  ingestionUrl = process.env['VIGIL_TEST_INGESTION_URL']!;
 if (!adminUrl || !url || !ingestionUrl)
   throw new Error('Run pnpm test:integration');
 const admin = new Pool({ connectionString: adminUrl }),

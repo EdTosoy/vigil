@@ -1,17 +1,21 @@
-# Plan-only mocked-provider checks: no AWS calls or real resource mutations.
-mock_provider "aws" {}
-
-variables {
-  budget_email = "operator@example.invalid"
+# Mocked-provider, plan-only tests. No AWS credentials or API calls.
+mock_provider "aws" {
+  mock_data "aws_budgets_budget" {
+    defaults = {
+      budget_type      = "COST"
+      time_unit        = "MONTHLY"
+      budget_limit     = [{ amount = "5", unit = "USD" }]
+      cost_types       = [{ include_credit = false, include_refund = false, include_tax = true }]
+      cost_filter      = []
+      billing_view_arn = ""
+    }
+  }
 }
-
 run "seed_security_boundaries" {
   command = plan
-  variables { create_dns_zone = false }
-
   assert {
-    condition     = length(aws_route53_zone.flow) == 0
-    error_message = "Seed must not create DNS before state migration."
+    condition     = aws_s3_bucket.state.bucket == "flow-demo-tfstate-747240980964-ap-southeast-2"
+    error_message = "State bucket must be new-account and Sydney scoped."
   }
   assert {
     condition     = aws_s3_bucket_public_access_block.state.block_public_acls && aws_s3_bucket_public_access_block.state.block_public_policy && aws_s3_bucket_public_access_block.state.ignore_public_acls && aws_s3_bucket_public_access_block.state.restrict_public_buckets
@@ -26,22 +30,53 @@ run "seed_security_boundaries" {
     error_message = "Deployment images must retain immutable identities."
   }
   assert {
-    condition     = aws_budgets_budget.demo.limit_amount == "10" && aws_budgets_budget.demo.limit_unit == "USD" && aws_budgets_budget.demo.time_unit == "MONTHLY" && length(aws_budgets_budget.demo.notification) == 4
-    error_message = "The approved monthly budget must have actual and forecast notifications."
+    condition     = data.aws_budgets_budget.existing.name == "mdp-monthly-gross-usd-5" && data.aws_budgets_budget.existing.account_id == "747240980964"
+    error_message = "Budget is only a read-only reference to the existing new-account gross budget."
   }
 }
-
-run "child_zone_only" {
+run "historical_account_refused" {
   command = plan
-  variables { create_dns_zone = true }
-  assert {
-    condition     = length(aws_route53_zone.flow) == 1 && aws_route53_zone.flow[0].name == "flow.edtosoy.com" && !aws_route53_zone.flow[0].force_destroy
-    error_message = "DNS bootstrap must own only the persistent child zone."
-  }
+  variables { aws_account_id = "163596511125" }
+  expect_failures = [var.aws_account_id]
 }
-
-run "missing_notification_destination" {
+run "historical_profile_refused" {
   command = plan
-  variables { budget_email = "" }
-  expect_failures = [var.budget_email]
+  variables { aws_profile = "iamadmin-general" }
+  expect_failures = [var.aws_profile]
+}
+run "historical_region_refused" {
+  command = plan
+  variables { aws_region = "us-east-1" }
+  expect_failures = [var.aws_region]
+}
+run "foreign_budget_refused" {
+  command = plan
+  variables { existing_budget_name = "flow-demo-account-monthly" }
+  expect_failures = [var.existing_budget_name]
+}
+run "net_after_credit_budget_refused" {
+  command = plan
+  override_data {
+    target = data.aws_budgets_budget.existing
+    values = {
+      budget_type  = "COST", time_unit = "MONTHLY"
+      budget_limit = [{ amount = "5", unit = "USD" }]
+      cost_types   = [{ include_credit = true, include_refund = false, include_tax = true }]
+      cost_filter  = [], billing_view_arn = ""
+    }
+  }
+  expect_failures = [data.aws_budgets_budget.existing]
+}
+run "wrong_budget_amount_refused" {
+  command = plan
+  override_data {
+    target = data.aws_budgets_budget.existing
+    values = {
+      budget_type  = "COST", time_unit = "MONTHLY"
+      budget_limit = [{ amount = "10", unit = "USD" }]
+      cost_types   = [{ include_credit = false, include_refund = false, include_tax = true }]
+      cost_filter  = [], billing_view_arn = ""
+    }
+  }
+  expect_failures = [data.aws_budgets_budget.existing]
 }

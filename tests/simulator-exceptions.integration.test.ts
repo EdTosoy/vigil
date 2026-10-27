@@ -6,13 +6,13 @@ import fc from 'fast-check';
 import {
   generateSimulation,
   generateGroupedSimulation,
-} from '@flow/simulator-oracle';
-import type { SystemInput } from '@flow/simulator';
-import { PostgresIngestion } from '@flow/ingestion-postgres';
-import { PostgresProcessor } from '@flow/processor-postgres';
-import { PostgresBank } from '@flow/bank-postgres';
-import { PostgresReconciliation } from '@flow/reconciliation-postgres';
-import { PostgresExceptions } from '@flow/exception-postgres';
+} from '@vigil/simulator-oracle';
+import type { SystemInput } from '@vigil/simulator';
+import { PostgresIngestion } from '@vigil/ingestion-postgres';
+import { PostgresProcessor } from '@vigil/processor-postgres';
+import { PostgresBank } from '@vigil/bank-postgres';
+import { PostgresReconciliation } from '@vigil/reconciliation-postgres';
+import { PostgresExceptions } from '@vigil/exception-postgres';
 import { importEvidence, entry } from './helpers/reconciliation-fixture';
 import { simulatorBatch } from '../tools/ingestion-input';
 import { simulatorSettlementBatch } from '../tools/processor-input';
@@ -22,11 +22,11 @@ import { promisify } from 'node:util';
 import { mkdtemp, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-const au = process.env['FLOW_TEST_ADMIN_URL'],
-  ru = process.env['FLOW_TEST_RECONCILIATION_URL'],
-  iu = process.env['FLOW_TEST_INGESTION_URL'],
-  pu = process.env['FLOW_TEST_PROCESSOR_URL'],
-  bu = process.env['FLOW_TEST_BANK_URL'];
+const au = process.env['VIGIL_TEST_ADMIN_URL'],
+  ru = process.env['VIGIL_TEST_RECONCILIATION_URL'],
+  iu = process.env['VIGIL_TEST_INGESTION_URL'],
+  pu = process.env['VIGIL_TEST_PROCESSOR_URL'],
+  bu = process.env['VIGIL_TEST_BANK_URL'];
 if (!au || !ru || !iu || !pu || !bu)
   throw new Error('Run pnpm test:integration');
 const admin = new Pool({ connectionString: au }),
@@ -34,7 +34,7 @@ const admin = new Pool({ connectionString: au }),
   ip = new Pool({ connectionString: iu }),
   pp = new Pool({ connectionString: pu }),
   bp = new Pool({ connectionString: bu }),
-  ep = new Pool({ connectionString: process.env['FLOW_TEST_EXCEPTION_URL'] });
+  ep = new Pool({ connectionString: process.env['VIGIL_TEST_EXCEPTION_URL'] });
 const exceptions = new PostgresExceptions(ep);
 after(async () => {
   await Promise.all([
@@ -446,7 +446,7 @@ test('developer exception CLI composes public pipeline, supports review/risk res
       anomalies: { 'missing-bank-transaction': { count: 1 } },
     }),
     runtime = await pipeline(simulation.input);
-  const dir = await mkdtemp(join(tmpdir(), 'flow-exception-cli-')),
+  const dir = await mkdtemp(join(tmpdir(), 'vigil-exception-cli-')),
     path = join(dir, 'input.json');
   await writeFile(path, JSON.stringify(simulation.input));
   const env = {
@@ -455,7 +455,7 @@ test('developer exception CLI composes public pipeline, supports review/risk res
     DATABASE_PROCESSOR_URL: pu,
     DATABASE_BANK_URL: bu,
     DATABASE_RECONCILIATION_URL: ru,
-    DATABASE_EXCEPTION_URL: process.env['FLOW_TEST_EXCEPTION_URL'],
+    DATABASE_EXCEPTION_URL: process.env['VIGIL_TEST_EXCEPTION_URL'],
   };
   const args = [
     '--import',

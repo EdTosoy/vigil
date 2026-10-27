@@ -8,21 +8,21 @@
     "build": {
       "executor": "nx:run-commands",
       "options": {
-        "command": "pnpm --filter @flow/ops build"
+        "command": "pnpm --filter @vigil/ops build"
       },
       "outputs": ["{projectRoot}/.next"]
     },
     "test": {
       "executor": "nx:run-commands",
       "options": {
-        "command": "tsx --tsconfig apps/ops/tsconfig.json --test apps/ops/test/*.test.tsx"
+        "command": "tsx --tsconfig apps/ops/tsconfig.json --test apps/ops/test/*.test.tsx && tsx --conditions=react-server --tsconfig apps/ops/tsconfig.json --test apps/ops/test/navigation.test.ts"
       },
       "cache": false
     },
     "typecheck": {
       "executor": "nx:run-commands",
       "options": {
-        "command": "pnpm --filter @flow/ops typecheck"
+        "command": "pnpm --filter @vigil/ops typecheck"
       }
     }
   }

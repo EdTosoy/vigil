@@ -1,11 +1,11 @@
 {
-  "name": "@flow/bank-postgres",
+  "name": "@vigil/bank-postgres",
   "version": "0.0.0",
   "private": true,
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "dependencies": {
-    "@flow/bank-domain": "workspace:*",
+    "@vigil/bank-domain": "workspace:*",
     "pg": "8.23.1"
   }
 }

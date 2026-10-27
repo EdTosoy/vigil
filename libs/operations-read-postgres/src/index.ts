@@ -6,7 +6,7 @@ export {
   type ReadObservation,
   type Observer,
 } from './telemetry';
-import { health, type IntegritySummary } from '@flow/integrity-postgres';
+import { health, type IntegritySummary } from '@vigil/integrity-postgres';
 export type Json =
   null | boolean | number | string | Json[] | { [key: string]: Json };
 export type RecordJson = { [key: string]: Json };

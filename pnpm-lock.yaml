@@ -26,6 +26,9 @@ importers:
       '@types/react-dom':
         specifier: 19.3.0
         version: 19.3.0(@types/react@19.3.0)
+      axe-core:
+        specifier: 4.14.0
+        version: 4.14.0
       esbuild:
         specifier: 0.28.2
         version: 0.28.2
@@ -59,10 +62,10 @@ importers:
 
   apps/integrations:
     dependencies:
-      '@flow/stripe-integration':
+      '@vigil/stripe-integration':
         specifier: workspace:*
         version: link:../../libs/stripe-integration
-      '@flow/stripe-postgres':
+      '@vigil/stripe-postgres':
         specifier: workspace:*
         version: link:../../libs/stripe-postgres
       pg:
@@ -71,10 +74,10 @@ importers:
 
   apps/ops:
     dependencies:
-      '@flow/money':
+      '@vigil/money':
         specifier: workspace:*
         version: link:../../libs/money
-      '@flow/operations-read-postgres':
+      '@vigil/operations-read-postgres':
         specifier: workspace:*
         version: link:../../libs/operations-read-postgres
       next:
@@ -102,16 +105,16 @@ importers:
 
   libs/bank-domain:
     dependencies:
-      '@flow/ingestion-domain':
+      '@vigil/ingestion-domain':
         specifier: workspace:*
         version: link:../ingestion-domain
-      '@flow/money':
+      '@vigil/money':
         specifier: workspace:*
         version: link:../money
 
   libs/bank-postgres:
     dependencies:
-      '@flow/bank-domain':
+      '@vigil/bank-domain':
         specifier: workspace:*
         version: link:../bank-domain
       pg:
@@ -120,13 +123,13 @@ importers:
 
   libs/control-domain:
     dependencies:
-      '@flow/money':
+      '@vigil/money':
         specifier: workspace:*
         version: link:../money
 
   libs/control-postgres:
     dependencies:
-      '@flow/control-domain':
+      '@vigil/control-domain':
         specifier: workspace:*
         version: link:../control-domain
       pg:
@@ -135,13 +138,13 @@ importers:
 
   libs/exception-domain:
     dependencies:
-      '@flow/money':
+      '@vigil/money':
         specifier: workspace:*
         version: link:../money
 
   libs/exception-postgres:
     dependencies:
-      '@flow/exception-domain':
+      '@vigil/exception-domain':
         specifier: workspace:*
         version: link:../exception-domain
       pg:
@@ -150,13 +153,13 @@ importers:
 
   libs/ingestion-domain:
     dependencies:
-      '@flow/money':
+      '@vigil/money':
         specifier: workspace:*
         version: link:../money
 
   libs/ingestion-postgres:
     dependencies:
-      '@flow/ingestion-domain':
+      '@vigil/ingestion-domain':
         specifier: workspace:*
         version: link:../ingestion-domain
       pg:
@@ -171,16 +174,16 @@ importers:
 
   libs/ledger-domain:
     dependencies:
-      '@flow/money':
+      '@vigil/money':
         specifier: workspace:*
         version: link:../money
 
   libs/ledger-postgres:
     dependencies:
-      '@flow/ledger-domain':
+      '@vigil/ledger-domain':
         specifier: workspace:*
         version: link:../ledger-domain
-      '@flow/money':
+      '@vigil/money':
         specifier: workspace:*
         version: link:../money
       pg:
@@ -191,7 +194,7 @@ importers:
 
   libs/operations-read-postgres:
     dependencies:
-      '@flow/integrity-postgres':
+      '@vigil/integrity-postgres':
         specifier: workspace:*
         version: link:../integrity-postgres
       pg:
@@ -200,16 +203,16 @@ importers:
 
   libs/processor-domain:
     dependencies:
-      '@flow/ingestion-domain':
+      '@vigil/ingestion-domain':
         specifier: workspace:*
         version: link:../ingestion-domain
-      '@flow/money':
+      '@vigil/money':
         specifier: workspace:*
         version: link:../money
 
   libs/processor-postgres:
     dependencies:
-      '@flow/processor-domain':
+      '@vigil/processor-domain':
         specifier: workspace:*
         version: link:../processor-domain
       pg:
@@ -218,16 +221,16 @@ importers:
 
   libs/reconciliation-domain:
     dependencies:
-      '@flow/ingestion-domain':
+      '@vigil/ingestion-domain':
         specifier: workspace:*
         version: link:../ingestion-domain
-      '@flow/money':
+      '@vigil/money':
         specifier: workspace:*
         version: link:../money
 
   libs/reconciliation-postgres:
     dependencies:
-      '@flow/reconciliation-domain':
+      '@vigil/reconciliation-domain':
         specifier: workspace:*
         version: link:../reconciliation-domain
       pg:
@@ -236,28 +239,28 @@ importers:
 
   libs/simulator:
     dependencies:
-      '@flow/ledger-domain':
+      '@vigil/ledger-domain':
         specifier: workspace:*
         version: link:../ledger-domain
-      '@flow/money':
+      '@vigil/money':
         specifier: workspace:*
         version: link:../money
 
   libs/simulator-oracle:
     dependencies:
-      '@flow/money':
+      '@vigil/money':
         specifier: workspace:*
         version: link:../money
-      '@flow/simulator':
+      '@vigil/simulator':
         specifier: workspace:*
         version: link:../simulator
 
   libs/stripe-integration:
     dependencies:
-      '@flow/ingestion-domain':
+      '@vigil/ingestion-domain':
         specifier: workspace:*
         version: link:../ingestion-domain
-      '@flow/money':
+      '@vigil/money':
         specifier: workspace:*
         version: link:../money
       stripe:
@@ -266,13 +269,13 @@ importers:
 
   libs/stripe-postgres:
     dependencies:
-      '@flow/ingestion-domain':
+      '@vigil/ingestion-domain':
         specifier: workspace:*
         version: link:../ingestion-domain
-      '@flow/stripe-integration':
+      '@vigil/stripe-integration':
         specifier: workspace:*
         version: link:../stripe-integration
-      '@flow/worker-postgres':
+      '@vigil/worker-postgres':
         specifier: workspace:*
         version: link:../worker-postgres
       pg:
@@ -281,7 +284,7 @@ importers:
 
   libs/worker-postgres:
     dependencies:
-      '@flow/ingestion-domain':
+      '@vigil/ingestion-domain':
         specifier: workspace:*
         version: link:../ingestion-domain
       pg:
@@ -1543,6 +1546,10 @@ packages:
 
   asynckit@0.4.0:
     resolution: {integrity: sha512-Oei9OH4tRh0YqU3GxhX79dM/mwVgvbZJaSNaRk+bshkj0S5cfHcgYakreBjrHwatXKbz+IoIdYLxrKim2MjW0Q==}
+
+  axe-core@4.14.0:
+    resolution: {integrity: sha512-9WTZxEjsZ7b13TH8JPmbV2z8CHbl80/2hm3XPEG4JgNdQLK81IBRXmSxHfMAOkSqQeRxT/0dwNDz2GOm3zzpcQ==}
+    engines: {node: '>=4'}
 
   axios@1.18.1:
     resolution: {integrity: sha512-3nTvFlvpn9Zu/RkHUqtc7/+al4UpRW5az71ap5zccp6e8RAYEzhMTecX8Dz1wWDYrPpUoB1HAQEGEAEvUr7S9g==}
@@ -3988,6 +3995,8 @@ snapshots:
   argparse@2.0.1: {}
 
   asynckit@0.4.0: {}
+
+  axe-core@4.14.0: {}
 
   axios@1.18.1(debug@4.4.3(supports-color@7.2.0))(supports-color@7.2.0):
     dependencies:

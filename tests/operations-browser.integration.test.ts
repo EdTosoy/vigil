@@ -16,12 +16,16 @@ import { tmpdir } from 'node:os';
 import { randomUUID } from 'node:crypto';
 import { Pool } from 'pg';
 import { chromium } from '@playwright/test';
-import type { SystemInput } from '@flow/simulator';
-import { PostgresOperations } from '@flow/operations-read-postgres';
+import type { SystemInput } from '@vigil/simulator';
+import { PostgresOperations } from '@vigil/operations-read-postgres';
 import { seedDemo, type DemoPools } from '../tools/ops-demo';
 import { clean, witness } from './helpers/resilience';
 import { distribution } from './helpers/profile-reads';
 import { verifyLoading } from './helpers/operations-loading';
+import { verifyNavigation } from './helpers/operations-navigation';
+import { verifyOverview } from './helpers/operations-overview';
+import { verifyAccessibility } from './helpers/operations-accessibility';
+import { verifyEvidence } from './helpers/operations-evidence';
 const exec = promisify(execFile);
 const keys: Record<keyof DemoPools, string> = {
   admin: 'ADMIN',
@@ -37,14 +41,14 @@ const keys: Record<keyof DemoPools, string> = {
 const p = Object.fromEntries(
   Object.entries(keys).map(([k, v]) => [
     k,
-    new Pool({ connectionString: process.env['FLOW_TEST_' + v + '_URL'] }),
+    new Pool({ connectionString: process.env['VIGIL_TEST_' + v + '_URL'] }),
   ]),
 ) as unknown as DemoPools;
 const op = new Pool({
-    connectionString: process.env['FLOW_TEST_OPERATIONS_URL'],
+    connectionString: process.env['VIGIL_TEST_OPERATIONS_URL'],
   }),
   reads = new PostgresOperations(op);
-if (!process.env['FLOW_TEST_OPERATIONS_URL'])
+if (!process.env['VIGIL_TEST_OPERATIONS_URL'])
   throw new Error('Run pnpm test:integration');
 after(async () => {
   await Promise.all([...Object.values(p), op].map((p) => p.end()));
@@ -67,9 +71,10 @@ async function stop(child: ChildProcess) {
 }
 test(
   'public simulator demo, restricted production browser, query plans and local performance',
-  { timeout: 240000 },
+  // Includes the five-viewport WCAG matrix and keyboard journey; latency gates below remain unchanged.
+  { timeout: 420000 },
   async () => {
-    const dir = await mkdtemp(join(tmpdir(), 'flow-ops-public-'));
+    const dir = await mkdtemp(join(tmpdir(), 'vigil-ops-public-'));
     let child: ChildProcess | undefined;
     let browser: Awaited<ReturnType<typeof chromium.launch>> | undefined;
     const serverLogs: Record<string, unknown>[] = [];
@@ -103,7 +108,7 @@ test(
       );
     }
     try {
-      const scale = process.env['FLOW_PROFILE_LARGE'] ? 2 : 1;
+      const scale = process.env['VIGIL_PROFILE_LARGE'] ? 2 : 1;
       const configs = [
         { seed: 71200, paymentCount: 40 * scale, batchSizeRange: [5, 10] },
         {
@@ -173,7 +178,7 @@ test(
         )
       ).rows[0];
       assert(dataset.receipts >= 1000);
-      if (process.env['FLOW_PROFILE_READS']) {
+      if (process.env['VIGIL_PROFILE_READS']) {
         const { profileReads } = await import('./helpers/profile-reads.js');
         await profileReads(p.admin, op, demo, dataset);
         await clean(p.admin, demo.bookId, demo.reconciliationRunIds);
@@ -273,11 +278,12 @@ test(
           env: {
             ...Object.fromEntries(
               Object.entries(process.env).filter(
-                ([key]) => !/^(DATABASE_|FLOW_TEST_|OPS_)/.test(key),
+                ([key]) => !/^(DATABASE_|VIGIL_TEST_|OPS_)/.test(key),
               ),
             ),
             OPS_SLOW_READ_MS: '500',
-            DATABASE_OPERATIONS_URL: process.env['FLOW_TEST_OPERATIONS_URL'],
+            OPS_BOOK_ID: demo.bookId,
+            DATABASE_OPERATIONS_URL: process.env['VIGIL_TEST_OPERATIONS_URL'],
             NEXT_TELEMETRY_DISABLED: '1',
           },
           stdio: ['ignore', 'pipe', 'pipe'],
@@ -291,7 +297,9 @@ test(
         if (child.exitCode !== null)
           throw new Error('Production app exited (' + child.exitCode + ')');
         try {
-          const r = await fetch(base, { signal: AbortSignal.timeout(1000) });
+          const r = await fetch(base + '/health/live', {
+            signal: AbortSignal.timeout(1000),
+          });
           if (r.ok) {
             ready = true;
             break;
@@ -304,10 +312,14 @@ test(
       assert(ready, 'Production server ready within bound');
       await measureMemory();
       const live = await fetch(base + '/health/live', {
-        headers: { 'x-flow-request-id': 'untrusted-secret' },
+        headers: {
+          'x-flow-request-id': 'untrusted-secret',
+          'x-vigil-request-id': 'untrusted-secret',
+        },
       });
       assert.equal(live.status, 200);
       const correlationId = live.headers.get('x-flow-request-id')!;
+      assert.equal(live.headers.get('x-vigil-request-id'), correlationId);
       assert.match(correlationId, /^[0-9a-f-]{36}$/);
       assert.notEqual(correlationId, 'untrusted-secret');
       assert.equal((await live.json()).status, 'LIVE');
@@ -422,15 +434,38 @@ test(
       await page
         .getByRole('heading', { name: 'Reconciliation', exact: true })
         .waitFor();
+      if (process.env['VIGIL_OPS_SCREENSHOTS']) {
+        await mkdir(process.env['VIGIL_OPS_SCREENSHOTS'], { recursive: true });
+        await page.screenshot({
+          path: join(
+            process.env['VIGIL_OPS_SCREENSHOTS'],
+            'reconciliation-list.png',
+          ),
+          fullPage: true,
+        });
+      }
       await page.locator('main table a.identifier').first().click();
       await page
         .getByRole('heading', { name: 'Frozen reconciliation population' })
         .waitFor();
+      if (process.env['VIGIL_OPS_SCREENSHOTS'])
+        await page.screenshot({
+          path: join(
+            process.env['VIGIL_OPS_SCREENSHOTS'],
+            'reconciliation-detail.png',
+          ),
+          fullPage: true,
+        });
       assert((await page.getByText('CURRENT', { exact: false }).count()) > 0);
       await page.locator('nav a').filter({ hasText: 'Exceptions' }).click();
       await page.getByRole('heading', { name: 'Exception queue' }).waitFor();
       await page.locator('main table a.identifier').first().click();
       await page.getByRole('heading', { name: 'Operational case' }).waitFor();
+      if (process.env['VIGIL_OPS_SCREENSHOTS'])
+        await page.screenshot({
+          path: join(process.env['VIGIL_OPS_SCREENSHOTS'], 'case-detail.png'),
+          fullPage: true,
+        });
       await page
         .getByRole('heading', { name: 'Financial reconciliation', exact: true })
         .waitFor();
@@ -445,6 +480,14 @@ test(
       ] as const) {
         await page.locator('nav a').filter({ hasText: nav }).click();
         await page.getByRole('heading', { name: heading }).waitFor();
+        if (nav === 'Controls' && process.env['VIGIL_OPS_SCREENSHOTS'])
+          await page.screenshot({
+            path: join(
+              process.env['VIGIL_OPS_SCREENSHOTS'],
+              'controls-comparison.png',
+            ),
+            fullPage: true,
+          });
       }
       await page.goto(
         base + '/workers?book=' + demo.bookId + '&status=FAILED_TERMINAL',
@@ -467,7 +510,8 @@ test(
         page,
         p.admin,
         overview,
-        process.env['FLOW_OPS_SCREENSHOTS'] ?? join(dir, 'loading-screenshots'),
+        process.env['VIGIL_OPS_SCREENSHOTS'] ??
+          join(dir, 'loading-screenshots'),
       );
       await p.admin.query(
         'REVOKE EXECUTE ON FUNCTION operations.read_v1(uuid,text,jsonb) FROM flow_operations_reader',
@@ -492,6 +536,14 @@ test(
           await page.locator('main').getByRole('alert').isVisible(),
           true,
         );
+        if (process.env['VIGIL_OPS_SCREENSHOTS'])
+          await page.screenshot({
+            path: join(
+              process.env['VIGIL_OPS_SCREENSHOTS'],
+              'overview-unavailable.png',
+            ),
+            fullPage: true,
+          });
       } finally {
         await p.admin.query(
           'GRANT EXECUTE ON FUNCTION operations.read_v1(uuid,text,jsonb) TO flow_operations_reader',
@@ -507,6 +559,52 @@ test(
         (await page.getByText('Assurance: UNKNOWN', { exact: false }).count()) >
           0,
       );
+      await verifyNavigation(
+        page,
+        reads,
+        base,
+        demo.bookId,
+        demo.evaluationId,
+        empty,
+        join(
+          process.env['VIGIL_OPS_SCREENSHOTS'] ?? join(dir, 'screenshots'),
+          'navigation',
+        ),
+      );
+      await verifyOverview(
+        page,
+        reads,
+        base,
+        demo.bookId,
+        demo.evaluationId,
+        empty,
+        join(
+          process.env['VIGIL_OPS_SCREENSHOTS'] ?? join(dir, 'screenshots'),
+          'overview',
+        ),
+      );
+      await verifyEvidence(
+        page,
+        reads,
+        base,
+        demo.bookId,
+        demo.evaluationId,
+        join(
+          process.env['VIGIL_OPS_SCREENSHOTS'] ?? join(dir, 'screenshots'),
+          'evidence',
+        ),
+      );
+      await verifyAccessibility(
+        page,
+        base,
+        demo.bookId,
+        demo.evaluationId,
+        empty,
+        join(
+          process.env['VIGIL_OPS_SCREENSHOTS'] ?? join(dir, 'screenshots'),
+          'accessibility',
+        ),
+      );
       await page.goto(overview);
       await page.keyboard.press('Tab');
       assert.equal(
@@ -516,7 +614,7 @@ test(
       await page.keyboard.press('Enter');
       assert.equal(await page.locator(':focus').getAttribute('id'), 'main');
       const screenshots =
-        process.env['FLOW_OPS_SCREENSHOTS'] ?? join(dir, 'screenshots');
+        process.env['VIGIL_OPS_SCREENSHOTS'] ?? join(dir, 'screenshots');
       await mkdir(screenshots, { recursive: true });
       await page.evaluate(() => {
         (document.activeElement as HTMLElement)?.blur();
@@ -637,7 +735,7 @@ test(
         const source = await readFile(file, 'utf8');
         clientJsBytes += Buffer.byteLength(source);
         for (const forbidden of [
-          'FLOW_TEST_OPERATIONS_URL',
+          'VIGIL_TEST_OPERATIONS_URL',
           'DATABASE_OPERATIONS_URL',
           'postgresql://',
           'operations.read_v1',

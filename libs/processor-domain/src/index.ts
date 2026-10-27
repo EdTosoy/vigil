@@ -1,9 +1,9 @@
-import { Money, type Currency, type MoneyJson } from '@flow/money';
+import { Money, type Currency, type MoneyJson } from '@vigil/money';
 import {
   boundedText,
   canonicalJson,
   type Observation,
-} from '@flow/ingestion-domain';
+} from '@vigil/ingestion-domain';
 
 export const INTERPRETER_VERSION = 'processor-v1' as const;
 export type ActivityKind =

@@ -19,6 +19,12 @@ PostgreSQL authoritative state
 
 Never move financial semantics into React or browser code.
 
+## Exact evidence values
+
+Humanize designated field labels only. Preserve evidence identifiers, references,
+event/status codes and technical values verbatim, with their full values
+recoverable. Missing fields do not establish legitimate absence.
+
 ## No financial calculations in the UI
 
 Do not implement authoritative calculations in React components, client utilities, or browser state.
@@ -167,11 +173,24 @@ Distinguish:
 
 Do not make historical evaluations appear live.
 
+Label frozen evaluation results separately from supplied current applicability.
+A historical PASS does not establish current PASS; a missing currentness flag
+remains UNKNOWN.
+
+Keep the Overview's read-time sweep distinct from its explicitly selected
+evaluation and exposure. Place evaluation selection beside the information it
+governs; never choose scope by timestamps or list order, or present historical
+control links as proof of a current sweep condition.
+
 ## Time
 
 Do not use the browser clock to determine financial truth, lease validity, control validity, or reconciliation state.
 
 Browser/local time is presentation only.
+
+Render UTC only from an explicit source offset, retain supplied fractional
+precision, and keep the source literal recoverable. Missing or unqualified
+timestamps must not gain an inferred timezone or precision.
 
 ## Filtering
 
@@ -182,6 +201,13 @@ Do not concatenate user input into SQL.
 Use parameterized queries through the read-model package.
 
 Filtering must not alter financial semantics.
+
+Keep validated book/evaluation scope separate from route-specific filters and
+cursors. Detail and related-evidence navigation must retain a book-bound results
+origin, with an explicit return that also works on a refreshed deep link. Never
+accept arbitrary return URLs or carry an old book's record/evaluation context
+into book selection. Validation and unavailable-record errors must retain the
+controls needed to correct the request; recovery must not substitute an entity.
 
 ## Pagination
 
@@ -240,6 +266,12 @@ Preserve:
 
 Financial state must remain understandable without relying only on visual color.
 
+At 320px, keep the active primary section visible and contain financial-table
+scrolling within a named keyboard-focusable region. Preserve readable identity,
+column headings and exact recoverable values while scrolling; allow pinned
+identity columns to be released. URL filter updates must preserve keyboard focus,
+and validation must identify and retain the control needed for correction.
+
 ## Performance
 
 Do not fix slow pages by duplicating financial logic in the UI.
@@ -282,3 +314,13 @@ For any non-trivial dashboard change, ask:
 12. Is new client-side complexity actually necessary?
 
 If any answer reveals unresolved financial or security risk, do not report the change as complete.
+
+<!-- BEGIN:nextjs-agent-rules -->
+
+## This is NOT the Next.js you know
+
+This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` (resolved from this file's directory; in monorepos the `next` package may not be visible from the repo root) before writing any code. Heed deprecation notices.
+
+This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
+
+<!-- END:nextjs-agent-rules -->
