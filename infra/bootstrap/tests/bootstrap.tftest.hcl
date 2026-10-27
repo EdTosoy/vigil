@@ -11,6 +11,14 @@ mock_provider "aws" {
     }
   }
 }
+variables {
+  budget_evidence = {
+    account_id   = "747240980964", name = "mdp-monthly-gross-usd-5", budget_type = "COST", time_unit = "MONTHLY",
+    budget_limit = [{ amount = "5", unit = "USD" }],
+    cost_types   = [{ include_credit = false, include_refund = false, include_tax = true }],
+    cost_filter  = [], billing_view_arn = "", observed_at = "2026-10-27T00:00:00Z"
+  }
+}
 run "seed_security_boundaries" {
   command = plan
   assert {
@@ -56,6 +64,14 @@ run "foreign_budget_refused" {
 }
 run "net_after_credit_budget_refused" {
   command = plan
+  variables {
+    budget_evidence = {
+      account_id   = "747240980964", name = "mdp-monthly-gross-usd-5", budget_type = "COST", time_unit = "MONTHLY",
+      budget_limit = [{ amount = "5", unit = "USD" }],
+      cost_types   = [{ include_credit = true, include_refund = false, include_tax = true }],
+      cost_filter  = [], billing_view_arn = "", observed_at = "2026-10-27T00:00:00Z"
+    }
+  }
   override_data {
     target = data.aws_budgets_budget.existing
     values = {
@@ -65,7 +81,7 @@ run "net_after_credit_budget_refused" {
       cost_filter  = [], billing_view_arn = ""
     }
   }
-  expect_failures = [data.aws_budgets_budget.existing]
+  expect_failures = [var.budget_evidence]
 }
 run "wrong_budget_amount_refused" {
   command = plan

@@ -1,4 +1,4 @@
-/** Offline assembly only. No historical cache, generated backend, state, plan or secret is an input. */
+/** Source-only assembly. No historical cache, generated backend, state, plan or secret is an input. */
 import { createHash, randomUUID } from 'node:crypto';
 import { lstat, mkdir, readFile, readdir, writeFile } from 'node:fs/promises';
 import { dirname, relative, resolve } from 'node:path';
@@ -62,11 +62,20 @@ export async function assembleDeploymentSources(
   repository: string,
   stage: DeploymentRoot,
   run: string = randomUUID(),
+  mode: 'offline-validation' | 'bootstrap-plan' = 'offline-validation',
 ) {
   if (!/^[a-f0-9-]{36}$/.test(run) || run.length !== 36)
     throw new DeploymentSafetyError('Invalid offline validation identity');
   const context = deploymentContext(repository, stage);
-  const prefix = `offline/${run}`;
+  if (
+    !['offline-validation', 'bootstrap-plan'].includes(mode) ||
+    (mode === 'bootstrap-plan' && stage !== 'bootstrap')
+  )
+    throw new DeploymentSafetyError(
+      'Only bootstrap may use the isolated live plan context',
+    );
+  const namespace = mode === 'bootstrap-plan' ? 'plans' : 'offline';
+  const prefix = `${namespace}/${run}`;
   const work = context.path(`${prefix}/work`);
   const data = context.path(`${prefix}/terraform-data`);
   const manifest = context.path(`${prefix}/source-manifest.json`);
@@ -88,7 +97,7 @@ export async function assembleDeploymentSources(
         'Target directories must be private and owned by this user',
       );
   }
-  await mkdir(context.path('offline'), { recursive: true, mode: 0o700 });
+  await mkdir(context.path(namespace), { recursive: true, mode: 0o700 });
   // Exclusive run directory: never reconnect, overwrite, clean or migrate a prior workspace.
   await mkdir(context.path(prefix), { mode: 0o700 });
   await mkdir(work, { mode: 0o700 });
@@ -100,7 +109,7 @@ export async function assembleDeploymentSources(
   }
   const receipt = {
     version: 1,
-    mode: 'offline-validation',
+    mode,
     account: deployment.account,
     region: deployment.region,
     profile: deployment.profile,
@@ -114,7 +123,7 @@ export async function assembleDeploymentSources(
     mode: 0o600,
     flag: 'wx',
   });
-  return { context, prefix, work, data, manifest, receipt };
+  return { context, prefix, work, data, manifest, receipt, mode };
 }
 export type DeploymentAssembly = Awaited<
   ReturnType<typeof assembleDeploymentSources>
@@ -129,7 +138,11 @@ export async function verifyDeploymentAssembly(
   );
   if (
     !isDeepStrictEqual(saved, receipt) ||
-    receipt.mode !== 'offline-validation' ||
+    receipt.mode !== assembly.mode ||
+    !['offline-validation', 'bootstrap-plan'].includes(assembly.mode) ||
+    (assembly.mode === 'bootstrap-plan' && context.stage !== 'bootstrap') ||
+    prefix.split('/')[0] !==
+      (assembly.mode === 'bootstrap-plan' ? 'plans' : 'offline') ||
     receipt.account !== deployment.account ||
     receipt.region !== deployment.region ||
     receipt.profile !== deployment.profile ||
