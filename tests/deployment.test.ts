@@ -176,8 +176,8 @@ test('destroy requires a separate reviewed demo-only deletion plan', () => {
 
 test('deployment refuses wrong account, root and credential/argument overrides', () => {
   assertDeploymentIdentity(
-    '163596511125',
-    'arn:aws:iam::163596511125:user/Iamadmin',
+    '747240980964',
+    'arn:aws:sts::747240980964:assumed-role/AccountFullAccessRole/browser-session',
   );
   for (const [account, arn] of [
     ['872353350564', 'arn:aws:iam::872353350564:user/kuyas'],
@@ -191,8 +191,18 @@ test('deployment refuses wrong account, root and credential/argument overrides',
     'TF_LOG',
     'TF_VAR_budget_email',
   ])
-    assert.throws(() => assertDeploymentEnvironment({ [key]: 'fixture' }));
-  assertDeploymentEnvironment({ AWS_PROFILE: 'default' }); // The command explicitly selects the approved profile.
+    assert.throws(() =>
+      assertDeploymentEnvironment({
+        AWS_PROFILE: 'edtosoy',
+        AWS_REGION: 'ap-southeast-2',
+        [key]: 'fixture',
+      }),
+    );
+  assert.throws(() => assertDeploymentEnvironment({ AWS_PROFILE: 'default' }));
+  assertDeploymentEnvironment({
+    AWS_PROFILE: 'edtosoy',
+    AWS_REGION: 'ap-southeast-2',
+  });
 });
 
 test('bootstrap rejects runtime infrastructure, deletion and parent-zone takeover', () => {

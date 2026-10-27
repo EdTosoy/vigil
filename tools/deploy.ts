@@ -11,6 +11,14 @@ import {
 import { resolve } from 'node:path';
 import { Resolver } from 'node:dns/promises';
 import {
+  deploymentContext,
+  assertDeploymentPrepared,
+} from './deployment-context';
+import {
+  deploymentCommandPreflight,
+  reportDeploymentFailure,
+} from './deployment-preflight';
+import {
   deployment,
   assertDeploymentIdentity,
   assertDeploymentEnvironment,
@@ -19,11 +27,12 @@ import {
 } from './deployment-guards';
 
 const root = resolve(__dirname, '..');
-const directory = resolve(root, 'infra/bootstrap');
-const local = resolve(root, '.deployment');
-const variables = resolve(local, 'bootstrap.tfvars.json');
-const planPath = resolve(local, 'bootstrap.tfplan');
-const receiptPath = resolve(local, 'bootstrap-plan.json');
+const context = deploymentContext(root, 'bootstrap');
+const directory = context.work;
+const local = context.base;
+const variables = context.path('bootstrap.tfvars.json');
+const planPath = context.path('bootstrap.tfplan');
+const receiptPath = context.path('bootstrap-plan.json');
 const generatedBackend = resolve(directory, 'backend.generated.tf');
 
 async function exists(path: string): Promise<boolean> {
@@ -46,6 +55,8 @@ function environment(): NodeJS.ProcessEnv {
     AWS_PAGER: '',
     AWS_CLI_AUTO_PROMPT: 'off',
     TF_IN_AUTOMATION: '1',
+    TF_DATA_DIR: context.data,
+    TF_WORKSPACE: 'default',
   };
 }
 async function execute(
@@ -53,6 +64,7 @@ async function execute(
   args: string[],
   logged = false,
 ): Promise<string> {
+  assertDeploymentPrepared();
   const child = spawn(command, args, {
     cwd: directory,
     env: environment(),
@@ -69,12 +81,12 @@ async function execute(
   const out = Buffer.concat(chunks).toString();
   const err = Buffer.concat(errors).toString();
   if (logged && command === 'terraform' && /^[a-z-]+$/.test(args[0] ?? ''))
-    await privateWrite(resolve(local, `terraform-${args[0]}.log`), out + err);
+    await privateWrite(context.path(`terraform-${args[0]}.log`), out + err);
   if (logged || code !== 0)
-    await privateWrite(resolve(local, 'last-command.log'), out + err);
+    await privateWrite(context.path('last-command.log'), out + err);
   if (code !== 0)
     throw new Error(
-      'Deployment command failed; inspect ignored .deployment/last-command.log locally',
+      'Deployment command failed; inspect the private Sydney bootstrap log locally',
     );
   return out;
 }
@@ -239,7 +251,7 @@ async function backend(migrate: boolean): Promise<void> {
       );
     await chmod(resolve(directory, 'terraform.tfstate'), 0o600);
     await privateWrite(
-      resolve(local, 'seed-state.backup'),
+      context.path('seed-state.backup'),
       await readFile(resolve(directory, 'terraform.tfstate'), 'utf8'),
     );
   }
@@ -339,6 +351,17 @@ async function dns(): Promise<void> {
   );
 }
 async function main(): Promise<void> {
+  if (
+    await deploymentCommandPreflight(
+      root,
+      'bootstrap',
+      process.argv[2],
+      process.env,
+      undefined,
+      process.argv.slice(3),
+    )
+  )
+    return;
   await mkdir(local, { recursive: true, mode: 0o700 });
   await chmod(local, 0o700);
   await identity();
@@ -367,13 +390,4 @@ async function main(): Promise<void> {
       );
   }
 }
-void main().catch((error: unknown) => {
-  // Never print SDK/CLI errors: they can include URLs, payloads or credential details.
-  console.error(
-    error instanceof Error &&
-      error.message.startsWith('Deployment command failed')
-      ? error.message
-      : 'Deployment safety check failed; inspect configuration and the ignored local command log.',
-  );
-  process.exitCode = 1;
-});
+void main().catch(reportDeploymentFailure);

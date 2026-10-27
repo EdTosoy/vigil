@@ -1,32 +1,57 @@
 /** Pure safety checks; deployment commands never accept an arbitrary account/profile. */
-export const deployment = {
-  profile: 'iamadmin-general',
-  account: '163596511125',
-  region: 'us-east-1',
-  bucket: 'flow-demo-tfstate-163596511125-us-east-1',
+export const deployment = Object.freeze({
+  profile: 'edtosoy',
+  account: '747240980964',
+  region: 'ap-southeast-2',
+  role: 'AccountFullAccessRole',
+  bucket: 'flow-demo-tfstate-747240980964-ap-southeast-2',
+  // Historical policy only. DNS selection and all legacy workflows are blocked until D1B.
   domain: 'flow.edtosoy.com',
-} as const;
+} as const);
 
 export function assertDeploymentIdentity(account: string, arn: string): void {
+  const match =
+    /^arn:aws:sts::(\d{12}):assumed-role\/([\w+=,.@-]+)\/([\w+=,.@-]{2,64})$/.exec(
+      arn,
+    );
   if (
     account !== deployment.account ||
-    !arn.startsWith(`arn:aws:iam::${deployment.account}:user/`)
+    match?.[0] !== arn ||
+    match?.[1] !== account ||
+    match?.[2] !== deployment.role
   )
     throw new Error(
-      'Approved account and non-root IAM deployment identity required',
+      'Sydney requires account 747240980964 and exact assumed role AccountFullAccessRole',
     );
 }
 
 export function assertDeploymentEnvironment(
   env: Readonly<Record<string, string | undefined>>,
 ): void {
+  if (
+    env['AWS_PROFILE'] !== deployment.profile ||
+    (env['AWS_DEFAULT_PROFILE'] !== undefined &&
+      env['AWS_DEFAULT_PROFILE'] !== deployment.profile)
+  )
+    throw new Error(
+      'Explicit AWS_PROFILE=edtosoy required; no default or historical profile fallback',
+    );
+  if (
+    env['AWS_REGION'] !== deployment.region ||
+    (env['AWS_DEFAULT_REGION'] !== undefined &&
+      env['AWS_DEFAULT_REGION'] !== deployment.region)
+  )
+    throw new Error(
+      'Explicit AWS_REGION=ap-southeast-2 required; conflicting region refused',
+    );
   for (const name of Object.keys(env)) {
     if (
-      env[name] &&
-      (/^AWS_(ACCESS_KEY_ID|SECRET_ACCESS_KEY|SESSION_TOKEN|SECURITY_TOKEN|ROLE_ARN|WEB_IDENTITY_TOKEN_FILE|CONTAINER_CREDENTIALS_.*|ENDPOINT_URL.*)$/.test(
+      env[name] !== undefined &&
+      (/^AWS_(ACCESS_KEY.*|SECRET.*|SESSION.*|SECURITY_TOKEN|ROLE_.*|WEB_IDENTITY_TOKEN_FILE|CONTAINER_.*|ENDPOINT_.*|CONFIG_FILE|SHARED_CREDENTIALS_FILE|CREDENTIAL_.*|LOGIN_.*|CA_BUNDLE|DATA_PATH)$/.test(
         name,
       ) ||
-        /^TF_(CLI_ARGS.*|LOG.*|VAR_.*)$/.test(name))
+        /^TF_/.test(name) ||
+        /^TERRAFORM_/.test(name))
     )
       throw new Error(
         'Credential, endpoint or Terraform argument overrides are unsupported',
