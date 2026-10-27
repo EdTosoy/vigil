@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, readFile, writeFile, rm } from 'node:fs/promises';
+import { mkdtemp, mkdir, readFile, writeFile, rm } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import { spawnSync } from 'node:child_process';
@@ -12,6 +12,11 @@ import {
   inspectSeedPlan,
   assertBudgetEvidence,
 } from '../tools/bootstrap-plan';
+
+import {
+  assertBootstrapEquivalent,
+  assertAbsent,
+} from '../tools/bootstrap-execute';
 
 const repository = resolve(__dirname, '..');
 const budget = () => ({
@@ -406,6 +411,136 @@ console.log(JSON.stringify({Account:process.env.MOCK_ACCOUNT,Arn:process.env.MOC
     assert.equal(run([], { AWS_REGION: 'us-east-1' }).status, 1);
     assert.equal(run([], { AWS_SESSION_TOKEN: 'fixture' }).status, 1);
     assert.equal((await readFile(trace, 'utf8')).trim().split('\n').length, 2);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test('D2C compares complete exact configurations, refuses extra/replaced/deleted plans and retains execution/state guards', async () => {
+  const baseline = planFixture();
+  assertBootstrapEquivalent(structuredClone(baseline), baseline);
+  for (const mutate of [
+    (p: ReturnType<typeof planFixture>) => {
+      p.resource_changes.push(structuredClone(p.resource_changes[0]!));
+    },
+    (p: ReturnType<typeof planFixture>) => {
+      p.resource_changes.pop();
+    },
+    (p: ReturnType<typeof planFixture>) => {
+      p.resource_changes[0]!.change.actions = ['update'];
+    },
+    (p: ReturnType<typeof planFixture>) => {
+      p.resource_changes[0]!.change.actions = ['delete', 'create'];
+    },
+    (p: ReturnType<typeof planFixture>) => {
+      p.resource_changes[0]!.change.actions = ['delete'];
+    },
+    (p: ReturnType<typeof planFixture>) => {
+      p.resource_changes[0]!.change.after['unexpected_configuration'] = true;
+    },
+    (p: ReturnType<typeof planFixture>) => {
+      p.resource_changes[0]!.address = 'aws_s3_bucket.foreign';
+    },
+    (p: ReturnType<typeof planFixture>) => {
+      p.resource_changes[6]!.change.after['force_delete'] = true;
+    },
+  ]) {
+    const p = structuredClone(baseline);
+    mutate(p);
+    assert.throws(() => assertBootstrapEquivalent(p, baseline));
+  }
+  const dir = await mkdtemp(resolve(tmpdir(), 'vigil-execution-marker-'));
+  try {
+    const file = resolve(dir, 'state');
+    await assertAbsent(file);
+    await writeFile(file, 'retained');
+    await assert.rejects(() => assertAbsent(file));
+    assert.equal(await readFile(file, 'utf8'), 'retained');
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test('D2C execution CLI rejects every override and wrong caller before Terraform apply', async () => {
+  const dir = await mkdtemp(resolve(tmpdir(), 'vigil-execute-cli-'));
+  const trace = resolve(dir, 'trace');
+  try {
+    // Never consult the real account's durable execution marker/state in tests.
+    const checkout = resolve(dir, 'checkout');
+    await mkdir(resolve(checkout, 'tools'), { recursive: true });
+    await mkdir(
+      resolve(
+        checkout,
+        '.deployment',
+        deployment.account,
+        deployment.region,
+        'bootstrap',
+        'plans',
+      ),
+      { recursive: true, mode: 0o700 },
+    );
+    for (const name of [
+      'bootstrap-execute.ts',
+      'bootstrap-plan.ts',
+      'deployment-context.ts',
+      'deployment-preflight.ts',
+      'deployment-guards.ts',
+      'deployment-sources.ts',
+    ])
+      await writeFile(
+        resolve(checkout, 'tools', name),
+        await readFile(resolve(repository, 'tools', name)),
+      );
+    await writeFile(
+      resolve(dir, 'aws'),
+      `#!/usr/bin/env node
+require('node:fs').appendFileSync(process.env.MOCK_TRACE,'aws\\n');
+console.log(JSON.stringify({Account:'747240980964',Arn:'arn:aws:sts::747240980964:assumed-role/OtherRole/session',UserId:'fixture'}));
+`,
+      { mode: 0o700 },
+    );
+    await writeFile(
+      resolve(dir, 'terraform'),
+      `#!/usr/bin/env node
+require('node:fs').appendFileSync(process.env.MOCK_TRACE,'terraform\\n');
+process.exit(99);
+`,
+      { mode: 0o700 },
+    );
+    const run = (args: string[]) =>
+      spawnSync(
+        process.execPath,
+        [
+          '--import',
+          'tsx',
+          resolve(checkout, 'tools/bootstrap-execute.ts'),
+          ...args,
+        ],
+        {
+          cwd: repository,
+          env: {
+            PATH: `${dir}:${process.env['PATH']}`,
+            HOME: process.env['HOME'],
+            AWS_PROFILE: 'edtosoy',
+            AWS_REGION: 'ap-southeast-2',
+            MOCK_TRACE: trace,
+          },
+          encoding: 'utf8',
+          timeout: 15000,
+        },
+      );
+    for (const args of [
+      ['apply'],
+      ['destroy'],
+      ['--plan=old'],
+      ['--state=old'],
+      ['--approved'],
+      ['--region=us-east-1'],
+    ])
+      assert.equal(run(args).status, 1);
+    await assert.rejects(() => readFile(trace), /ENOENT/);
+    assert.equal(run([]).status, 1);
+    assert.equal((await readFile(trace, 'utf8')).trim(), 'aws');
   } finally {
     await rm(dir, { recursive: true, force: true });
   }
