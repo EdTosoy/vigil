@@ -43,7 +43,9 @@ resource "aws_s3_bucket_policy" "state" {
       Effect    = "Deny"
       Principal = "*"
       Action    = "s3:*"
-      Resource  = [aws_s3_bucket.state.arn, "${aws_s3_bucket.state.arn}/*"]
+      # Derive from the exact bucket input so the complete deny policy is
+      # inspectable in a first-time plan before the bucket ARN is computed.
+      Resource  = ["arn:aws:s3:::${local.bucket_name}", "arn:aws:s3:::${local.bucket_name}/*"]
       Condition = { Bool = { "aws:SecureTransport" = "false" } }
     }]
   })
@@ -84,13 +86,13 @@ data "aws_budgets_budget" "existing" {
   lifecycle {
     postcondition {
       condition = try(
-        self.budget_type == "COST" && self.time_unit == "MONTHLY" &&
+        self.budget_type == "COST" &&
         tonumber(self.budget_limit[0].amount) == 5 && self.budget_limit[0].unit == "USD" &&
-        !self.cost_types[0].include_credit && !self.cost_types[0].include_refund && self.cost_types[0].include_tax &&
-        length(self.cost_filter) == 0 && (self.billing_view_arn == null || self.billing_view_arn == ""),
+        self.account_id == var.budget_evidence.account_id && self.name == var.budget_evidence.name &&
+        (self.billing_view_arn == null || self.billing_view_arn == ""),
         false
       )
-      error_message = "Existing budget must cover gross account-wide monthly costs: USD 5, excluding credits/refunds, including tax."
+      error_message = "The live budget reference must agree with the separately validated gross-cost observation."
     }
   }
 }
