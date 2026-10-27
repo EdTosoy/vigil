@@ -1,5 +1,7 @@
 # Sydney D3C — private inputs and backend readiness
 
+D3D follow-up: [staged runtime inputs](sydney-d3d.md) supersedes the all-nine-input planning prerequisite below. The initial infrastructure plan now needs only `admin_password`; endpoint and actual bindings follow provisioning. It also clarifies the provisioner's new-book initializer contract. D3C observations below remain dated evidence, not current readiness.
+
 2026-10-27, baseline `2df2370`. **Preparation complete; runtime planning/provisioning remains blocked. Zero AWS mutations.** The new local-only workflow stores no values unless the operator enters them. This run created only a non-secret configuration and review-only backend scope; all credentials and financial bindings remain missing. No commit/push.
 
 ## Inputs and secure local setup

@@ -41,19 +41,21 @@ resource "aws_db_instance" "demo" {
   ca_cert_identifier           = "rds-ca-rsa2048-g1"
 }
 locals {
-  runtime_values = merge({
-    admin_url       = "postgresql://flow_admin:${var.secrets["admin_password"]}@${aws_db_instance.demo.address}:5432/flow?sslmode=verify-full"
-    provisioning    = var.secrets["provisioning"]
-    stripe_key      = var.secrets["stripe_key"]
-    webhook_secrets = var.secrets["webhook_secrets"]
-    demo_username   = var.secrets["demo_username"]
-    demo_password   = var.secrets["demo_password"]
-    }, {
-    for kind in ["operations", "ingress", "stripeworker"] : "${kind}_url" => "postgresql://flow_demo_${kind}:${var.secrets["${kind}_password"]}@${aws_db_instance.demo.address}:5432/flow?sslmode=verify-full"
-  })
+  runtime_parameter_names = toset(["admin_url", "provisioning", "stripe_key", "webhook_secrets", "demo_username", "demo_password", "operations_url", "ingress_url", "stripeworker_url"])
+  # Exact future references are safe to register before values exist. Tasks must
+  # not be launched until their actual SSM parameters and DB bindings are ready.
+  runtime_parameter_arns  = { for name in local.runtime_parameter_names : name => "arn:aws:ssm:${var.aws_region}:${var.aws_account_id}:parameter/flow/demo/${name}" }
+  planned_parameter_names = var.initial_infrastructure_only ? toset(["admin_url"]) : (var.defer_webhook_secret ? setsubtract(local.runtime_parameter_names, toset(["webhook_secrets"])) : local.runtime_parameter_names)
+  runtime_values = {
+    for name in local.planned_parameter_names : name => (
+      name == "admin_url" ? "postgresql://flow_admin:${var.secrets["admin_password"]}@${aws_db_instance.demo.address}:5432/flow?sslmode=verify-full" :
+      contains(["operations_url", "ingress_url", "stripeworker_url"], name) ? "postgresql://flow_demo_${trimsuffix(name, "_url")}:${var.secrets["${trimsuffix(name, "_url")}_password"]}@${aws_db_instance.demo.address}:5432/flow?sslmode=verify-full" :
+      var.secrets[name]
+    )
+  }
 }
 resource "aws_ssm_parameter" "runtime" {
-  for_each         = toset(["admin_url", "provisioning", "stripe_key", "webhook_secrets", "demo_username", "demo_password", "operations_url", "ingress_url", "stripeworker_url"])
+  for_each         = local.planned_parameter_names
   name             = "/flow/demo/${each.key}"
   type             = "SecureString"
   tier             = "Standard"

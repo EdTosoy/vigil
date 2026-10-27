@@ -9,6 +9,8 @@ import {
   chmod,
   symlink,
   link,
+  cp,
+  mkdir,
 } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
@@ -20,7 +22,94 @@ import {
   runtimeInputStore,
   runtimePlanScope,
   runtimeSecretKeys,
+  initialRuntimePlanInputs,
 } from '../tools/runtime-inputs';
+
+test('initial planning requires only admin password, excludes future bindings and keeps all activation disabled', () => {
+  const c = runtimeInputTemplate();
+  assert.throws(
+    () => initialRuntimePlanInputs(c, {}),
+    /requires admin_password/,
+  );
+  const inputs = initialRuntimePlanInputs(c, {
+    admin_password: 'x'.repeat(48),
+  });
+  assert.deepEqual(inputs.ephemeralSecrets, { admin_password: 'x'.repeat(48) });
+  assert.equal(inputs.variables.initial_infrastructure_only, true);
+  assert.equal(inputs.variables.defer_webhook_secret, true);
+  assert.equal(inputs.variables.start_services, false);
+  assert.equal(inputs.variables.certificate_dns_confirmed, false);
+  assert(!('stripe_source_id' in inputs.variables));
+  assert(!('ops_book_id' in inputs.variables));
+  assert(!('database' in inputs.variables));
+  assert.doesNotMatch(
+    JSON.stringify(inputs.variables),
+    /x{48}|whsec_|sk_test_/,
+  );
+  c.variables.start_services = true;
+  assert.throws(() =>
+    initialRuntimePlanInputs(c, { admin_password: 'x'.repeat(48) }),
+  );
+});
+
+test('local preparation snapshots exact sources without copying credentials or initializing any backend', async () => {
+  const root = await mkdtemp(resolve(tmpdir(), 'vigil-runtime-prepare-'));
+  try {
+    await mkdir(resolve(root, 'infra/demo/tests'), { recursive: true });
+    for (const name of [
+      'backend.tf',
+      'compute.tf',
+      'database.tf',
+      'https.tf',
+      'network.tf',
+      'outputs.tf',
+      'target.tf',
+      'variables.tf',
+      'versions.tf',
+      '.terraform.lock.hcl',
+      'tests/demo.tftest.hcl',
+    ])
+      await cp(
+        resolve(__dirname, '../infra/demo', name),
+        resolve(root, 'infra/demo', name),
+      );
+    const store = runtimeInputStore(root);
+    await store.init();
+    await assert.rejects(() => store.preparePlan(), /requires admin_password/);
+    await store.set('admin_password', 'x'.repeat(48));
+    const result = await store.preparePlan();
+    assert.equal(result.savedPlanCreated, false);
+    assert.equal(result.terraformRun, false);
+    assert.equal(result.backendWritesAuthorized, false);
+    assert.equal((await lstat(result.variableFile)).mode & 0o777, 0o600);
+    const vars = await readFile(result.variableFile, 'utf8');
+    assert.doesNotMatch(
+      vars,
+      /x{48}|"secrets"\s*:|stripe_source_id|ops_book_id|address/,
+    );
+    assert.equal(JSON.parse(vars).initial_infrastructure_only, true);
+    const manifest = JSON.parse(await readFile(result.sourceManifest, 'utf8'));
+    assert.equal(manifest.mode, 'runtime-plan-preparation');
+    assert(
+      manifest.files.some((f: { name: string }) => f.name === 'backend.tf'),
+    );
+    await assert.rejects(
+      () => lstat(resolve(manifest.work, 'terraform.tfstate')),
+      /ENOENT/,
+    );
+    await assert.rejects(
+      () => lstat(resolve(manifest.data, 'terraform.tfstate')),
+      /ENOENT/,
+    );
+    await assert.rejects(
+      () => lstat(resolve(manifest.work, '.terraform')),
+      /ENOENT/,
+    );
+    assert.equal((await store.check()).planExecutable, false);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
 
 test('fixed Sydney input config rejects foreign targets, images, hostname, backend/activation injection and fabricated IDs', () => {
   const c = runtimeInputTemplate();

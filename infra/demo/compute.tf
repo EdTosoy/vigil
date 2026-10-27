@@ -71,7 +71,7 @@ resource "aws_iam_role_policy" "execution" {
         Effect = "Allow", Action = ["logs:CreateLogStream", "logs:PutLogEvents"], Resource = "${aws_cloudwatch_log_group.app[each.key].arn}:*"
       },
       {
-        Effect = "Allow", Action = ["ssm:GetParameters"], Resource = [for parameter in values(each.value.parameters) : aws_ssm_parameter.runtime[parameter].arn]
+        Effect = "Allow", Action = ["ssm:GetParameters"], Resource = [for parameter in values(each.value.parameters) : local.runtime_parameter_arns[parameter]]
     }]
   })
 }
@@ -111,7 +111,7 @@ resource "aws_ecs_task_definition" "app" {
         name = "STRIPE_INGRESS_HOST", value = "0.0.0.0"
     }],
     secrets = [for name, parameter in each.value.parameters : {
-      name = name, valueFrom = aws_ssm_parameter.runtime[parameter].arn
+      name = name, valueFrom = local.runtime_parameter_arns[parameter]
     }],
     logConfiguration = {
       logDriver = "awslogs", options = {
@@ -120,11 +120,11 @@ resource "aws_ecs_task_definition" "app" {
     }
 
   }])
-  depends_on = [aws_iam_role_policy.execution]
+  depends_on = [aws_iam_role_policy.execution, aws_ssm_parameter.runtime]
   lifecycle {
     create_before_destroy = true
     precondition {
-      condition     = !var.start_services || (var.certificate_dns_confirmed && can(regex("^[0-9a-f-]{36}$", var.stripe_source_id)) && can(regex("^[0-9a-f-]{36}$", var.ops_book_id)))
+      condition     = !var.start_services || (!var.initial_infrastructure_only && !var.defer_webhook_secret && var.certificate_dns_confirmed && can(regex("^[0-9a-f-]{36}$", var.stripe_source_id)) && can(regex("^[0-9a-f-]{36}$", var.ops_book_id)))
       error_message = "Provision and verify narrow source credentials before starting services."
     }
 
