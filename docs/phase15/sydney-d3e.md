@@ -1,6 +1,6 @@
 # Sydney D3E — bounded runtime planner, permission stop
 
-Follow-up: [IAM diagnosis and local preview](sydney-d3e-session-diagnosis.md) identifies the missing `/managed/` path and service-only role trust. The path bug is corrected with an early trust guard; a separate backend-only role is proposed for approval. A real **non-deployable local preview** now reports 75 creates. No remote saved plan exists; the execution evidence below describes the earlier denied attempt.
+Follow-up: [IAM diagnosis, approved role creation and verification](sydney-d3e-session-diagnosis.md#approved-role-creation-and-verification) records the exact backend-only role `arn:aws:iam::747240980964:role/vigil/VigilSydneyRuntimePlanRole` and inline policy `VigilSydneyRuntimePlanLockOnly`, created and verified on 2026-10-28 UTC. Trust/permissions match the reviewed files, no managed policies are attached, the original administrator role is unchanged, and a 15-minute restricted session passed read-only allow/deny probes. Only CreateRole and PutRolePolicy mutated AWS; no S3 writes or Terraform runs occurred in that follow-up. The planner still needs integration with the new role. A prior **non-deployable local preview** reports 75 creates. No remote saved plan exists; execution evidence below describes the earlier denied attempt.
 
 2026-10-28, infrastructure source `c7c68e1`. **Saved-plan generation: BLOCKED. NO-GO for runtime provisioning.** STS authentication now passes; backend initialization was refused when AWS denied the restricted same-role session. No saved runtime plan/hash exists. No commit/push.
 
@@ -72,9 +72,9 @@ Full root lint/Next.js typecheck was not repeated; prior documented limitations 
 
 ## Next step
 
-**Stop here.** Separately review the denied same-role session capability and its IAM/trust constraints before another live attempt; do not automatically add permissions, alter trust, create a role or use unrestricted backend credentials. Browser login is not the current blocker. Existing exact lock-only authorization remains valid.
+**Stop here.** The separately approved planning role is now created and its restricted session verified; the remaining prerequisite is wiring that exact role into the bounded backend contract and tests. This task does not change planner code or generate a runtime plan. Do not add permissions, alter the browser role's trust or use unrestricted backend credentials. Existing exact lock-only authorization remains valid and was not exercised during role creation/verification.
 
-After that blocker is explicitly resolved, retain the failed claim/evidence and create a fresh preparation with the existing password:
+Only in a later authorized planning follow-up, after that integration is verified, retain the failed claim/evidence and create a fresh preparation with the existing password:
 
 ```sh
 AWS_PROFILE=edtosoy AWS_REGION=ap-southeast-2 pnpm aws:runtime:inputs prepare-plan

@@ -1,6 +1,8 @@
 # Sydney D3E — role diagnosis and non-deployable preview
 
-2026-10-28 local date; AWS observations 2026-10-27 UTC. **Diagnosis complete. Local preview successful; remote saved-plan generation remains blocked pending separate IAM approval. Zero AWS mutations.** Existing uncommitted D3E changes, private inputs and failed execution evidence are preserved. No commit/push.
+**2026-10-28 follow-up: the explicitly approved planning role and inline policy are created and verified, including a restricted session.** See [creation evidence below](#approved-role-creation-and-verification). Remote saved-plan generation remains pending planner integration with that role. No Terraform plan was generated in this follow-up.
+
+Historical diagnosis: 2026-10-28 local date; AWS observations 2026-10-27 UTC. Diagnosis complete, local preview successful, zero AWS mutations at that stage. Existing private inputs and failed execution evidence remain preserved. No commit/push.
 
 ## Root cause
 
@@ -21,7 +23,7 @@ A bounded Sydney CloudTrail lookup found no matching original denial event; its 
 
 The planner now preserves the verified IAM path and performs an early read-only trust check before any self-assumption attempt. It fails clearly for the observed service-only trust. **Do not edit this browser-login role's trust or add identity permissions as a workaround.** The exact Sydney lock-only authorization remains valid.
 
-## Smallest recommended IAM change — proposal only
+## Reviewed IAM proposal — historical approval material
 
 Create a separate **backend-only** role:
 
@@ -33,7 +35,7 @@ MaxSessionDuration: 3600 seconds (planner requests 15 minutes)
 Inline policy: VigilSydneyRuntimePlanLockOnly
 ```
 
-`GetRole(VigilSydneyRuntimePlanRole)` returned NoSuchEntity. The proposed role is not present and no creation was attempted.
+At diagnosis, `GetRole(VigilSydneyRuntimePlanRole)` returned NoSuchEntity; no creation was attempted until the separately approved follow-up below.
 
 - [Exact trust policy](../../../infra/planning-role/trust.proposed.json): only the existing `/managed/AccountFullAccessRole` principal, with `sts:RoleSessionName` matching `vigil-d3e-*`. No account-root wildcard, service or cross-account trust.
 - [Exact permissions policy](../../../infra/planning-role/permissions.proposed.json): read only the runtime state and lock objects, bucket location and restricted `demo/*` / `env:/*` discovery; caller-identity read; conditional PutObject and DeleteObject only for `demo/terraform.tfstate.tflock`. Explicit denies cover state/foreign writes, nonconditional lock puts and every other mutation. No workload/deployment permissions or managed policy attachment.
@@ -51,14 +53,13 @@ permissions.proposed.json 8363956664cefae06f41839d6f9fe9ff3e15f9e43579cd3c3bfcaa
 
 Only **two IAM mutation API operations** would be requested: `iam:CreateRole` for that new role, then `iam:PutRolePolicy` for that one inline policy. No UpdateAssumeRolePolicy or change to AccountFullAccessRole. No automatic cleanup after a partial failure. The planning role would be a separately owned persistent foundation, outside the approved twelve-resource bootstrap state and disposable runtime; no import/migration is proposed. Future cleanup needs its own IAM scope.
 
-The concrete commands below are **unexecuted approval-review material**, not authorization:
+The concrete commands below were **approval-review material**, not authorization. The subsequent explicit user instruction authorized only CreateRole and PutRolePolicy; execution omitted the proposed tags, avoiding any additional tagging permission or operation:
 
 ```sh
 aws iam create-role --profile edtosoy --region ap-southeast-2 \
   --role-name VigilSydneyRuntimePlanRole --path /vigil/ \
   --max-session-duration 3600 \
   --description 'Vigil Sydney Terraform backend planning only; no state writes' \
-  --tags Key=Project,Value=vigil Key=Purpose,Value=runtime-plan-only \
   --assume-role-policy-document file://infra/planning-role/trust.proposed.json
 aws iam put-role-policy --profile edtosoy --region ap-southeast-2 \
   --role-name VigilSydneyRuntimePlanRole \
@@ -105,4 +106,44 @@ This is a 0600 **NON_DEPLOYABLE_LOCAL_BACKEND_PREVIEW** JSON artifact, not a Ter
 - Bootstrap state/recovery remain unshared 0600 files with original SHA-256 `83a22793b582723d0849a1840a7236e4dd2c6d1aefdf7a332e4cca32ce956235`. Existing private password and failed remote preparation remain intact.
 - AWS account operations were read-only STS GetCallerIdentity; IAM GetRole/ListAttachedRolePolicies/ListRolePolicies/GetPolicy/GetPolicyVersion/SimulatePrincipalPolicy/SimulateCustomPolicy; CloudTrail LookupEvents; and provider read-only metadata queries during preview. All account calls used the guarded Sydney `edtosoy` target; the historical account was never contacted. SDK per-request tracing was not enabled. No AssumeRole retry, S3 object operation, IAM mutation, resource creation, secret/DNS/Stripe change, remote init, migration, apply/destroy, commit or push occurred in this follow-up.
 
-**Exact next action: approve or decline creation of the one named role and its one inline policy using the reviewed files.** Current task stops before any IAM mutation; existing lock-only approval is preserved. No broad deployment approval is requested or implied.
+The diagnosis stopped pending approval of the one named role and inline policy. That approval and execution are recorded below; existing lock-only approval remains preserved and unexercised.
+
+## Approved role creation and verification
+
+Executed 2026-10-28 UTC using only profile `edtosoy`, account `747240980964`, region `ap-southeast-2`, exact caller role `AccountFullAccessRole`. The named profile contains only Sydney region and browser-login configuration; no inherited AWS/Terraform credential, profile, endpoint or region overrides were present. STS identity was checked immediately before each mutation. The AWS connector cannot select this local profile, so execution used AWS CLI 2.34.24 with explicit profile/region and automatic request retries disabled.
+
+Both reviewed policy files retained their approval-bound SHA-256 values above. Preflight GetRole and GetRolePolicy both returned NoSuchEntity. The original administrator role's configuration, trust, boundary, attached policies, inline policies and attached managed-policy default document/version were captured before execution and compared after it.
+
+Policy/API review used the official [CreateRole](https://docs.aws.amazon.com/IAM/latest/APIReference/API_CreateRole.html), [PutRolePolicy](https://docs.aws.amazon.com/IAM/latest/APIReference/API_PutRolePolicy.html), [IAM/STS condition-key](https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_iam-condition-keys.html) and [S3 conditional-write](https://docs.aws.amazon.com/AmazonS3/latest/userguide/conditional-writes-enforce.html) references. The reviewed policies were not edited.
+
+Exactly two AWS mutation requests succeeded, once each:
+
+1. `iam:CreateRole`: `VigilSydneyRuntimePlanRole`, path `/vigil/`, created **2026-10-28T03:46:28Z**, reviewed trust document, maximum session duration 3600 seconds, description as reviewed, no tags or permissions boundary.
+2. `iam:PutRolePolicy`: only `VigilSydneyRuntimePlanLockOnly`, with the unchanged reviewed permissions document.
+
+Verified role ARN:
+
+```text
+arn:aws:iam::747240980964:role/vigil/VigilSydneyRuntimePlanRole
+```
+
+| Read-only verification                      | Result                                                                                                                                   |
+| ------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| GetRole ARN, path and maximum duration      | PASS: exact ARN, `/vigil/`, 3600 seconds                                                                                                 |
+| Retrieved trust policy                      | PASS: parsed JSON equals the reviewed file; only `/managed/AccountFullAccessRole`, AssumeRole, `vigil-d3e-*`                             |
+| GetRolePolicy and ListRolePolicies          | PASS: exact reviewed permissions JSON; exactly the one named inline policy                                                               |
+| ListAttachedRolePolicies                    | PASS: empty; no managed policies attached                                                                                                |
+| Original AccountFullAccessRole              | PASS: before/after configuration and policy comparison equal; its service-only trust and AdministratorAccess attachment remain unchanged |
+| Restricted AssumeRole and GetCallerIdentity | PASS: one 900-second `vigil-d3e-*` session admitted as the new role                                                                      |
+| Restricted S3 reads                         | PASS: Sydney bucket location and `demo/` / `env:/` listings; both listings returned zero keys                                            |
+| Restricted negative read probes             | PASS: IAM GetRole and S3 `bootstrap/` listing returned expected AccessDenied                                                             |
+
+Role/policy verification completed at **03:47:27Z**; session verification completed at **03:47:48Z**. No IAM propagation delay or unexpected permission denial was observed; no IAM mutation or AssumeRole retry occurred. The initial sandbox STS attempt could not reach its endpoint; the same profile succeeded with network permission. A local snapshot-file handling error occurred before any mutation. CreateRole succeeded but omitted MaxSessionDuration from its response, causing a local response check to stop; subsequent GetRole verified the stored 3600-second value before policy attachment. Neither local issue caused an extra mutation request.
+
+Private, gitignored comparison evidence is retained under `.deployment/747240980964/ap-southeast-2/demo/planning-role-verification-20261028T034628Z/`, directory mode 0700 and files 0600. Temporary session credentials were used only in memory and child-process environment; none were printed or persisted. No state payload was fetched. State-write and lock-write denial/allowance remain policy inspection and the earlier simulation evidence, rather than actual write probes.
+
+**Remaining D3E blocker:** `tools/runtime-plan.ts` still targets the browser role for backend self-assumption and retains its self-trust guard. Wiring the verified planning-role ARN into the bounded backend contract and tests is a separate follow-up. Preserve the failed claim and existing password; any later authorized attempt requires fresh preparation and backend/state/image validation. Role admission alone does not verify Terraform backend compatibility or produce a saved plan.
+
+Local verification: PASS, repository-installed `node_modules/.bin/prettier --check` on both updated D3E documents and both unchanged policy files, policy SHA-256 comparison, private evidence Git exclusion and `git diff --check`. The initial `pnpm exec prettier` invocation produced no output and was interrupted; the installed formatter was then invoked directly. Application/deployment tests were NOT RUN because only documentation changed locally; no application, schema, financial invariant or planner implementation changed.
+
+Stopped after IAM/session verification and documentation. Zero S3 PutObject/DeleteObject requests, state writes, lock operations, Terraform runs, runtime infrastructure, DNS/Stripe changes, Free Plan upgrades, commits or pushes in this follow-up. No administrator-role modification or other IAM mutation occurred. The planning role remains a separately owned persistent foundation outside bootstrap/runtime Terraform state; future cleanup requires separate authorization.
