@@ -360,6 +360,12 @@ export function runtimeInputStore(repository: string) {
   }
   return {
     path,
+    /** Private in-memory executor input, never a CLI output or artifact. */
+    async loadInitialPlanInputs() {
+      await ensure();
+      const config = await configuration();
+      return initialRuntimePlanInputs(config, await secrets(config));
+    },
     async init() {
       await ensure();
       await writeFile(
@@ -435,7 +441,7 @@ export function runtimeInputStore(repository: string) {
         backendWritesAuthorized: false,
         planExecutable: false,
         reason:
-          'Initial infrastructure plan requires only admin_password; endpoint/binding/DNS proof is required later for activation. Backend lock authorization and its bounded executor remain missing',
+          'Local input readiness only: the D3E executor separately verifies caller/backend permissions and uses existing lock-only approval. This local check grants no execution authority; endpoint/binding/DNS proof remains required for activation',
       };
     },
     async preparePlan() {

@@ -37,6 +37,12 @@ const sources = {
 const hash = (bytes: Uint8Array) =>
   createHash('sha256').update(bytes).digest('hex');
 
+export function deploymentSourceNames(
+  stage: DeploymentRoot,
+): readonly string[] {
+  return sources[stage];
+}
+
 async function sourceBytes(
   repository: string,
   stage: DeploymentRoot,
@@ -65,7 +71,8 @@ export async function assembleDeploymentSources(
   mode:
     | 'offline-validation'
     | 'bootstrap-plan'
-    | 'runtime-plan-preparation' = 'offline-validation',
+    | 'runtime-plan-preparation'
+    | 'local-runtime-preview' = 'offline-validation',
 ) {
   if (!/^[a-f0-9-]{36}$/.test(run) || run.length !== 36)
     throw new DeploymentSafetyError('Invalid offline validation identity');
@@ -75,9 +82,11 @@ export async function assembleDeploymentSources(
       'offline-validation',
       'bootstrap-plan',
       'runtime-plan-preparation',
+      'local-runtime-preview',
     ].includes(mode) ||
     (mode === 'bootstrap-plan' && stage !== 'bootstrap') ||
-    (mode === 'runtime-plan-preparation' && stage !== 'demo')
+    (mode === 'runtime-plan-preparation' && stage !== 'demo') ||
+    (mode === 'local-runtime-preview' && stage !== 'demo')
   )
     throw new DeploymentSafetyError(
       'Plan contexts must match their exact bootstrap/runtime roots',
@@ -87,16 +96,22 @@ export async function assembleDeploymentSources(
       ? 'plans'
       : mode === 'runtime-plan-preparation'
         ? 'plan-preparation'
-        : 'offline';
+        : mode === 'local-runtime-preview'
+          ? 'previews'
+          : 'offline';
   const prefix = `${namespace}/${run}`;
   const work = context.path(`${prefix}/work`);
   const data = context.path(`${prefix}/terraform-data`);
   const manifest = context.path(`${prefix}/source-manifest.json`);
   const files = await Promise.all(
-    sources[stage].map(async (name) => ({
-      name,
-      bytes: await sourceBytes(context.repository, stage, name),
-    })),
+    sources[stage]
+      .filter(
+        (name) => mode !== 'local-runtime-preview' || name !== 'backend.tf',
+      )
+      .map(async (name) => ({
+        name,
+        bytes: await sourceBytes(context.repository, stage, name),
+      })),
   );
   await mkdir(context.base, { recursive: true, mode: 0o700 });
   for (const path of [
@@ -156,16 +171,20 @@ export async function verifyDeploymentAssembly(
       'offline-validation',
       'bootstrap-plan',
       'runtime-plan-preparation',
+      'local-runtime-preview',
     ].includes(assembly.mode) ||
     (assembly.mode === 'bootstrap-plan' && context.stage !== 'bootstrap') ||
     (assembly.mode === 'runtime-plan-preparation' &&
       context.stage !== 'demo') ||
+    (assembly.mode === 'local-runtime-preview' && context.stage !== 'demo') ||
     prefix.split('/')[0] !==
       (assembly.mode === 'bootstrap-plan'
         ? 'plans'
         : assembly.mode === 'runtime-plan-preparation'
           ? 'plan-preparation'
-          : 'offline') ||
+          : assembly.mode === 'local-runtime-preview'
+            ? 'previews'
+            : 'offline') ||
     receipt.account !== deployment.account ||
     receipt.region !== deployment.region ||
     receipt.profile !== deployment.profile ||
@@ -189,7 +208,17 @@ export async function verifyDeploymentAssembly(
     }
   }
   await walk(assembly.work);
-  if (!isDeepStrictEqual(found.sort(), [...sources[context.stage]].sort()))
+  if (
+    !isDeepStrictEqual(
+      found.sort(),
+      [...sources[context.stage]]
+        .filter(
+          (name) =>
+            assembly.mode !== 'local-runtime-preview' || name !== 'backend.tf',
+        )
+        .sort(),
+    )
+  )
     throw new DeploymentSafetyError(
       'Unexpected or missing offline source/backend/state file',
     );
