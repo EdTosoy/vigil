@@ -1,0 +1,208 @@
+name: vigil-startup
+
+x-node: &node
+  platform: ${VIGIL_PLATFORM:-linux/arm64}
+  restart: unless-stopped
+  init: true
+  read_only: true
+  cap_drop: [ALL]
+  security_opt: [no-new-privileges:true]
+  tmpfs: ['/tmp:rw,noexec,nosuid,size=64m']
+  pids_limit: 128
+  stop_grace_period: 40s
+  logging: &logging
+    driver: json-file
+    options: { max-size: 10m, max-file: '3' }
+  depends_on:
+    postgres: { condition: service_healthy }
+
+services:
+  postgres:
+    image: postgres:18@sha256:fc973eb97c9fd04bfa1840e0f510719a584ccb3be8debfe6a4144637a9dfe8cf
+    platform: ${VIGIL_PLATFORM:-linux/arm64}
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: vigil_migrator
+      POSTGRES_DB: vigil
+      POSTGRES_PASSWORD_FILE: /run/secrets/postgres-password
+      POSTGRES_INITDB_ARGS: --auth-host=scram-sha-256
+    secrets: [postgres-password]
+    command:
+      [
+        postgres,
+        -c,
+        shared_buffers=256MB,
+        -c,
+        max_connections=50,
+        -c,
+        password_encryption=scram-sha-256,
+      ]
+    networks: [database]
+    # PostgreSQL 18 requires the parent mount, not the old /var/lib/postgresql/data.
+    volumes:
+      - type: bind
+        source: ${VIGIL_DATA_DIR:-/srv/vigil-data}/postgres
+        target: /var/lib/postgresql
+        bind: { create_host_path: false }
+    shm_size: 256m
+    mem_limit: 1g
+    stop_grace_period: 60s
+    logging: *logging
+    healthcheck:
+      test: [CMD-SHELL, pg_isready -U vigil_migrator -d vigil]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+
+  provision:
+    <<: *node
+    image: ${ADMIN_IMAGE:?Set the reviewed ARM64 admin image digest}
+    profiles: [setup]
+    restart: 'no'
+    networks: [database]
+    secrets:
+      - source: provision
+        target: environment
+    command: [node, --env-file=/run/secrets/environment, tools/provision.cjs]
+    mem_limit: 768m
+    healthcheck: { disable: true }
+
+  ops:
+    <<: *node
+    image: ${OPS_IMAGE:?Set the reviewed ARM64 ops image digest}
+    environment:
+      VIGIL_DEPLOYMENT_MODE: application
+      VIGIL_VISITOR_LOGIN: 'true'
+      NODE_OPTIONS: --max-old-space-size=768
+    secrets:
+      - source: ops
+        target: environment
+    command: [node, --env-file=/run/secrets/environment, apps/ops/server.js]
+    networks: [database, edge]
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=64m
+      - /app/apps/ops/.next/cache:rw,nosuid,uid=1000,gid=1000,mode=0700,size=64m
+    mem_limit: 1g
+    healthcheck:
+      test:
+        [
+          CMD,
+          node,
+          -e,
+          "fetch('http://127.0.0.1:3000/health/ready').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 15s
+      timeout: 5s
+      start_period: 30s
+      retries: 5
+
+  ingress:
+    <<: *node
+    image: ${STRIPE_IMAGE:?Set the reviewed ARM64 stripe image digest}
+    secrets:
+      - source: ingress
+        target: environment
+    command: [node, --env-file=/run/secrets/environment, tools/ingress.cjs]
+    networks: [database, edge]
+    mem_limit: 192m
+    healthcheck:
+      test:
+        [
+          CMD,
+          node,
+          -e,
+          "fetch('http://127.0.0.1:4242/health/ready').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 15s
+      timeout: 5s
+      start_period: 20s
+      retries: 5
+
+  stripe-worker:
+    <<: *node
+    image: ${STRIPE_IMAGE:?Set the reviewed ARM64 stripe image digest}
+    secrets:
+      - source: stripe-worker
+        target: environment
+    command: [node, --env-file=/run/secrets/environment, tools/worker.cjs]
+    networks: [database, edge]
+    mem_limit: 256m
+    healthcheck:
+      test: [CMD, node, --env-file=/run/secrets/environment, tools/health.cjs]
+      interval: 30s
+      timeout: 5s
+      start_period: 30s
+      retries: 3
+
+  financial-worker:
+    <<: *node
+    image: ${STRIPE_IMAGE:?Set the reviewed ARM64 stripe image digest}
+    secrets:
+      - source: financial-worker
+        target: environment
+    command:
+      [
+        node,
+        --env-file=/run/secrets/environment,
+        tools/generalWorker.cjs,
+        start,
+      ]
+    networks: [database]
+    mem_limit: 256m
+    healthcheck:
+      test: [CMD, node, --env-file=/run/secrets/environment, tools/health.cjs]
+      interval: 30s
+      timeout: 5s
+      start_period: 20s
+      retries: 3
+
+  caddy:
+    image: caddy:2.11.7-alpine@sha256:eb4d35b7452d1ab6171fbdbe8d9275b2301dad6dad92115d91e19fb9b24d510f
+    platform: ${VIGIL_PLATFORM:-linux/arm64}
+    restart: unless-stopped
+    environment:
+      DOMAIN: ${DOMAIN:?Set the public DNS hostname}
+      ACME_EMAIL: ${ACME_EMAIL:?Set the ACME contact email}
+    ports: [80:80, 443:443]
+    networks: [edge]
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - type: bind
+        source: ${VIGIL_DATA_DIR:-/srv/vigil-data}/caddy-data
+        target: /data
+        bind: { create_host_path: false }
+      - type: bind
+        source: ${VIGIL_DATA_DIR:-/srv/vigil-data}/caddy-config
+        target: /config
+        bind: { create_host_path: false }
+    cap_drop: [ALL]
+    cap_add: [NET_BIND_SERVICE]
+    security_opt: [no-new-privileges:true]
+    mem_limit: 128m
+    logging: *logging
+    healthcheck:
+      test: [CMD, wget, -q, -O, /dev/null, http://127.0.0.1:2019/config/]
+      interval: 15s
+      timeout: 3s
+      retries: 5
+    depends_on:
+      ops: { condition: service_healthy }
+      ingress: { condition: service_healthy }
+
+networks:
+  database: { internal: true }
+  edge: {}
+
+secrets:
+  postgres-password:
+    file: ${VIGIL_SECRETS_DIR:-/run/vigil/secrets}/postgres-password
+  provision:
+    file: ${VIGIL_SECRETS_DIR:-/run/vigil/secrets}/provision.env
+  ops:
+    file: ${VIGIL_SECRETS_DIR:-/run/vigil/secrets}/ops.env
+  ingress:
+    file: ${VIGIL_SECRETS_DIR:-/run/vigil/secrets}/ingress.env
+  stripe-worker:
+    file: ${VIGIL_SECRETS_DIR:-/run/vigil/secrets}/stripe-worker.env
+  financial-worker:
+    file: ${VIGIL_SECRETS_DIR:-/run/vigil/secrets}/financial-worker.env

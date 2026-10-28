@@ -2,6 +2,8 @@
 
 Read root instructions, Phase 15 documentation and ADR-018 before changes.
 
+`infra/startup` is a separate, locally prepared single-host proposal; read [its runbook](../docs/phase15/startup.md) and ADR-020. The user authorized local completion/verification only. `pnpm aws:startup:validate:offline` may copy allowlisted sources into a new private temporary directory, initialize with `-backend=false` and run validation/mocked plan-only tests without AWS credentials. Never run Terraform in the startup source directory, initialize its remote backend, publish images or provision/change cloud resources under this local authorization. Existing demo/bootstrap gates below remain unchanged.
+
 - Historical Phase 15 evidence used `iamadmin-general`, account `163596511125`, region `us-east-1`; its state/resources are foreign to the Sydney preparation. Never use them as fallback or migrate/copy their state.
 - Sydney D1A/D1B permit only offline preparation and read-only STS preflight with explicit `edtosoy`, account `747240980964`, `ap-southeast-2`, exact STS assumed role `AccountFullAccessRole` (rotating session suffixes allowed). Reject inherited credential/profile/region/endpoint/Terraform overrides. Recheck actual STS identity immediately before every future mutation; a cached receipt is never authorization.
 - Sydney artifacts belong only under `.deployment/747240980964/ap-southeast-2/{bootstrap,demo}/`, including isolated work roots, `TF_DATA_DIR`, seed state, backends, plans, environment/secrets, logs and history. Reject traversal/symlinks and foreign/missing backend or plan metadata; never read legacy private files to populate the new namespace.

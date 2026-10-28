@@ -52,7 +52,10 @@
     "aws:runtime:plan": "tsx tools/plan-runtime.ts",
     "aws:runtime:preview": "tsx tools/preview-runtime.ts",
     "aws:runtime:release": "tsx tools/runtime-release.ts",
-    "aws:runtime:recovery": "tsx tools/runtime-recovery.ts"
+    "aws:runtime:recovery": "tsx tools/runtime-recovery.ts",
+    "test:startup": "tsx --test tests/startup.test.ts",
+    "test:startup:integration": "tsx --test tests/startup.integration.test.ts",
+    "aws:startup:validate:offline": "tsx tools/validate-startup.ts"
   },
   "devDependencies": {
     "@nx/eslint-plugin": "23.2.1",

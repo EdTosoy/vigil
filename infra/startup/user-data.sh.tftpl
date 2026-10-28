@@ -1,0 +1,103 @@
+#!/bin/bash
+set -euo pipefail
+umask 077
+export DEBIAN_FRONTEND=noninteractive
+apt-get update
+apt-get install -y docker.io docker-compose-v2 awscli jq nvme-cli
+systemctl enable --now docker
+snap start amazon-ssm-agent
+
+# Identify the additional encrypted EBS volume by serial, never by enumeration.
+volume='${volume_id}'
+device="/dev/disk/by-id/nvme-Amazon_Elastic_Block_Store_$${volume//-/}"
+for attempt in $(seq 1 120); do
+  test -b "$device" && break
+  sleep 2
+done
+test -b "$device"
+filesystem=$(blkid -o value -s TYPE "$device" || true)
+if test -z "$filesystem"; then
+  test -z "$(wipefs --no-act --noheadings --output TYPE "$device")"
+  mkfs.ext4 -m 0 "$device"
+else
+  test "$filesystem" = ext4
+fi
+uuid=$(blkid -s UUID -o value "$device")
+mkdir -p /srv/vigil-data
+grep -q "UUID=$uuid " /etc/fstab || echo "UUID=$uuid /srv/vigil-data ext4 defaults,nofail 0 2" >> /etc/fstab
+mount /srv/vigil-data
+mountpoint -q /srv/vigil-data
+mkdir -p /srv/vigil-data/postgres /srv/vigil-data/caddy-data /srv/vigil-data/caddy-config
+mkdir -p /etc/systemd/system/docker.service.d
+cat > /etc/systemd/system/docker.service.d/vigil-storage.conf <<'UNIT'
+[Unit]
+RequiresMountsFor=/srv/vigil-data
+[Service]
+ExecStartPre=/usr/bin/mountpoint -q /srv/vigil-data
+UNIT
+install -d -m 0700 /opt/vigil /etc/vigil
+
+base64 -d > /opt/vigil/compose.yaml <<'COMPOSE'
+${compose}
+COMPOSE
+base64 -d > /opt/vigil/Caddyfile <<'CADDY'
+${caddy}
+CADDY
+base64 -d > /etc/vigil/images.env <<'SETTINGS'
+${settings}
+SETTINGS
+
+cat > /usr/local/sbin/vigil-secrets <<'SECRETS'
+#!/bin/bash
+set -euo pipefail
+umask 077
+install -d -m 0700 /run/vigil /run/vigil/secrets /run/vigil/docker
+export AWS_REGION=ap-southeast-2 AWS_DEFAULT_REGION=ap-southeast-2
+for name in postgres-password provision ops ingress stripe-worker financial-worker; do
+  suffix=.env
+  test "$name" != postgres-password || suffix=''
+  target="/run/vigil/secrets/$name$suffix"
+  aws ssm get-parameter --name "/vigil/startup/$name" --with-decryption --query Parameter.Value --output text > "$target.new"
+  test -s "$target.new"
+  if test "$name" != postgres-password; then chown 1000:1000 "$target.new"; fi
+  chmod 0400 "$target.new"
+  mv "$target.new" "$target"
+done
+aws ecr get-login-password --region ap-southeast-2 | DOCKER_CONFIG=/run/vigil/docker docker login --username AWS --password-stdin 747240980964.dkr.ecr.ap-southeast-2.amazonaws.com >/dev/null
+SECRETS
+chmod 0700 /usr/local/sbin/vigil-secrets
+
+cat > /etc/systemd/system/vigil-secrets.service <<'UNIT'
+[Unit]
+Description=Fetch Vigil scoped secrets into host tmpfs
+After=network-online.target docker.service
+Wants=network-online.target
+Requires=docker.service
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/vigil-secrets
+UNIT
+
+cat > /etc/systemd/system/vigil-compose.service <<'UNIT'
+[Unit]
+Description=Vigil Docker Compose
+After=network-online.target docker.service
+Requires=docker.service
+RequiresMountsFor=/srv/vigil-data
+ConditionPathIsMountPoint=/srv/vigil-data
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+WorkingDirectory=/opt/vigil
+Environment=DOCKER_CONFIG=/run/vigil/docker
+ExecStartPre=/usr/local/sbin/vigil-secrets
+ExecStart=/usr/bin/docker compose --env-file /etc/vigil/images.env up -d --wait
+ExecStop=/usr/bin/docker compose --env-file /etc/vigil/images.env stop
+TimeoutStartSec=300
+TimeoutStopSec=120
+[Install]
+WantedBy=multi-user.target
+UNIT
+systemctl daemon-reload
+# Deliberately not enabled/started. One-shot provisioning and actual Stripe
+# source binding must be verified before the operator enables runtime services.

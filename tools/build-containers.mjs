@@ -11,6 +11,7 @@ for (const [name, entry] of Object.entries({
   verify: 'tools/stripe-verify-sandbox.ts',
   proof: 'tools/cloud-stripe-proof.ts',
   generalWorker: 'tools/worker.ts',
+  health: 'tools/container-health.ts',
 })) {
   const result = await build({
     absWorkingDir: realpathSync('.'),
@@ -25,6 +26,7 @@ for (const [name, entry] of Object.entries({
     metafile: true,
     sourcemap: false,
     tsconfig: 'tsconfig.base.json',
+    conditions: ['react-server'],
   });
   if (
     Object.keys(result.metafile.inputs).some(

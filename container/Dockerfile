@@ -29,7 +29,7 @@ CMD ["node", "apps/ops/server.js"]
 
 FROM base AS stripe
 ENV STRIPE_MODE=sandbox STRIPE_INGRESS_HOST=0.0.0.0
-COPY --from=build --chown=node:node /workspace/container/build/tools/ingress.cjs /workspace/container/build/tools/worker.cjs /app/tools/
+COPY --from=build --chown=node:node /workspace/container/build/tools/ingress.cjs /workspace/container/build/tools/worker.cjs /workspace/container/build/tools/generalWorker.cjs /workspace/container/build/tools/health.cjs /app/tools/
 EXPOSE 4242
 CMD ["node", "tools/ingress.cjs"]
 
