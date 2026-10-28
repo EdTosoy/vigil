@@ -3,7 +3,7 @@ import './global.css';
 export const metadata: Metadata = {
   title: 'Vigil · Financial operations',
   applicationName: 'Vigil',
-  description: 'Local internal reconciliation investigation',
+  description: 'Financial reconciliation investigation and synthetic demo',
   manifest: '/site.webmanifest',
   icons: {
     icon: [
