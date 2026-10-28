@@ -7,7 +7,13 @@ export function proxy(request: NextRequest) {
     request.nextUrl.pathname,
     request.headers.get('authorization'),
     process.env,
+    request.method,
   );
+  if (access === 404)
+    return new NextResponse('Not found', {
+      status: 404,
+      headers: { 'Cache-Control': 'no-store' },
+    });
   if (access !== 200)
     return new NextResponse('Demo access required', {
       status: access,
@@ -17,11 +23,6 @@ export function proxy(request: NextRequest) {
         'Cache-Control': 'no-store',
       },
     });
-  if (
-    process.env['VIGIL_DEPLOYMENT_MODE'] === 'public-demo' &&
-    request.nextUrl.pathname === '/metrics'
-  )
-    return new NextResponse('Unavailable in public demo', { status: 404 });
   const id = randomUUID();
   const headers = new Headers(request.headers);
   headers.set('x-vigil-request-id', id);
@@ -34,5 +35,5 @@ export function proxy(request: NextRequest) {
   return response;
 }
 export const config = {
-  matcher: ['/((?!_next/static|_next/image|favicon.ico).*)'],
+  matcher: ['/((?!_next/static(?:/|$)|_next/image$|favicon\\.ico$).*)'],
 };
