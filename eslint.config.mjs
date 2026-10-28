@@ -4,8 +4,23 @@ import prettier from 'eslint-config-prettier';
 import oracleBoundary from './tools/oracle-boundary.mjs';
 
 export default tseslint.config(
-  { ignores: ['**/dist/**', 'node_modules/**', '.nx/**', '**/.next/**'] },
+  {
+    // Saved AWS publication snapshots are private deployment artifacts, not source.
+    ignores: [
+      '**/dist/**',
+      'node_modules/**',
+      '.nx/**',
+      '**/.next/**',
+      '**/.deployment/**',
+    ],
+  },
   ...tseslint.configs.recommended,
+  {
+    // A nested publication clone contains another ESLint config; pin our root.
+    languageOptions: {
+      parserOptions: { tsconfigRootDir: import.meta.dirname },
+    },
+  },
   {
     files: ['libs/**/*.ts', 'apps/**/*.ts', 'apps/**/*.tsx'],
     plugins: { '@nx': nx },
