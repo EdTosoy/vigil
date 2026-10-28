@@ -22,6 +22,7 @@ import { Shell } from '../components/shell';
 import { Panel, Notice, Empty, Time, Id, url } from '../components/common';
 import { Filters } from '../components/filters';
 import * as Views from '../components/views';
+import { requirePrincipal } from './auth';
 const titles: Record<string, [string, string]> = {
   overview: [
     'Financial operations',
@@ -420,6 +421,9 @@ async function renderPage({
 }
 
 async function PageData(props: Parameters<typeof renderPage>[0]) {
+  // Redirects must remain outside renderPage's read-error handling.
+  if (process.env['VIGIL_DEPLOYMENT_MODE'] !== 'public-demo')
+    await requirePrincipal();
   return request(
     'page_' + operations[scope(props.search, props.section, props.id).section],
     () => renderPage(props),

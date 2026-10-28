@@ -3,23 +3,47 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { demoAccess } from './demo-access';
 /** Replace untrusted input; correlation identity is never a financial command identity. */
 export function proxy(request: NextRequest) {
-  const access = demoAccess(
-    request.nextUrl.pathname,
-    request.headers.get('authorization'),
-    process.env,
-    request.method,
-  );
+  const mode =
+    process.env['VIGIL_DEPLOYMENT_MODE'] ?? process.env['FLOW_DEPLOYMENT_MODE'];
+  const publicMode = mode === 'public-demo';
+  const path = request.nextUrl.pathname;
+  // Proxy is an optimistic navigation gate. Database sessions and book grants
+  // are checked again at every server read, never trusted from this cookie hint.
+  if (!publicMode) {
+    if (mode && !['application', 'demo'].includes(mode))
+      return new NextResponse('Unavailable', { status: 503 });
+    const open =
+      path === '/sign-in' ||
+      path.startsWith('/api/auth/') ||
+      /^\/health\/(live|ready)$/.test(path) ||
+      /^\/(?:android-chrome-(?:192x192|512x512)|apple-touch-icon|favicon-(?:16x16|32x32|48x48))\.png$/.test(
+        path,
+      ) ||
+      path === '/site.webmanifest';
+    if (
+      !open &&
+      !request.cookies.get('better-auth.session_token') &&
+      !request.cookies.get('__Secure-better-auth.session_token')
+    )
+      return NextResponse.redirect(new URL('/sign-in', request.url));
+  }
+  const access = publicMode
+    ? demoAccess(
+        request.nextUrl.pathname,
+        request.headers.get('authorization'),
+        process.env,
+        request.method,
+      )
+    : 200;
   if (access === 404)
     return new NextResponse('Not found', {
       status: 404,
       headers: { 'Cache-Control': 'no-store' },
     });
   if (access !== 200)
-    return new NextResponse('Demo access required', {
+    return new NextResponse('Unavailable', {
       status: access,
       headers: {
-        'WWW-Authenticate':
-          'Basic realm="Vigil ephemeral demo", charset="UTF-8"',
         'Cache-Control': 'no-store',
       },
     });
