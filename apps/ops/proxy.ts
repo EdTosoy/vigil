@@ -17,8 +17,10 @@ export function proxy(request: NextRequest) {
         'Cache-Control': 'no-store',
       },
     });
-  if (process.env['VIGIL_DEPLOYMENT_MODE'] === 'public-demo' &&
-      request.nextUrl.pathname === '/metrics')
+  if (
+    process.env['VIGIL_DEPLOYMENT_MODE'] === 'public-demo' &&
+    request.nextUrl.pathname === '/metrics'
+  )
     return new NextResponse('Unavailable in public demo', { status: 404 });
   const id = randomUUID();
   const headers = new Headers(request.headers);

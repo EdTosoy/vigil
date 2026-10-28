@@ -35,16 +35,18 @@ const evaluation: RecordJson = {
   assurance: 'FAIL',
   current: false,
   currentReason: 'EVALUATION_EXPIRED',
-  exposure: [{
-    scope: { mappingId: RUN, reconciliationRunId: RUN },
-    currency: 'PHP',
-    unreconciledMinor: '125004325',
-    acceptedRiskMinor: '100',
-    processorClaimMinor: '125004325',
-    bankClaimMinor: '0',
-    pairResidualMinor: '0',
-    unknownCount: '0',
-  }],
+  exposure: [
+    {
+      scope: { mappingId: RUN, reconciliationRunId: RUN },
+      currency: 'PHP',
+      unreconciledMinor: '125004325',
+      acceptedRiskMinor: '100',
+      processorClaimMinor: '125004325',
+      bankClaimMinor: '0',
+      pairResidualMinor: '0',
+      unknownCount: '0',
+    },
+  ],
   reconciliation: [{ scope: { reconciliationRunId: RUN }, status: 'UNKNOWN' }],
   cases: [{ key: CONTROL, caseId: CASE }],
 };
@@ -56,8 +58,12 @@ const integrity: RecordJson = {
   integrity: 'UNKNOWN',
   open: { exceptions: 1, unknownControls: 1 },
   work: {
-    pending: 0, processing: 0, retryable: 0,
-    terminal: 1, succeeded: 1, expiredRecoverable: 0,
+    pending: 0,
+    processing: 0,
+    retryable: 0,
+    terminal: 1,
+    succeeded: 1,
+    expiredRecoverable: 0,
   },
   controls: [],
   violations: [],
@@ -177,58 +183,97 @@ export function readPublicDemo(
       checks,
     );
   if (kind === 'integrity') return result({ integrity }, null, checks);
-  if (kind === 'run' || kind === 'case' || kind === 'work' || kind === 'control') {
-    const expected = kind === 'run' ? RUN
-      : kind === 'case' ? CASE
-      : kind === 'work' ? WORK
-      : CONTROL;
+  if (
+    kind === 'run' ||
+    kind === 'case' ||
+    kind === 'work' ||
+    kind === 'control'
+  ) {
+    const expected =
+      kind === 'run'
+        ? RUN
+        : kind === 'case'
+          ? CASE
+          : kind === 'work'
+            ? WORK
+            : CONTROL;
     const supplied = kind === 'control' ? filters['key'] : filters['id'];
     if (supplied !== expected) throw new ReadUnavailable('NOT_FOUND');
     return kind === 'run'
-      ? result(run, [{
-          id: '77777777-7777-4777-8777-777777777777',
-          side: 'PROCESSOR',
-          outcome: 'UNMATCHED',
-          reason: 'MISSING_BANK_EVIDENCE',
-          snapshot: { reference: 'PUBLIC-DEMO-ONLY' },
-        }])
-      : result(kind === 'case' ? incident : kind === 'work' ? work : control, []);
+      ? result(run, [
+          {
+            id: '77777777-7777-4777-8777-777777777777',
+            side: 'PROCESSOR',
+            outcome: 'UNMATCHED',
+            reason: 'MISSING_BANK_EVIDENCE',
+            snapshot: { reference: 'PUBLIC-DEMO-ONLY' },
+          },
+        ])
+      : result(
+          kind === 'case' ? incident : kind === 'work' ? work : control,
+          [],
+        );
   }
-  if (![
-    'books', 'evaluations', 'reconciliation',
-    'exceptions', 'controls', 'workers',
-  ].includes(kind)) throw new InvalidRead();
+  if (
+    ![
+      'books',
+      'evaluations',
+      'reconciliation',
+      'exceptions',
+      'controls',
+      'workers',
+    ].includes(kind)
+  )
+    throw new InvalidRead();
   const catalog: Partial<Record<Operation, RecordJson[]>> = {
     books: [book],
-    evaluations: [{
-      id: PUBLIC_DEMO_EVALUATION,
-      version: 'illustrative-financial-controls-v1',
-      state: 'COMPLETED',
-      frozenAt: FROZEN,
-      completedAt: '2026-10-26T00:01:00Z',
-    }],
+    evaluations: [
+      {
+        id: PUBLIC_DEMO_EVALUATION,
+        version: 'illustrative-financial-controls-v1',
+        state: 'COMPLETED',
+        frozenAt: FROZEN,
+        completedAt: '2026-10-26T00:01:00Z',
+      },
+    ],
     reconciliation: [run],
     exceptions: [incident],
     controls: [control],
     workers: [work],
   };
-  const rows = (catalog[kind] ?? []).filter((item) => {
-    if (opts['id'] && item['id'] !== opts['id']) return false;
-    if (opts['status'] && (item['status'] ?? item['state']) !== opts['status'])
-      return false;
-    if (opts['currency'] && item['currency'] !== opts['currency']) return false;
-    if (opts['category'] &&
-      (item['classification'] ?? item['type']) !== opts['category'])
-      return false;
-    return true;
-  }).slice(0, opts['limit'] as number);
+  const rows = (catalog[kind] ?? [])
+    .filter((item) => {
+      if (opts['id'] && item['id'] !== opts['id']) return false;
+      if (
+        opts['status'] &&
+        (item['status'] ?? item['state']) !== opts['status']
+      )
+        return false;
+      if (opts['currency'] && item['currency'] !== opts['currency'])
+        return false;
+      if (
+        opts['category'] &&
+        (item['classification'] ?? item['type']) !== opts['category']
+      )
+        return false;
+      return true;
+    })
+    .slice(0, opts['limit'] as number);
   if (kind === 'controls')
     return result({ evaluation: chosenEvaluation ? evaluation : null }, rows);
   if (kind === 'workers')
-    return result({
-      counts: { PENDING: 0, PROCESSING: 0, RETRYABLE: 0,
-        FAILED_TERMINAL: 1, SUCCEEDED: 1 },
-      oldestPendingAt: null,
-    }, rows);
+    return result(
+      {
+        counts: {
+          PENDING: 0,
+          PROCESSING: 0,
+          RETRYABLE: 0,
+          FAILED_TERMINAL: 1,
+          SUCCEEDED: 1,
+        },
+        oldestPendingAt: null,
+      },
+      rows,
+    );
   return result(null, rows);
 }
