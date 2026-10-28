@@ -41,6 +41,60 @@ run "private_disposable_database_and_disabled_services" {
     error_message = "Only approved task boundaries may reach the private database and ALB applications."
   }
 }
+run "initial_plan_needs_only_owner_password_and_no_future_bindings" {
+  command = plan
+  variables {
+    initial_infrastructure_only = true
+    defer_webhook_secret        = true
+    secrets                     = { admin_password = "test-only-owner-password" }
+  }
+  assert {
+    condition     = length(aws_ssm_parameter.runtime) == 1 && aws_ssm_parameter.runtime["admin_url"].name == "/flow/demo/admin_url" && length(aws_ecs_service.app) == 0 && length(aws_lb_listener.https) == 0
+    error_message = "Initial plan needs no dummy webhook, provisioning, endpoint or source/book values."
+  }
+  assert {
+    condition     = alltrue([for task in aws_ecs_task_definition.app : alltrue([for secret in jsondecode(task.container_definitions)[0].secrets : startswith(secret.valueFrom, "arn:aws:ssm:ap-southeast-2:747240980964:parameter/flow/demo/")])])
+    error_message = "Deferred parameters must retain exact private ARN references, never literal credentials."
+  }
+}
+run "initial_stage_cannot_activate_even_with_uuid_syntax_and_dns_flag" {
+  command = plan
+  variables {
+    initial_infrastructure_only = true
+    secrets                     = { admin_password = "test-only-owner-password" }
+    start_services              = true
+    certificate_dns_confirmed   = true
+    stripe_source_id            = "11111111-1111-4111-8111-111111111111"
+    ops_book_id                 = "22222222-2222-4222-8222-222222222222"
+  }
+  expect_failures = [aws_ecs_task_definition.app]
+}
+run "provisioning_stage_needs_no_hosted_signing_secret" {
+  command = plan
+  variables {
+    defer_webhook_secret = true
+    secrets = {
+      admin_password      = "test-not-a-real-password", provisioning = "{}", stripe_key = "test-not-a-real-key"
+      demo_username       = "demo", demo_password = "test-not-a-real-password"
+      operations_password = "test-not-a-real-password", ingress_password = "test-not-a-real-password", stripeworker_password = "test-not-a-real-password"
+    }
+  }
+  assert {
+    condition     = length(aws_ssm_parameter.runtime) == 8 && !contains(keys(aws_ssm_parameter.runtime), "webhook_secrets") && length(aws_ecs_service.app) == 0
+    error_message = "Migrations/provisioning precede webhook registration without fake signing credentials."
+  }
+}
+run "deferred_webhook_stage_cannot_activate" {
+  command = plan
+  variables {
+    defer_webhook_secret      = true
+    start_services            = true
+    certificate_dns_confirmed = true
+    stripe_source_id          = "11111111-1111-4111-8111-111111111111"
+    ops_book_id               = "22222222-2222-4222-8222-222222222222"
+  }
+  expect_failures = [aws_ecs_task_definition.app]
+}
 run "fail_closed_before_scope_provisioning" {
   command = plan
   variables { start_services = true }

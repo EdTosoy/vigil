@@ -38,6 +38,18 @@ variable "start_services" {
   default = false
 }
 
+variable "initial_infrastructure_only" {
+  type        = bool
+  default     = false
+  description = "First runtime plan: create only the admin URL parameter; defer all activation credentials and bindings. Never starts services."
+}
+
+variable "defer_webhook_secret" {
+  type        = bool
+  default     = false
+  description = "Provisioning stage before hosted Stripe destination registration: omit its absent signing-secret parameter and keep services stopped."
+}
+
 variable "availability_zones" {
   description = "Two distinct Sydney zones; D2 must confirm account availability before planning."
   type        = list(string)

@@ -1,0 +1,18 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "OnlyExistingSydneyBrowserRole",
+      "Effect": "Allow",
+      "Principal": {
+        "AWS": "arn:aws:iam::747240980964:role/managed/AccountFullAccessRole"
+      },
+      "Action": "sts:AssumeRole",
+      "Condition": {
+        "StringLike": {
+          "sts:RoleSessionName": "vigil-d3e-*"
+        }
+      }
+    }
+  ]
+}
