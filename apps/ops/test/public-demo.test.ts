@@ -116,6 +116,13 @@ const deniedPaths = [
   '/_next/static-private',
   '/controls/%00',
   '/controls/%ZZ',
+  '/android-chrome-192x192.png/private',
+  '/android-chrome-192x192.png.bak',
+  '/favicon-16x16.png/extra',
+  '/favicon-32x32.png-old',
+  '/site.webmanifest/private',
+  '/site.webmanifest.bak',
+  '/apple-touch-icon.png/extra',
 ];
 
 test('closed public allowlist permits only dashboard lists, supported detail shapes and exact probes', () => {
@@ -139,6 +146,42 @@ test('closed public allowlist permits only dashboard lists, supported detail sha
   for (const path of deniedPaths) {
     assert.equal(demoAccess(path, null, publicEnv), 404, path);
     assert.equal(demoAccess(path, 'Basic ignored', publicEnv), 404, path);
+  }
+});
+
+test('public logo, favicon and manifest assets remain reachable without widening private routes', () => {
+  const assets = [
+    '/android-chrome-192x192.png',
+    '/android-chrome-512x512.png',
+    '/apple-touch-icon.png',
+    '/favicon-16x16.png',
+    '/favicon-32x32.png',
+    '/favicon-48x48.png',
+    '/site.webmanifest',
+  ];
+  const previous = process.env['VIGIL_DEPLOYMENT_MODE'];
+  try {
+    process.env['VIGIL_DEPLOYMENT_MODE'] = 'public-demo';
+    for (const path of assets) {
+      assert.equal(demoAccess(path, null, publicEnv, 'GET'), 200, path);
+      assert.equal(demoAccess(path, null, publicEnv, 'HEAD'), 200, path);
+      for (const method of ['POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'])
+        assert.equal(demoAccess(path, null, publicEnv, method), 404, path);
+      assert(
+        matchesProxy({
+          config,
+          nextConfig: {},
+          url: `https://demo.invalid${path}`,
+        }),
+        path,
+      );
+      const response = proxy(new NextRequest(`https://demo.invalid${path}`));
+      assert.equal(response.status, 200, path);
+      assert.equal(response.headers.get('www-authenticate'), null);
+    }
+  } finally {
+    if (previous === undefined) delete process.env['VIGIL_DEPLOYMENT_MODE'];
+    else process.env['VIGIL_DEPLOYMENT_MODE'] = previous;
   }
 });
 

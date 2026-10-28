@@ -1,7 +1,19 @@
 import { createHash, timingSafeEqual } from 'node:crypto';
 
+/** Static assets shipped with the operations app; exact paths only. */
+const publicBrandAssets = new Set([
+  '/android-chrome-192x192.png',
+  '/android-chrome-512x512.png',
+  '/apple-touch-icon.png',
+  '/favicon-16x16.png',
+  '/favicon-32x32.png',
+  '/favicon-48x48.png',
+  '/site.webmanifest',
+]);
+
 /** Path shapes only; the synthetic read port independently validates book/record identity. */
 function publicRoute(path: string): boolean {
+  if (publicBrandAssets.has(path)) return true;
   if (
     /^\/(?:overview|reconciliation|exceptions|controls|workers|integrity)?$/.test(
       path,
