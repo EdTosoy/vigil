@@ -185,7 +185,7 @@ async function renderPage({
         <>
           <div className="page-heading">
             <div>
-              <span className="eyebrow">INTERNAL OPERATIONS</span>
+              <span className="eyebrow">{process.env['VIGIL_DEPLOYMENT_MODE'] === 'public-demo' ? 'PUBLIC SYNTHETIC DEMO' : 'INTERNAL OPERATIONS'}</span>
               <h1>Select a financial book</h1>
               <p>No population selected. Assurance: UNKNOWN.</p>
             </div>
