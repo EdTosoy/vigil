@@ -10,8 +10,19 @@ privileged financial operations, simulator oracle data, or live account books.
 - The view is visibly labeled **PUBLIC / SYNTHETIC SNAPSHOT** and **READ ONLY**.
 - Every server read is dispatched to `apps/ops/server/public-demo.ts` rather than
   `PostgresOperations`. All paths are limited to a single illustrative book UUID.
-- The publicly accessible metrics endpoint is denied. No financial mutation endpoints
-  are added. Public data represents neither live assurance nor accounting truth.
+- Public GET/HEAD navigation is closed to `/`, the six sections (`overview`,
+  `reconciliation`, `exceptions`, `controls`, `workers`, `integrity`), UUID detail
+  routes under reconciliation/exceptions/workers, opaque encoded control-key details,
+  and exact `/health/live` and `/health/ready` probes. The synthetic reader separately
+  checks every book/record identity; allowing a route shape grants no record access.
+- `/metrics`, `/webhooks/stripe`, `/api/*`, admin/private paths, unknown routes and
+  non-read methods return 404 with `Cache-Control: no-store`, without a
+  `WWW-Authenticate` header or browser Basic Auth prompt. Framework static assets,
+  the exact image endpoint and favicon remain outside proxy matching; lookalike
+  prefixes are covered. No financial mutation endpoint is added. Public data
+  represents neither live assurance nor accounting truth.
+- Legacy-only `FLOW_DEPLOYMENT_MODE=public-demo` fails closed because the synthetic
+  reader requires the explicit Vigil setting; it cannot open the database read path.
 - The normal `demo` mode keeps Basic authentication; absence of the deployment
   mode retains the previous local development behavior.
 
@@ -19,7 +30,7 @@ privileged financial operations, simulator oracle data, or live account books.
 
 1. `pnpm install --frozen-lockfile`
 2. `pnpm --filter @vigil/ops typecheck` and `pnpm --filter @vigil/ops build`
-3. Run `node --import tsx --test apps/ops/test/public-demo.test.ts` alongside the
+3. Run `node --conditions=react-server --import tsx --test apps/ops/test/public-demo.test.ts` alongside the
    existing operations UI tests.
 4. `VIGIL_DEPLOYMENT_MODE=public-demo pnpm --filter @vigil/ops dev` and inspect
    all six navigation sections; verify that no database credentials are configured.
