@@ -21,6 +21,7 @@ export function Shell({
   evaluation?: string | undefined;
   children: ReactNode;
 }) {
+  const publicDemo = process.env['VIGIL_DEPLOYMENT_MODE'] === 'public-demo';
   return (
     <div className="app-shell">
       <aside className="sidebar">
@@ -56,7 +57,7 @@ export function Shell({
           ))}
         </nav>
         <div className="sidebar-footer">
-          <span className="local-dot" /> Local / internal
+          <span className="local-dot" /> {publicDemo ? 'PUBLIC / SYNTHETIC SNAPSHOT' : 'Local / internal'}
           <br />
           <small>
             Read-only operations
@@ -71,14 +72,19 @@ export function Shell({
             FINANCIAL RECONCILIATION <span className="divider">/</span>{' '}
             {section.toUpperCase()}
           </span>
-          <span className="readonly">READ ONLY</span>
+          <span className="readonly">{publicDemo ? 'SYNTHETIC DEMO · READ ONLY' : 'READ ONLY'}</span>
         </header>
         <main id="main" tabIndex={-1}>
+          {publicDemo && <div role="note" className="panel" style={{ marginBottom: 16 }}>
+            <strong>Public portfolio demonstration — synthetic snapshot.</strong>
+            <p>Illustrative, fixed data only. Not connected to Stripe, bank systems or a live database. Financial states are examples, not real-time assurance.</p>
+          </div>}
           {children}
         </main>
         <footer>
-          PostgreSQL is authoritative. Case closure and worker success do not
-          establish financial reconciliation.
+          {publicDemo
+            ? 'Static illustrative evidence only. No live financial assurance or processing occurs.'
+            : 'PostgreSQL is authoritative. Case closure and worker success do not establish financial reconciliation.'}
         </footer>
       </div>
     </div>
