@@ -42,14 +42,15 @@
     "aws:deploy": "tsx tools/deploy.ts",
     "aws:validate:offline": "tsx tools/validate-deployment.ts",
     "aws:bootstrap:plan": "tsx tools/plan-bootstrap.ts",
-    "test:deployment": "tsx --test tests/deployment.test.ts tests/deployment-sydney.test.ts tests/deployment-portability.test.ts tests/bootstrap-plan.test.ts tests/demo-access.test.ts tests/publication.test.ts tests/runtime-inputs.test.ts tests/runtime-plan.test.ts tests/runtime-preview.test.ts",
+    "test:deployment": "tsx --test tests/deployment.test.ts tests/deployment-sydney.test.ts tests/deployment-portability.test.ts tests/bootstrap-plan.test.ts tests/demo-access.test.ts tests/publication.test.ts tests/runtime-inputs.test.ts tests/runtime-plan.test.ts tests/runtime-preview.test.ts tests/runtime-release.test.ts",
     "aws:demo": "tsx tools/demo-deploy.ts",
     "aws:observe": "tsx tools/demo-observe.ts",
     "aws:bootstrap:execute": "tsx tools/bootstrap-execute.ts",
     "aws:images:publish": "tsx tools/publish-images.ts",
     "aws:runtime:inputs": "tsx tools/runtime-inputs.ts",
     "aws:runtime:plan": "tsx tools/plan-runtime.ts",
-    "aws:runtime:preview": "tsx tools/preview-runtime.ts"
+    "aws:runtime:preview": "tsx tools/preview-runtime.ts",
+    "aws:runtime:release": "tsx tools/runtime-release.ts"
   },
   "devDependencies": {
     "@nx/eslint-plugin": "23.2.1",

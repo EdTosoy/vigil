@@ -21,6 +21,15 @@ import {
   type DeploymentAssembly,
 } from './deployment-sources';
 import { runtimeInputStore } from './runtime-inputs';
+import {
+  runtimeStateBackend,
+  runtimeStateDocument,
+  runtimeStateRoleName,
+  runtimeStatePolicyName,
+  assertRuntimeStateRole,
+} from './runtime-state-role';
+
+export type RuntimePlanPurpose = 'D3E' | 'D3F';
 
 const hash = (v: string | Uint8Array) =>
   createHash('sha256').update(v).digest('hex');
@@ -37,31 +46,38 @@ export const runtimeStateKey = 'demo/terraform.tfstate';
 export const runtimeLockKey = runtimeStateKey + '.tflock';
 // IAM GetRole confirmed this path. STS assumed-role ARNs omit IAM role paths.
 export const runtimeCallerRoleArn = `arn:aws:iam::${deployment.account}:role/managed/${deployment.role}`;
+export const runtimePlannerRoleName = 'VigilSydneyRuntimePlanRole';
+export const runtimePlannerRoleArn = `arn:aws:iam::${deployment.account}:role/vigil/${runtimePlannerRoleName}`;
+export const runtimePlannerPolicyName = 'VigilSydneyRuntimePlanLockOnly';
 
-export function assertRuntimeSelfTrust(role: {
+export function assertRuntimePlannerRole(role: {
   Arn?: string;
-  AssumeRolePolicyDocument?: {
-    Statement?: {
-      Effect?: string;
-      Principal?: { AWS?: string | string[]; Service?: string | string[] };
-      Action?: string | string[];
-    }[];
-  };
+  Path?: string;
+  MaxSessionDuration?: number;
+  PermissionsBoundary?: unknown;
+  AssumeRolePolicyDocument?: unknown;
 }) {
   proof(
-    role.Arn === runtimeCallerRoleArn,
-    'Unexpected IAM role ARN; never derive role paths from an STS ARN',
+    role.Arn === runtimePlannerRoleArn &&
+      role.Path === '/vigil/' &&
+      role.MaxSessionDuration === 3600 &&
+      !role.PermissionsBoundary,
+    'Unexpected restricted planning role configuration',
   );
-  const list = (v: string | string[] | undefined) =>
-    typeof v === 'string' ? [v] : (v ?? []);
   proof(
-    role.AssumeRolePolicyDocument?.Statement?.some(
-      (s) =>
-        s.Effect === 'Allow' &&
-        list(s.Principal?.AWS).includes(runtimeCallerRoleArn) &&
-        list(s.Action).includes('sts:AssumeRole'),
-    ),
-    'Browser-managed AccountFullAccessRole does not explicitly trust self-assumption; separately review the proposed backend-only planning role. No trust change or AssumeRole retry was performed',
+    isDeepStrictEqual(role.AssumeRolePolicyDocument, {
+      Version: '2012-10-17',
+      Statement: [
+        {
+          Sid: 'OnlyExistingSydneyBrowserRole',
+          Effect: 'Allow',
+          Principal: { AWS: runtimeCallerRoleArn },
+          Action: 'sts:AssumeRole',
+          Condition: { StringLike: { 'sts:RoleSessionName': 'vigil-d3e-*' } },
+        },
+      ],
+    }),
+    'Restricted planner trust differs from the approved trust; no IAM repair permitted',
   );
 }
 
@@ -78,7 +94,13 @@ export function runtimeBackendPolicy() {
     Statement: [
       {
         Effect: 'Allow',
-        Action: ['s3:ListBucket', 's3:GetBucketLocation'],
+        Action: 's3:ListBucket',
+        Resource: bucketArn,
+        Condition: { StringLike: { 's3:prefix': ['env:/*', 'demo/*'] } },
+      },
+      {
+        Effect: 'Allow',
+        Action: 's3:GetBucketLocation',
         Resource: bucketArn,
       },
       {
@@ -120,23 +142,66 @@ export function runtimeBackendPolicy() {
     ],
   };
 }
-export function runtimePlanBackend(run: string) {
+export function runtimePlanBackend(
+  run: string,
+  purpose: RuntimePlanPurpose = 'D3E',
+) {
+  proof(
+    purpose === 'D3E' || purpose === 'D3F',
+    'Unsupported runtime plan purpose',
+  );
+  if (purpose === 'D3F') return runtimeStateBackend(run);
   proof(/^[a-f0-9-]{36}$/.test(run), 'Invalid runtime plan run identity');
   return {
     ...backendContract('demo'),
     assume_role: {
-      role_arn: runtimeCallerRoleArn,
+      role_arn: runtimePlannerRoleArn,
       session_name: `vigil-d3e-${run}`,
       duration: '15m',
       policy: JSON.stringify(runtimeBackendPolicy()),
     },
   };
 }
-export function assertRuntimePlanBackend(v: unknown, run: string) {
+export function assertRuntimePlanBackend(
+  v: unknown,
+  run: string,
+  purpose: RuntimePlanPurpose = 'D3E',
+) {
   proof(
-    isDeepStrictEqual(v, runtimePlanBackend(run)),
+    isDeepStrictEqual(v, runtimePlanBackend(run, purpose)),
     'Unauthorized backend, account, role, key or session policy',
   );
+}
+
+/** Raw SDK diagnostics stay in memory; retain only the expected STS identity. */
+export function inspectRuntimeBackendIdentity(
+  log: string,
+  run: string,
+  purpose: RuntimePlanPurpose = 'D3E',
+) {
+  const backend = runtimePlanBackend(run, purpose);
+  const roleName =
+    purpose === 'D3E' ? runtimePlannerRoleName : runtimeStateRoleName;
+  const arn = `arn:aws:sts::${deployment.account}:assumed-role/${roleName}/${backend.assume_role.session_name}`;
+  proof(
+    log
+      // hclog writes XML response bodies over multiple physical lines. Keep
+      // each timestamped record together, without accepting provider records.
+      .split(/(?=^\d{4}-\d{2}-\d{2}T)/m)
+      .some(
+        (line) =>
+          line.includes('backend-s3') &&
+          line.includes('GetCallerIdentity') &&
+          line.includes(`<Arn>${arn}</Arn>`),
+      ),
+    `Backend STS identity was not observed as the exact restricted planning session (expected ARN present: ${log.includes(arn)}, backend logger present: ${log.includes('backend-s3')}, STS method present: ${log.includes('GetCallerIdentity')})`,
+  );
+  return {
+    account: deployment.account,
+    roleArn: backend.assume_role.role_arn,
+    sessionName: backend.assume_role.session_name,
+    callerIdentityObserved: true,
+  };
 }
 
 export type RuntimePlanOperation =
@@ -497,6 +562,7 @@ export async function loadPreparedRuntime(repository: string) {
 export async function prepareSavedRuntimePlan(
   repository: string,
   env = process.env,
+  purpose: RuntimePlanPurpose = 'D3E',
 ) {
   assertDeploymentEnvironment(env);
   process.umask(0o077);
@@ -562,8 +628,8 @@ export async function prepareSavedRuntimePlan(
       JSON.stringify(v, null, 2) + '\n',
       { mode: 0o600, flag: 'wx' },
     );
-  const backend = runtimePlanBackend(run);
-  assertRuntimePlanBackend(backend, run);
+  const backend = runtimePlanBackend(run, purpose);
+  assertRuntimePlanBackend(backend, run, purpose);
   const secret = inputs.ephemeralSecrets.admin_password;
   const inputHash = hash(JSON.stringify(inputs)); // Private commitment; values never persisted.
   async function unchanged() {
@@ -689,13 +755,56 @@ export async function prepareSavedRuntimePlan(
     );
   }
   const stateBefore = await custody();
+  const roleName =
+    purpose === 'D3E' ? runtimePlannerRoleName : runtimeStateRoleName;
+  const policyName =
+    purpose === 'D3E' ? runtimePlannerPolicyName : runtimeStatePolicyName;
   const actualRole = aws('iam:GetRole', [
     'iam',
     'get-role',
     '--role-name',
-    deployment.role,
+    roleName,
   ]);
-  assertRuntimeSelfTrust(actualRole.Role ?? {});
+  if (purpose === 'D3E') assertRuntimePlannerRole(actualRole.Role ?? {});
+  else assertRuntimeStateRole(actualRole.Role ?? {});
+  const inline = aws('iam:GetRolePolicy', [
+    'iam',
+    'get-role-policy',
+    '--role-name',
+    roleName,
+    '--policy-name',
+    policyName,
+  ]);
+  proof(
+    isDeepStrictEqual(
+      inline.PolicyDocument,
+      purpose === 'D3E'
+        ? runtimeBackendPolicy()
+        : runtimeStateDocument('permissions'),
+    ),
+    'Restricted planner permissions differ from the reviewed lock-only policy',
+  );
+  proof(
+    isDeepStrictEqual(
+      aws('iam:ListRolePolicies', [
+        'iam',
+        'list-role-policies',
+        '--role-name',
+        roleName,
+      ]).PolicyNames,
+      [policyName],
+    ) &&
+      isDeepStrictEqual(
+        aws('iam:ListAttachedRolePolicies', [
+          'iam',
+          'list-attached-role-policies',
+          '--role-name',
+          roleName,
+        ]).AttachedPolicies,
+        [],
+      ),
+    'Unexpected additional planner policies',
+  );
   aws('s3:HeadBucket', [
     's3api',
     'head-bucket',
@@ -746,7 +855,8 @@ export async function prepareSavedRuntimePlan(
   // Claim before Terraform. Failures are retained; never retry this preparation.
   await out('plan-execution.json', {
     version: 1,
-    authorization: 'D3E_EXACT_OWNED_LOCK_ONLY',
+    authorization:
+      purpose === 'D3E' ? 'D3E_EXACT_OWNED_LOCK_ONLY' : 'D3F_FRESH_PLAN_ONLY',
     account: deployment.account,
     region: deployment.region,
     run,
@@ -767,7 +877,12 @@ export async function prepareSavedRuntimePlan(
     TF_CLI_CONFIG_FILE: context.path(`${prefix}/terraform.rc`),
     TF_IN_AUTOMATION: '1',
     CHECKPOINT_DISABLE: '1',
+    // Never write raw debug logs: the STS response is inspected in memory only.
+    TF_LOG_CORE: 'DEBUG',
+    TF_LOG_PROVIDER: 'OFF',
   };
+  const backendSessions: ReturnType<typeof inspectRuntimeBackendIdentity>[] =
+    [];
   let summary: ReturnType<typeof inspectInitialRuntimePlan> | undefined;
   let failure: unknown;
   try {
@@ -783,6 +898,7 @@ export async function prepareSavedRuntimePlan(
       assertRuntimePlanBackend(
         JSON.parse((await privateFile(paths.backend)).toString()),
         run,
+        purpose,
       );
       if (operation === 'init' || operation === 'plan') {
         identity();
@@ -814,11 +930,24 @@ export async function prepareSavedRuntimePlan(
           'failed to upload state',
           'Error acquiring the state lock',
         ].filter((s) => (r.stderr + r.stdout).includes(s)),
+        deniedActions: [
+          ...new Set(
+            [
+              ...r.stderr.matchAll(
+                /not authorized to perform:\s*([a-z0-9]+:[A-Za-z0-9]+)/g,
+              ),
+            ].map((m) => m[1]),
+          ),
+        ],
       });
       proof(
         !r.error && r.status === 0,
         `Runtime ${operation} blocked or failed; inspect sanitized private result. No retry or permission expansion`,
       );
+      if (operation === 'init' || operation === 'plan')
+        backendSessions.push(
+          inspectRuntimeBackendIdentity(r.stderr, run, purpose),
+        );
       if (operation === 'version')
         proof(
           JSON.parse(r.stdout).terraform_version === '1.15.3',
@@ -852,7 +981,9 @@ export async function prepareSavedRuntimePlan(
           : config.assume_role;
         proof(
           assumed?.role_arn === backend.assume_role.role_arn &&
-            assumed.policy === backend.assume_role.policy,
+            assumed.policy === backend.assume_role.policy &&
+            assumed.session_name === backend.assume_role.session_name &&
+            assumed.duration === backend.assume_role.duration,
           'Restricted backend session policy missing',
         );
         proof(!local.resources?.length, 'Unexpected local managed state');
@@ -907,6 +1038,7 @@ export async function prepareSavedRuntimePlan(
   );
   await out('aws-evidence.json', {
     calls,
+    backendSessions,
     before,
     after,
     mutations,
@@ -924,6 +1056,8 @@ export async function prepareSavedRuntimePlan(
   );
   const result = {
     status: 'SUCCESS',
+    purpose,
+    createdAt: new Date().toISOString(),
     run,
     sourceManifest: assembly.manifest,
     sourceRevision,

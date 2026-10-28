@@ -15,7 +15,9 @@ import {
   loadPreparedRuntime,
   type RuntimePlanOperation,
   runtimeCallerRoleArn,
-  assertRuntimeSelfTrust,
+  assertRuntimePlannerRole,
+  runtimePlannerRoleArn,
+  inspectRuntimeBackendIdentity,
 } from '../tools/runtime-plan';
 import { deploymentSourceNames } from '../tools/deployment-sources';
 import {
@@ -30,7 +32,7 @@ test('session backend pins exact target/key and refuses privilege or backend cha
   assertRuntimePlanBackend(config, run);
   assert.equal(
     config.assume_role.role_arn,
-    'arn:aws:iam::747240980964:role/managed/AccountFullAccessRole',
+    'arn:aws:iam::747240980964:role/vigil/VigilSydneyRuntimePlanRole',
   );
   assert(JSON.stringify(runtimeBackendPolicy()).length < 2048);
   for (const patch of [
@@ -42,6 +44,9 @@ test('session backend pins exact target/key and refuses privilege or backend cha
     { allowed_account_ids: ['163596511125'] },
     { use_lockfile: false },
     { assume_role: undefined },
+    { assume_role: { ...config.assume_role, role_arn: runtimeCallerRoleArn } },
+    { assume_role: { ...config.assume_role, session_name: 'foreign' } },
+    { assume_role: { ...config.assume_role, duration: '1h' } },
     { assume_role: { ...config.assume_role, policy: '{}' } },
     {
       assume_role: {
@@ -57,44 +62,89 @@ test('session backend pins exact target/key and refuses privilege or backend cha
     assert.throws(() => assertRuntimePlanBackend({ ...config, ...patch }, run));
 });
 
-test('IAM role paths are preserved and service-only trust stops before self-assumption', () => {
+test('planner pins reviewed trust and role path while preserving browser-role provider identity', async () => {
+  const trust = JSON.parse(
+    await readFile(
+      resolve(__dirname, '../infra/planning-role/trust.proposed.json'),
+      'utf8',
+    ),
+  );
+  const permissions = JSON.parse(
+    await readFile(
+      resolve(__dirname, '../infra/planning-role/permissions.proposed.json'),
+      'utf8',
+    ),
+  );
+  assert.deepEqual(runtimeBackendPolicy(), permissions);
   const observed = {
-    Arn: runtimeCallerRoleArn,
-    AssumeRolePolicyDocument: {
-      Statement: [
-        {
-          Effect: 'Allow',
-          Principal: { Service: 'account-access.amazonaws.com' },
-          Action: ['sts:AssumeRole', 'sts:SetContext'],
-        },
-      ],
-    },
+    Arn: runtimePlannerRoleArn,
+    Path: '/vigil/',
+    MaxSessionDuration: 3600,
+    AssumeRolePolicyDocument: trust,
   };
-  assert.throws(
-    () => assertRuntimeSelfTrust(observed),
-    /does not explicitly trust self-assumption/,
-  );
-  assert.throws(
-    () =>
-      assertRuntimeSelfTrust({
-        ...observed,
-        Arn: runtimeCallerRoleArn.replace('/managed/', '/'),
-      }),
-    /Unexpected IAM role ARN/,
-  );
-  // Pure hypothetical fixture only: no trust update is authorized or performed.
-  assertRuntimeSelfTrust({
-    Arn: runtimeCallerRoleArn,
-    AssumeRolePolicyDocument: {
-      Statement: [
-        {
-          Effect: 'Allow',
-          Principal: { AWS: runtimeCallerRoleArn },
-          Action: 'sts:AssumeRole',
-        },
-      ],
+  assertRuntimePlannerRole(observed);
+  for (const patch of [
+    { Arn: runtimeCallerRoleArn },
+    { Arn: runtimePlannerRoleArn.replace('/vigil/', '/') },
+    { Path: '/' },
+    { MaxSessionDuration: 43200 },
+    { PermissionsBoundary: { fixture: true } },
+    {
+      AssumeRolePolicyDocument: {
+        ...trust,
+        Statement: [...trust.Statement, trust.Statement[0]],
+      },
     },
-  });
+    {
+      AssumeRolePolicyDocument: {
+        ...trust,
+        Statement: [{ ...trust.Statement[0], Condition: {} }],
+      },
+    },
+    {
+      AssumeRolePolicyDocument: {
+        ...trust,
+        Statement: [{ ...trust.Statement[0], Principal: { AWS: '*' } }],
+      },
+    },
+    {
+      AssumeRolePolicyDocument: {
+        Statement: [
+          {
+            Principal: { Service: 'account-access.amazonaws.com' },
+            Action: ['sts:AssumeRole', 'sts:SetContext'],
+          },
+        ],
+      },
+    },
+  ])
+    assert.throws(() => assertRuntimePlannerRole({ ...observed, ...patch }));
+  const provider = await readFile(
+    resolve(__dirname, '../infra/demo/versions.tf'),
+    'utf8',
+  );
+  assert.match(provider, /profile\s*= var.aws_profile/);
+  assert.doesNotMatch(provider, /assume_role|VigilSydneyRuntimePlanRole/);
+});
+
+test('backend identity evidence requires its STS response, never provider/admin logs or raw credentials', () => {
+  const run = randomUUID();
+  const arn = `arn:aws:sts::747240980964:assumed-role/VigilSydneyRuntimePlanRole/vigil-d3e-${run}`;
+  const line = `[DEBUG] backend-s3.aws-base: HTTP Response Received: rpc.method=GetCallerIdentity http.response.body="<Arn>${arn}</Arn>" fixture-secret`;
+  const result = inspectRuntimeBackendIdentity(line, run);
+  assert.equal(result.roleArn, runtimePlannerRoleArn);
+  assert(!JSON.stringify(result).includes('fixture-secret'));
+  const multiline = `2026-10-28T00:00:00Z [DEBUG] backend-s3.aws-base: HTTP Response Received: rpc.method=GetCallerIdentity\n http.response.body=\n | <Arn>${arn}</Arn>\n2026-10-28T00:00:01Z [DEBUG] unrelated record`;
+  assert.deepEqual(inspectRuntimeBackendIdentity(multiline, run), result);
+  for (const bad of [
+    '',
+    line.replace('backend-s3', 'provider.aws'),
+    line.replace('VigilSydneyRuntimePlanRole', 'AccountFullAccessRole'),
+    line.replace('GetCallerIdentity', 'AssumeRole'),
+    line.replace(run, randomUUID()),
+    `2026-10-28T00:00:00Z backend-s3: GetCallerIdentity\n2026-10-28T00:00:01Z provider.aws: <Arn>${arn}</Arn>`,
+  ])
+    assert.throws(() => inspectRuntimeBackendIdentity(bad, run));
 });
 
 test('session policy denies state/foreign writes, nonconditional puts and all additional resource mutations', () => {

@@ -1,6 +1,6 @@
 # Sydney D3E — role diagnosis and non-deployable preview
 
-**2026-10-28 follow-up: the explicitly approved planning role and inline policy are created and verified, including a restricted session.** See [creation evidence below](#approved-role-creation-and-verification). Remote saved-plan generation remains pending planner integration with that role. No Terraform plan was generated in this follow-up.
+**2026-10-28 IAM-only follow-up: the explicitly approved planning role and inline policy were created and verified, including a restricted session.** See [creation evidence below](#approved-role-creation-and-verification). The subsequent [D3E report](sydney-d3e.md) records completed planner integration and a successful saved runtime plan. No Terraform plan was generated during the IAM-only checkpoint recorded here.
 
 Historical diagnosis: 2026-10-28 local date; AWS observations 2026-10-27 UTC. Diagnosis complete, local preview successful, zero AWS mutations at that stage. Existing private inputs and failed execution evidence remain preserved. No commit/push.
 
@@ -142,7 +142,7 @@ Role/policy verification completed at **03:47:27Z**; session verification comple
 
 Private, gitignored comparison evidence is retained under `.deployment/747240980964/ap-southeast-2/demo/planning-role-verification-20261028T034628Z/`, directory mode 0700 and files 0600. Temporary session credentials were used only in memory and child-process environment; none were printed or persisted. No state payload was fetched. State-write and lock-write denial/allowance remain policy inspection and the earlier simulation evidence, rather than actual write probes.
 
-**Remaining D3E blocker:** `tools/runtime-plan.ts` still targets the browser role for backend self-assumption and retains its self-trust guard. Wiring the verified planning-role ARN into the bounded backend contract and tests is a separate follow-up. Preserve the failed claim and existing password; any later authorized attempt requires fresh preparation and backend/state/image validation. Role admission alone does not verify Terraform backend compatibility or produce a saved plan.
+**Blocker at this IAM-only checkpoint, subsequently resolved in [D3E](sydney-d3e.md):** `tools/runtime-plan.ts` then targeted the browser role for backend self-assumption and retained its self-trust guard. Wiring the verified planning-role ARN into the bounded backend contract and tests was a separate follow-up. The failed claim and existing password were to be preserved, with fresh preparation and backend/state/image validation required. Role admission alone did not verify Terraform backend compatibility or produce a saved plan.
 
 Local verification: PASS, repository-installed `node_modules/.bin/prettier --check` on both updated D3E documents and both unchanged policy files, policy SHA-256 comparison, private evidence Git exclusion and `git diff --check`. The initial `pnpm exec prettier` invocation produced no output and was interrupted; the installed formatter was then invoked directly. Application/deployment tests were NOT RUN because only documentation changed locally; no application, schema, financial invariant or planner implementation changed.
 
