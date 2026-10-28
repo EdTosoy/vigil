@@ -1,3 +1,4 @@
+import 'server-only';
 /**
  * Public portfolio snapshot. All records are hand-authored illustrative examples.
  * Never read AWS, Stripe, PostgreSQL, local credentials or simulator oracle data.
