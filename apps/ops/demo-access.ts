@@ -8,6 +8,11 @@ export function demoAccess(
 ): 200 | 401 | 503 {
   const mode = env['VIGIL_DEPLOYMENT_MODE'] ?? env['FLOW_DEPLOYMENT_MODE'];
   if (mode === undefined) return 200;
+  if (mode === 'public-demo') {
+    // Explicit opt-in only: never open privileged metrics or unknown routes.
+    if (path === '/metrics') return 401;
+    return 200;
+  }
   if (mode !== 'demo') return 503;
   // Exact cheap technical probes only. Financial diagnostics and metrics remain protected.
   if (path === '/health/live' || path === '/health/ready') return 200;
