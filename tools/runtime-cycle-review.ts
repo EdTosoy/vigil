@@ -373,6 +373,7 @@ export interface CyclePlan {
   complete?: boolean;
   errored?: boolean;
 }
+import { expectedCycleRefresh } from './runtime-cycle-refresh';
 export function assertCyclePlan(
   plan: CyclePlan,
   snapshot: CycleState,
@@ -383,25 +384,7 @@ export function assertCyclePlan(
     plan.complete === true &&
       plan.errored !== true &&
       !plan.deferred_changes?.length &&
-      !plan.resource_drift?.some((r) => {
-        if (isDeepStrictEqual(r.change.actions, ['no-op'])) return false;
-        // ACM issues a certificate after the independently verified DNS checkpoint.
-        // Only this expected computed lifecycle field may refresh without a new state.
-        const before = { ...r.change.before },
-          after = { ...r.change.after };
-        const issued =
-          before['status'] === 'PENDING_VALIDATION' &&
-          after['status'] === 'ISSUED';
-        delete before['status'];
-        delete after['status'];
-        return !(
-          r.address === 'aws_acm_certificate.demo' &&
-          ['https', 'active', 'teardown'].includes(stage) &&
-          issued &&
-          isDeepStrictEqual(r.change.actions, ['update']) &&
-          isDeepStrictEqual(before, after)
-        );
-      }),
+      !plan.resource_drift?.some((r) => !expectedCycleRefresh(r, live, stage)),
     'Incomplete or refreshed/drifting plan refused',
   );
   assertDemoPlan(plan, stage === 'teardown');

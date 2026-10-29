@@ -39,6 +39,7 @@ import {
   type CyclePlan,
   type CycleBindings,
 } from '../tools/runtime-cycle-review';
+import { expectedCycleRefresh } from '../tools/runtime-cycle-refresh';
 import type { RecoveryState } from '../tools/runtime-recovery-review';
 
 const images = Object.fromEntries(
@@ -861,18 +862,133 @@ test('complete teardown rejects omission, foreign/bootstrap IAM, replacement and
   ];
   assert.throws(() => assertCyclePlan(drift, s, 'teardown'));
   const certDrift = structuredClone(d);
+  const certId = cycleInstances(s).find(
+    (r) => r.address === 'aws_acm_certificate.demo',
+  )!.attributes['id'];
   certDrift.resource_drift = [
     {
       address: 'aws_acm_certificate.demo',
       change: {
         actions: ['update'],
-        before: { id: 'same', status: 'PENDING_VALIDATION' },
-        after: { id: 'same', status: 'ISSUED' },
+        before: { id: certId, status: 'PENDING_VALIDATION' },
+        after: { id: certId, status: 'ISSUED' },
       },
     },
   ];
   assertCyclePlan(certDrift, s, 'teardown');
   assert.throws(() => assertCycleState(s, { ...s, versionId: 'other' }));
+});
+
+test('post-create refresh validates normalizations without weakening drift guards', () => {
+  const first = planFor(snapshotFrom([]), 'infrastructure');
+  const rows = first.resource_changes!.map((r) => ({
+    address: r.address,
+    attributes: structuredClone(r.change.after!),
+  }));
+  // Keep fixtures faithful to cycleInstances' strict state rules: IAM policies,
+  // ingress and routes are not invented or modified in the saved snapshot.
+  const snapshot = snapshotFrom(rows);
+  const plan = planFor(snapshot, 'provisioning');
+  const attribute = (address: string) =>
+    rows.find((r) => r.address === address)!.attributes;
+  plan.resource_drift = [];
+  const add = (address: string, mutate: (a: Record<string, unknown>) => void) => {
+    const before = structuredClone(attribute(address));
+    const after = structuredClone(before);
+    mutate(after);
+    plan.resource_drift!.push({ address, change: { actions: ['update'], before, after } });
+  };
+  add('aws_ecs_cluster.demo', (a) => { a['tags'] = {}; });
+  add('aws_db_instance.demo', (a) => {
+    a['tags'] = {};
+    a['domain_dns_ips'] = [];
+    a['enabled_cloudwatch_logs_exports'] = [];
+  });
+  add('aws_acm_certificate.demo', (a) => {
+    a['tags'] = {};
+    a['status'] = 'ISSUED';
+    a['not_before'] = '2026-10-29T00:00:00Z';
+    a['not_after'] = '2027-10-29T00:00:00Z';
+  });
+  assertCyclePlan(plan, snapshot, 'provisioning');
+
+  for (const [name, address, mutate] of [
+    ['foreign physical ID', 'aws_ecs_cluster.demo', (a: Record<string, unknown>) => { a['id'] = 'foreign'; }],
+    ['nonempty tag', 'aws_ecs_cluster.demo', (a: Record<string, unknown>) => { a['tags'] = { Admin: 'external' }; }],
+    ['RDS log export change', 'aws_db_instance.demo', (a: Record<string, unknown>) => { a['enabled_cloudwatch_logs_exports'] = ['postgresql']; }],
+    ['certificate domain change', 'aws_acm_certificate.demo', (a: Record<string, unknown>) => { a['domain_name'] = 'foreign.example'; }],
+  ] as const) {
+    const attempt = structuredClone(plan);
+    mutate(attempt.resource_drift!.find((r) => r.address === address)!.change.after!);
+    assert.throws(() => assertCyclePlan(attempt, snapshot, 'provisioning'), undefined, name);
+  }
+
+  // Exercise independently managed child mirrors directly. The real state
+  // inventory validator intentionally rejects fabricated IAM policies and SGs;
+  // testing these as artificial state fixtures would bypass that guarantee.
+  type MirrorRow = { address: string; attributes: Record<string, unknown> };
+  const check = (
+    address: string,
+    before: Record<string, unknown>,
+    after: Record<string, unknown>,
+    owned: MirrorRow[],
+    corrupt: (a: Record<string, unknown>) => void,
+  ) => {
+    const live: MirrorRow[] = [{ address, attributes: before }, ...owned];
+    const drift = { address, change: { actions: ['update'], before, after } };
+    assert.equal(expectedCycleRefresh(drift, live, 'provisioning'), true, address);
+    const bad = structuredClone(drift);
+    corrupt(bad.change.after);
+    assert.equal(expectedCycleRefresh(bad, live, 'provisioning'), false, address);
+  };
+
+  const role = attribute('aws_iam_role.execution["admin"]');
+  const policy = JSON.stringify({
+    Version: '2012-10-17',
+    Statement: [{ Effect: 'Allow', Action: 'logs:CreateLogStream', Resource: 'arn:aws:logs:example' }],
+  });
+  const policyName = 'flow-demo-admin-execution';
+  check(
+    'aws_iam_role.execution["admin"]', role,
+    { ...role, tags: {}, inline_policy: [{ name: policyName, policy }] },
+    [{ address: 'aws_iam_role_policy.execution["admin"]', attributes: {
+      id: 'owned-role-policy', name: policyName, role: role['name'], policy,
+    } }],
+    (a) => { a['inline_policy'] = [{ name: policyName, policy: JSON.stringify({
+      Version: '2012-10-17', Statement: [{ Effect: 'Allow', Action: '*', Resource: '*' }],
+    }) }]; },
+  );
+
+  const group = { ...attribute('aws_security_group.alb'), id: 'sg-test-alb' };
+  check(
+    'aws_security_group.alb', group,
+    { ...group, tags: {},
+      ingress: [{ protocol: 'tcp', from_port: 80, to_port: 80, cidr_blocks: ['0.0.0.0/0'] }],
+      egress: [{ protocol: 'tcp', from_port: 3000, to_port: 3000, security_groups: ['sg-test-ops'] }],
+    },
+    [
+      { address: 'aws_vpc_security_group_ingress_rule.http', attributes: {
+        id: 'owned-http', security_group_id: group['id'], cidr_ipv4: '0.0.0.0/0',
+        ip_protocol: 'tcp', from_port: 80, to_port: 80,
+      } },
+      { address: 'aws_vpc_security_group_egress_rule.alb_app["ops"]', attributes: {
+        id: 'owned-ops', security_group_id: group['id'], referenced_security_group_id: 'sg-test-ops',
+        ip_protocol: 'tcp', from_port: 3000, to_port: 3000,
+      } },
+    ],
+    (a) => { (a['ingress'] as unknown[]).push({ protocol: 'tcp', from_port: 22, to_port: 22, cidr_blocks: ['0.0.0.0/0'] }); },
+  );
+
+  const table = { ...attribute('aws_route_table.public'), id: 'rtb-test-public' };
+  check(
+    'aws_route_table.public', table,
+    { ...table, tags: {}, route: [{ destination_cidr_block: '0.0.0.0/0', gateway_id: 'igw-owned' }] },
+    [{ address: 'aws_route.internet', attributes: {
+      id: 'owned-route', route_table_id: table['id'],
+      destination_cidr_block: '0.0.0.0/0', gateway_id: 'igw-owned',
+    } }],
+    (a) => { (a['route'] as Record<string, unknown>[])[0]!['gateway_id'] = 'igw-foreign'; },
+  );
 });
 
 test('a provisioning receipt must bind the current RDS physical identity, state, source and distinct books', () => {
