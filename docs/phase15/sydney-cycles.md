@@ -18,6 +18,14 @@ Teardown binds deletions to every actual allowed physical instance, including se
 
 ECS can retain resource tags after deletion. Discovery excludes a retained task-definition revision only when its exact account/region/family/ARN and authoritative `INACTIVE` status are verified. The exact `flow-demo` cluster is excluded only when `INACTIVE` with zero running tasks, pending tasks and services. Active, unknown, mismatched and foreign records continue to block launch; no retained metadata or state history is deleted.
 
+The tagging API can also retain deleted EC2 security-group-rule ARNs. For exact Sydney/account rule IDs, discovery confirms existence through complete, filtered `DescribeSecurityGroupRules` responses. Only IDs proven absent are excluded. Live rules, API errors, truncated or malformed results and unknown resource types still block verification. Authoritative Terraform-state and AWS-inventory failures have distinct diagnostics.
+
+If apply records `FAILED_OR_UNKNOWN` but the authoritative state is empty and service-native reads prove runtime removal, rerun only the read-only verification command below. It appends a new removal proof and preserves the failed attempt/result, claims and versioned state. Never retry apply to repair a verification failure.
+
+```sh
+pnpm aws:runtime:cycle verify-teardown "$VIGIL_CYCLE" --cloud-approved
+```
+
 Failed/uncertain operations retain their claims and evidence. Forward stages stop. Cleanup can receive a new, separately reviewed deletion plan from current full state after partial work; no automatic retry occurs. Orphans, physical drift, tainted/deposed instances or unpersisted error state need explicit recovery review, never import/state push/unlock. Dedicated sandbox destination retirement and manual application DNS changes remain separate approved actions.
 
 ## Local preparation

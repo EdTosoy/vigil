@@ -32,6 +32,7 @@ import {
 import {
   cycleInstances,
   retainedCycleEcsMetadata,
+  verifyCycleRuleInventory,
   assertCycleOperatorChecks,
   unverifiedBudgetAlertWarning,
   assertCycleImages,
@@ -103,6 +104,7 @@ export async function runtimeCycleDriver(
     'ecs:list-tasks',
     'ecs:describe-tasks',
     'ecs:describe-task-definition',
+    'ec2:describe-security-group-rules',
     'ecs:describe-services',
     'rds:describe-db-instances',
     'rds:describe-db-snapshots',
@@ -309,7 +311,16 @@ export async function runtimeCycleDriver(
         return arn;
       }),
     );
-    return retained.filter((arn): arn is string => arn !== null).sort();
+    return (
+      await verifyCycleRuleInventory(
+        retained.filter((arn): arn is string => arn !== null),
+        async (ids) =>
+          aws('ec2', 'describe-security-group-rules', [
+            '--filters',
+            `Name=security-group-rule-id,Values=${ids.join(',')}`,
+          ]),
+      )
+    ).sort();
   }
   async function images() {
     const claim = await privateCycleJson(path('image-publication.json'));

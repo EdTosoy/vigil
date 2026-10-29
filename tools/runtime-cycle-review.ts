@@ -40,6 +40,49 @@ export function retainedCycleEcsMetadata(
   );
 }
 
+/** Tagging can retain deleted rules. Only a complete, successful native EC2
+ * query for these exact scoped IDs proves their absence. All other ARNs remain. */
+export async function verifyCycleRuleInventory(
+  arns: string[],
+  describe: (ids: string[]) => Promise<{
+    SecurityGroupRules?: { SecurityGroupRuleId?: string }[];
+    NextToken?: string;
+  }>,
+) {
+  const pattern = new RegExp(
+    `^arn:aws:ec2:${deployment.region}:${deployment.account}:security-group-rule/(sgr-[0-9a-f]{17})$`,
+  );
+  const candidates = new Map(
+    arns.flatMap((arn) => {
+      const match = pattern.exec(arn);
+      return match ? [[arn, match[1]!] as const] : [];
+    }),
+  );
+  const ids = [...new Set(candidates.values())],
+    live = new Set<string>();
+  for (let offset = 0; offset < ids.length; offset += 100) {
+    const requested = ids.slice(offset, offset + 100);
+    const observed = await describe(requested);
+    proof(
+      Array.isArray(observed.SecurityGroupRules) && !observed.NextToken,
+      'Complete native EC2 rule inventory required; absence is unverified',
+    );
+    const returned = observed.SecurityGroupRules.map(
+      (r) => r.SecurityGroupRuleId,
+    );
+    proof(
+      returned.every(
+        (id) => typeof id === 'string' && requested.includes(id),
+      ) && new Set(returned).size === returned.length,
+      'Unexpected native EC2 rule inventory; stop for review',
+    );
+    for (const id of returned) live.add(id!);
+  }
+  return arns.filter(
+    (arn) => !candidates.has(arn) || live.has(candidates.get(arn)!),
+  );
+}
+
 export function assertCycleOperatorChecks(
   approval: Record<string, unknown>,
   id: string,
@@ -295,8 +338,12 @@ export function cycleInstances(snapshot: CycleState) {
 }
 export function assertCycleStart(snapshot: CycleState, inventory: string[]) {
   proof(
-    cycleInstances(snapshot).length === 0 && inventory.length === 0,
-    'A new cycle requires both empty current state and verified absent runtime inventory; retain state/history and recover first',
+    cycleInstances(snapshot).length === 0,
+    'Authoritative Terraform state is not empty; retain state/history and recover first',
+  );
+  proof(
+    inventory.length === 0,
+    `AWS runtime inventory is not verified absent; ${inventory.length} resource(s) remain; retain state/history and recover first`,
   );
 }
 export function assertCycleState(expected: CycleState, current: CycleState) {

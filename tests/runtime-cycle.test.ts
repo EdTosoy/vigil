@@ -27,6 +27,7 @@ import {
 import {
   assertCycleStart,
   retainedCycleEcsMetadata,
+  verifyCycleRuleInventory,
   assertCycleOperatorChecks,
   unverifiedBudgetAlertWarning,
   assertCycleState,
@@ -97,6 +98,111 @@ test('retained ECS tags are excluded only for verified inactive metadata in the 
   ])
     assert(!retainedCycleEcsMetadata(ca, { ...cluster, ...patch }));
   assert(!retainedCycleEcsMetadata(prefix + 'service/flow-demo', cluster));
+});
+
+test('stale tagged EC2 rules require complete native absence proof; live and unknown resources still block', async () => {
+  const prefix = `arn:aws:ec2:${deployment.region}:${deployment.account}:security-group-rule/`;
+  const id = 'sgr-' + '1'.repeat(17),
+    other = 'sgr-' + '2'.repeat(17);
+  const arns = [prefix + id, prefix + other];
+  const empty = snapshotFrom([]);
+  assert.throws(() => assertCycleStart(empty, arns), /AWS runtime inventory/);
+  const absent = await verifyCycleRuleInventory(arns, async (ids) => {
+    assert.deepEqual(ids, [id, other]);
+    return { SecurityGroupRules: [] };
+  });
+  assertCycleStart(empty, absent);
+  const present = await verifyCycleRuleInventory(arns, async () => ({
+    SecurityGroupRules: [{ SecurityGroupRuleId: id }],
+  }));
+  assert.deepEqual(present, [prefix + id]);
+  assert.throws(() => assertCycleStart(empty, present), /1 resource/);
+  for (const response of [
+    {},
+    { SecurityGroupRules: [], NextToken: 'more' },
+    { SecurityGroupRules: [{}] },
+    { SecurityGroupRules: [{ SecurityGroupRuleId: 'sgr-' + '3'.repeat(17) }] },
+    {
+      SecurityGroupRules: [
+        { SecurityGroupRuleId: id },
+        { SecurityGroupRuleId: id },
+      ],
+    },
+  ])
+    await assert.rejects(verifyCycleRuleInventory(arns, async () => response));
+  await assert.rejects(
+    verifyCycleRuleInventory(arns, async () => {
+      throw new Error('AccessDenied');
+    }),
+    /AccessDenied/,
+  );
+  const unknown = [
+    'arn:aws:other:ap-southeast-2:747240980964:unknown/example',
+    prefix.replace(deployment.account, '163596511125') + id,
+    prefix.replace(deployment.region, 'us-east-1') + id,
+    prefix + 'invalid',
+  ];
+  assert.deepEqual(
+    await verifyCycleRuleInventory(unknown, async () => {
+      throw new Error(
+        'Foreign/unknown resources must not be queried or discarded',
+      );
+    }),
+    unknown,
+  );
+  assert.throws(
+    () => assertCycleStart(empty, unknown),
+    /AWS runtime inventory/,
+  );
+});
+
+test('state and AWS inventory failures are distinct and state remains authoritative', async () => {
+  const f = await fixture();
+  try {
+    const c = await f.prepare(),
+      p = await (await c.workflow()).plan('infrastructure');
+    await (await c.workflow()).apply(p.reviewId);
+    assert.throws(
+      () => assertCycleStart(f.state(), []),
+      /Authoritative Terraform state is not empty/,
+    );
+    const d = await (await c.workflow()).plan('teardown');
+    const rule = `arn:aws:ec2:${deployment.region}:${deployment.account}:security-group-rule/sgr-${'1'.repeat(17)}`;
+    f.setInventory([rule]);
+    await assert.rejects(
+      (await c.workflow()).apply(d.reviewId),
+      /outcome unknown/,
+    );
+    const file = c.store.path(
+      `teardown-result-${d.reviewId.split(':')[0]}.json`,
+    );
+    const original = await readFile(file, 'utf8');
+    assert.equal(JSON.parse(original).status, 'FAILED_OR_UNKNOWN');
+    await assert.rejects(
+      (await c.workflow()).verifyTeardown(),
+      /AWS runtime inventory/,
+    );
+    f.driver.inventory = () =>
+      verifyCycleRuleInventory([rule], async () => ({
+        SecurityGroupRules: [],
+      }));
+    assert.equal(
+      (await (await c.workflow()).verifyTeardown()).actualRuntimeInventory,
+      'ABSENT',
+    );
+    assert.equal(
+      await readFile(file, 'utf8'),
+      original,
+      'Failed apply evidence must never be rewritten as success',
+    );
+    assert.equal(
+      f.calls.filter((c) => c.operation === 'apply').length,
+      2,
+      'Read-only verification never retries apply',
+    );
+  } finally {
+    await f.cleanup();
+  }
 });
 
 test('UNKNOWN budget delivery requires explicit acknowledgement and preserves every operator cost gate', () => {
