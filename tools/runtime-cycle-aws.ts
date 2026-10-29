@@ -322,14 +322,54 @@ export async function runtimeCycleDriver(
       context.path(`${claim.run}/publication-result.json`),
     );
     const revision = command('git', ['rev-parse', 'HEAD']).trim();
+    // Deployment-only commits may follow publication without changing the image build.
+    // Preserve the pinned digests only when the published commit is an ancestor
+    // and all image source paths are unchanged between that commit and HEAD.
+    const sourcePaths = [
+      'apps',
+      'libs',
+      'container',
+      'tools/cloud-provision.ts',
+      'tools/cloud-cycle-bindings.ts',
+      'tools/build-containers.mjs',
+      'package.json',
+      'pnpm-lock.yaml',
+      'pnpm-workspace.yaml',
+      'tsconfig.base.json',
+      '.dockerignore',
+    ];
+    const publishedRevisionMatches = (() => {
+      if (
+        typeof p.revision !== 'string' ||
+        !/^[a-f0-9]{40}$/.test(p.revision) ||
+        !/^[a-f0-9]{40}$/.test(revision)
+      ) return false;
+      if (p.revision === revision) return true;
+      try {
+        return (
+          command('git', ['merge-base', p.revision, revision]).trim() ===
+            p.revision &&
+          !command('git', [
+            'diff',
+            '--name-only',
+            p.revision,
+            revision,
+            '--',
+            ...sourcePaths,
+          ]).trim()
+        );
+      } catch {
+        return false;
+      }
+    })();
     proof(
-      p.revision === revision &&
+      publishedRevisionMatches &&
         p.account === deployment.account &&
         p.region === deployment.region &&
         p.profile === deployment.profile &&
         p.stateUnchanged === true &&
         p.published?.length === 3,
-      'Fresh coherent current-HEAD image publication required',
+      'Coherent published image source revision required',
     );
     proof(
       !command('git', [
@@ -337,17 +377,7 @@ export async function runtimeCycleDriver(
         '--porcelain',
         '--untracked-files=all',
         '--',
-        'apps',
-        'libs',
-        'container',
-        'tools/cloud-provision.ts',
-        'tools/cloud-cycle-bindings.ts',
-        'tools/build-containers.mjs',
-        'package.json',
-        'pnpm-lock.yaml',
-        'pnpm-workspace.yaml',
-        'tsconfig.base.json',
-        '.dockerignore',
+        ...sourcePaths,
       ]).trim(),
       'Application/image sources changed since publication; commit and publish a coherent set first',
     );
