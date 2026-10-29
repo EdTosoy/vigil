@@ -979,16 +979,61 @@ test('post-create refresh validates normalizations without weakening drift guard
     (a) => { (a['ingress'] as unknown[]).push({ protocol: 'tcp', from_port: 22, to_port: 22, cidr_blocks: ['0.0.0.0/0'] }); },
   );
 
+  // Reproduce the live issued ACM certificate: AWS supplies both dates from
+  // previously empty strings while preserving the certificate's physical ID.
+  const cert = { id: 'cert-demo', status: 'PENDING_VALIDATION', not_before: '', not_after: '' };
+  check(
+    'aws_acm_certificate.demo', cert,
+    { ...cert, status: 'ISSUED',
+      not_before: '2026-10-29T00:00:00Z', not_after: '2027-05-14T23:59:59Z' },
+    [],
+    (a) => { a['not_after'] = 'not-a-date'; },
+  );
+
+  // Reproduce the actual nested route returned by AWS. Its destination field
+  // is `cidr_block`; standalone aws_route.internet uses `destination_cidr_block`.
   const table = { ...attribute('aws_route_table.public'), id: 'rtb-test-public' };
+  const gatewayId = 'igw-0d406926a25aa9d61';
+  const nestedRoute = {
+    cidr_block: '0.0.0.0/0', gateway_id: gatewayId,
+    carrier_gateway_id: '', core_network_arn: '', destination_prefix_list_id: '',
+    egress_only_gateway_id: '', ipv6_cidr_block: '', local_gateway_id: '',
+    nat_gateway_id: '', network_interface_id: '', odb_network_arn: '',
+    transit_gateway_id: '', vpc_endpoint_id: '', vpc_peering_connection_id: '',
+  };
+  const ownedRoute = [
+    { address: 'aws_route.internet', attributes: {
+      id: 'owned-route', route_table_id: table['id'],
+      destination_cidr_block: '0.0.0.0/0', gateway_id: gatewayId,
+    } },
+    { address: 'aws_internet_gateway.demo', attributes: { id: gatewayId } },
+  ];
   check(
     'aws_route_table.public', table,
-    { ...table, tags: {}, route: [{ destination_cidr_block: '0.0.0.0/0', gateway_id: 'igw-owned' }] },
-    [{ address: 'aws_route.internet', attributes: {
-      id: 'owned-route', route_table_id: table['id'],
-      destination_cidr_block: '0.0.0.0/0', gateway_id: 'igw-owned',
-    } }],
-    (a) => { (a['route'] as Record<string, unknown>[])[0]!['gateway_id'] = 'igw-foreign'; },
+    { ...table, tags: {}, route: [nestedRoute] },
+    ownedRoute,
+    (a) => { (a['route'] as Record<string, unknown>[])[0]!['gateway_id'] = 'igw-deadbeef'; },
   );
+  const routeDrift = {
+    address: 'aws_route_table.public',
+    change: { actions: ['update'], before: table,
+      after: { ...table, tags: {}, route: [nestedRoute] } },
+  };
+  for (const extra of [
+    { ...nestedRoute, cidr_block: '10.0.0.0/8' },
+    { ...nestedRoute, nat_gateway_id: 'nat-foreign' },
+    { ...nestedRoute, vpc_peering_connection_id: 'pcx-foreign' },
+  ]) {
+    const changed = structuredClone(routeDrift);
+    changed.change.after.route = [extra];
+    assert.equal(expectedCycleRefresh(changed, [
+      { address: 'aws_route_table.public', attributes: table }, ...ownedRoute,
+    ], 'provisioning'), false);
+  }
+  assert.equal(expectedCycleRefresh(routeDrift, [
+    { address: 'aws_route_table.public', attributes: table },
+    ownedRoute[0]!,
+  ], 'provisioning'), false, 'Unverified gateway identity must be rejected');
 });
 
 test('a provisioning receipt must bind the current RDS physical identity, state, source and distinct books', () => {
