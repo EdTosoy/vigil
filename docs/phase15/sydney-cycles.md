@@ -16,6 +16,8 @@ Activation verifies actual public ACM/application CNAMEs, ACM issuance, current 
 
 Teardown binds deletions to every actual allowed physical instance, including services, HTTPS, auth/SSM parameters and task definitions. Its review also binds owned one-shot task ARNs, which are stopped before infrastructure deletion. Completion requires empty state **and** absent actual runtime inventory. Persistent bootstrap resources are excluded from ephemeral-tag discovery and deletion. Backend policy files are unchanged. Inactive task revisions may remain as non-running metadata.
 
+ECS can retain resource tags after deletion. Discovery excludes a retained task-definition revision only when its exact account/region/family/ARN and authoritative `INACTIVE` status are verified. The exact `flow-demo` cluster is excluded only when `INACTIVE` with zero running tasks, pending tasks and services. Active, unknown, mismatched and foreign records continue to block launch; no retained metadata or state history is deleted.
+
 Failed/uncertain operations retain their claims and evidence. Forward stages stop. Cleanup can receive a new, separately reviewed deletion plan from current full state after partial work; no automatic retry occurs. Orphans, physical drift, tainted/deposed instances or unpersisted error state need explicit recovery review, never import/state push/unlock. Dedicated sandbox destination retirement and manual application DNS changes remain separate approved actions.
 
 ## Local preparation

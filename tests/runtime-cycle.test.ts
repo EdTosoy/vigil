@@ -26,6 +26,7 @@ import {
 } from '../tools/runtime-cycle';
 import {
   assertCycleStart,
+  retainedCycleEcsMetadata,
   assertCycleOperatorChecks,
   unverifiedBudgetAlertWarning,
   assertCycleState,
@@ -46,6 +47,56 @@ const images = Object.fromEntries(
     `${deployment.account}.dkr.ecr.${deployment.region}.amazonaws.com/flow-demo/${k}@sha256:${'a'.repeat(64)}`,
   ]),
 );
+
+test('retained ECS tags are excluded only for verified inactive metadata in the exact Sydney runtime', () => {
+  const prefix = `arn:aws:ecs:${deployment.region}:${deployment.account}:`;
+  const arn = prefix + 'task-definition/flow-demo-ops:1';
+  const task = {
+    taskDefinitionArn: arn,
+    family: 'flow-demo-ops',
+    status: 'INACTIVE',
+  };
+  assert(retainedCycleEcsMetadata(arn, task));
+  for (const patch of [
+    { status: 'ACTIVE' },
+    { status: 'DELETE_IN_PROGRESS' },
+    { status: undefined },
+    { family: 'other' },
+    { taskDefinitionArn: arn + '0' },
+  ])
+    assert(!retainedCycleEcsMetadata(arn, { ...task, ...patch }));
+  for (const foreign of [
+    arn.replace(deployment.account, '163596511125'),
+    arn.replace(deployment.region, 'us-east-1'),
+    prefix + 'task-definition/other:1',
+    prefix + 'task-definition/flow-demo-extra:1',
+  ])
+    assert(
+      !retainedCycleEcsMetadata(foreign, {
+        ...task,
+        taskDefinitionArn: foreign,
+      }),
+    );
+  const ca = prefix + 'cluster/flow-demo';
+  const cluster = {
+    clusterArn: ca,
+    status: 'INACTIVE',
+    runningTasksCount: 0,
+    pendingTasksCount: 0,
+    activeServicesCount: 0,
+  };
+  assert(retainedCycleEcsMetadata(ca, cluster));
+  for (const patch of [
+    { status: 'ACTIVE' },
+    { runningTasksCount: 1 },
+    { pendingTasksCount: 1 },
+    { activeServicesCount: 1 },
+    { runningTasksCount: undefined },
+    { clusterArn: ca + '-other' },
+  ])
+    assert(!retainedCycleEcsMetadata(ca, { ...cluster, ...patch }));
+  assert(!retainedCycleEcsMetadata(prefix + 'service/flow-demo', cluster));
+});
 
 test('UNKNOWN budget delivery requires explicit acknowledgement and preserves every operator cost gate', () => {
   const id = randomUUID(),

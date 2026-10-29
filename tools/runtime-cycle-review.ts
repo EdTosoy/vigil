@@ -12,6 +12,34 @@ import { stateInstances, type RecoveryState } from './runtime-recovery-review';
 export const unverifiedBudgetAlertWarning =
   'WARNING: AWS budget email delivery is UNKNOWN. AWS budget alerts do not cap spending. Monitor gross spend and complete manual teardown within four hours.';
 
+/** Deleted ECS objects retain tags/history. Only authoritative inactive metadata
+ * in this exact runtime scope may be excluded from live resource discovery. */
+export function retainedCycleEcsMetadata(
+  arn: string,
+  observed: Record<string, unknown>,
+) {
+  const prefix = `arn:aws:ecs:${deployment.region}:${deployment.account}:`;
+  const task =
+    /^task-definition\/(flow-demo-(?:ops|ingress|worker|admin|verify)):[1-9][0-9]*$/.exec(
+      arn.slice(prefix.length),
+    );
+  if (!arn.startsWith(prefix)) return false;
+  if (task)
+    return (
+      observed['taskDefinitionArn'] === arn &&
+      observed['family'] === task[1] &&
+      observed['status'] === 'INACTIVE'
+    );
+  return (
+    arn === prefix + 'cluster/flow-demo' &&
+    observed['clusterArn'] === arn &&
+    observed['status'] === 'INACTIVE' &&
+    observed['runningTasksCount'] === 0 &&
+    observed['pendingTasksCount'] === 0 &&
+    observed['activeServicesCount'] === 0
+  );
+}
+
 export function assertCycleOperatorChecks(
   approval: Record<string, unknown>,
   id: string,

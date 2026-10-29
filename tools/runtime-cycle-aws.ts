@@ -31,6 +31,7 @@ import {
 } from './runtime-cycle';
 import {
   cycleInstances,
+  retainedCycleEcsMetadata,
   assertCycleOperatorChecks,
   unverifiedBudgetAlertWarning,
   assertCycleImages,
@@ -289,7 +290,26 @@ export async function runtimeCycleDriver(
       'FAILED',
     ]).CertificateSummaryList ?? [])
       if (c.DomainName === deployment.domain) found.push(c.CertificateArn);
-    return [...new Set(found)].sort();
+    const retained = await Promise.all(
+      [...new Set(found)].map(async (arn) => {
+        const prefix = `arn:aws:ecs:${deployment.region}:${deployment.account}:`;
+        if (arn.startsWith(prefix + 'task-definition/flow-demo-')) {
+          const task = aws('ecs', 'describe-task-definition', [
+            '--task-definition',
+            arn,
+          ]).taskDefinition;
+          return retainedCycleEcsMetadata(arn, task ?? {}) ? null : arn;
+        }
+        if (arn === prefix + 'cluster/flow-demo') {
+          const observed = (cluster.clusters ?? []).find(
+            (c: { clusterArn: string }) => c.clusterArn === arn,
+          );
+          return retainedCycleEcsMetadata(arn, observed ?? {}) ? null : arn;
+        }
+        return arn;
+      }),
+    );
+    return retained.filter((arn): arn is string => arn !== null).sort();
   }
   async function images() {
     const claim = await privateCycleJson(path('image-publication.json'));
