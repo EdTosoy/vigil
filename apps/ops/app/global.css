@@ -13,6 +13,36 @@
   color-scheme: light;
 }
 
+.sign-in-page {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+}
+.sign-in-panel {
+  width: min(100%, 480px);
+}
+.sign-in-panel > img {
+  display: block;
+  margin-bottom: 20px;
+}
+.sign-in-panel label {
+  display: block;
+  margin-top: 16px;
+}
+.sign-in-panel input {
+  width: 100%;
+}
+.sign-in-panel button {
+  width: 100%;
+}
+.visitor-note {
+  margin-top: 24px;
+  padding: 16px;
+  background: var(--paper);
+  overflow-wrap: anywhere;
+}
+
 * {
   box-sizing: border-box;
 }

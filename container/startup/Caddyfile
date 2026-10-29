@@ -1,0 +1,19 @@
+{
+ email {$ACME_EMAIL}
+ servers {
+  protocols h1 h2
+ }
+}
+
+{$DOMAIN} {
+ @stripe path /webhooks/stripe
+ handle @stripe {
+  request_body {
+   max_size 1MB
+  }
+  reverse_proxy ingress:4242
+ }
+ handle {
+  reverse_proxy ops:3000
+ }
+}

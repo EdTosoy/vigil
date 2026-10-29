@@ -5,6 +5,7 @@ import {
   PostgresOperations,
   ReadUnavailable,
   type Operation,
+  type ReadResult,
 } from '@vigil/operations-read-postgres';
 import { navigation } from './navigation';
 import { PUBLIC_DEMO_BOOK, readPublicDemo } from './public-demo';
@@ -51,10 +52,22 @@ export async function read(
   book: string | null,
   filters: Record<string, string | undefined> = {},
 ) {
-  const result =
-    process.env['VIGIL_DEPLOYMENT_MODE'] === 'public-demo'
-      ? readPublicDemo(kind, book, filters)
-      : await reader().read(kind, book, filters);
+  let result: ReadResult;
+  if (process.env['VIGIL_DEPLOYMENT_MODE'] === 'public-demo') {
+    result = readPublicDemo(kind, book, filters);
+  } else {
+    const { authService, requirePrincipal } = await import('./auth');
+    const principal = await requirePrincipal();
+    const auth = await authService();
+    if (kind === 'books') {
+      // Enumerate only granted metadata; never fetch the unrestricted book list.
+      result = await auth.books(principal, filters);
+    } else {
+      if (!(await auth.canRead(principal, book)))
+        throw new ReadUnavailable('NOT_FOUND');
+      result = await reader().read(kind, book, filters);
+    }
+  }
   telemetry.observedModel(kind, result);
   return result;
 }

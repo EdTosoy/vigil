@@ -234,7 +234,7 @@ test('proxy returns plain public 404s without Basic challenges and keeps framewo
   }
 });
 
-test('AWS demo proxy retains Basic challenges and authorized access, including metrics', () => {
+test('database-backed deployment replaces Basic Auth with the sign-in flow', () => {
   const names = [
     'VIGIL_DEPLOYMENT_MODE',
     'VIGIL_DEMO_USERNAME',
@@ -247,8 +247,12 @@ test('AWS demo proxy retains Basic challenges and authorized access, including m
     process.env['VIGIL_DEMO_PASSWORD'] = 'x'.repeat(48);
     for (const path of ['/', '/metrics', '/private']) {
       const denied = proxy(new NextRequest(`https://demo.invalid${path}`));
-      assert.equal(denied.status, 401);
-      assert.match(denied.headers.get('www-authenticate')!, /^Basic /);
+      assert.equal(denied.status, 307);
+      assert.equal(denied.headers.get('www-authenticate'), null);
+      assert.equal(
+        denied.headers.get('location'),
+        'https://demo.invalid/sign-in',
+      );
       const allowed = proxy(
         new NextRequest(`https://demo.invalid${path}`, {
           headers: {
@@ -258,7 +262,11 @@ test('AWS demo proxy retains Basic challenges and authorized access, including m
           },
         }),
       );
-      assert.equal(allowed.status, 200);
+      assert.equal(
+        allowed.status,
+        307,
+        'Old shared Basic credentials cannot bypass human login',
+      );
     }
   } finally {
     names.forEach((name, i) => {

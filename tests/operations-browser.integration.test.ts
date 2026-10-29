@@ -26,6 +26,8 @@ import { verifyNavigation } from './helpers/operations-navigation';
 import { verifyOverview } from './helpers/operations-overview';
 import { verifyAccessibility } from './helpers/operations-accessibility';
 import { verifyEvidence } from './helpers/operations-evidence';
+import { authPool } from '../apps/ops/server/auth-service';
+import { seedAccount } from '../apps/ops/server/seed-account';
 const exec = promisify(execFile);
 const keys: Record<keyof DemoPools, string> = {
   admin: 'ADMIN',
@@ -77,6 +79,15 @@ test(
     const dir = await mkdtemp(join(tmpdir(), 'vigil-ops-public-'));
     let child: ChildProcess | undefined;
     let browser: Awaited<ReturnType<typeof chromium.launch>> | undefined;
+    const authSeed = authPool(
+      process.env['VIGIL_TEST_ADMIN_URL']!.replace(
+        'flow_test_admin@',
+        'flow_test_auth_seed@',
+      ),
+    );
+    let authUser: string;
+    const authPassword = randomUUID();
+    const authEmail = 'browser-' + randomUUID() + '@vigil.example';
     const serverLogs: Record<string, unknown>[] = [];
     const memory: Record<string, unknown>[] = [];
     let pendingLog = '';
@@ -171,6 +182,13 @@ test(
         })),
       };
       const demo = await seedDemo(p, inputs, 'phase12-browser-benchmark', 12);
+      authUser = await seedAccount(authSeed, {
+        email: authEmail,
+        password: authPassword,
+        name: 'Browser operator',
+        role: 'Admin',
+        books: [demo.bookId],
+      });
       const dataset = (
         await p.admin.query(
           'SELECT count(*)::integer AS receipts,count(DISTINCT r.revision_id)::integer AS revisions FROM ingestion.raw_record r JOIN ingestion.batch b ON b.id=r.batch_id JOIN ingestion.source_account s ON s.id=b.source_account_id WHERE s.book_id=$1',
@@ -284,6 +302,13 @@ test(
             OPS_SLOW_READ_MS: '500',
             OPS_BOOK_ID: demo.bookId,
             DATABASE_OPERATIONS_URL: process.env['VIGIL_TEST_OPERATIONS_URL'],
+            VIGIL_DEPLOYMENT_MODE: 'application',
+            DATABASE_AUTH_URL: process.env['VIGIL_TEST_ADMIN_URL']!.replace(
+              'flow_test_admin@',
+              'flow_test_auth@',
+            ),
+            BETTER_AUTH_URL: base,
+            BETTER_AUTH_SECRET: randomUUID() + randomUUID(),
             NEXT_TELEMETRY_DISABLED: '1',
           },
           stdio: ['ignore', 'pipe', 'pipe'],
@@ -346,6 +371,11 @@ test(
       const page = await browser.newPage({
         viewport: { width: 1440, height: 1000 },
       });
+      await page.goto(base + '/sign-in');
+      await page.getByLabel('Email', { exact: true }).fill(authEmail);
+      await page.getByLabel('Password', { exact: true }).fill(authPassword);
+      await page.getByRole('button', { name: 'Sign in', exact: true }).click();
+      await page.waitForURL(base + '/');
       const errors: string[] = [];
       page.on('pageerror', (e) => errors.push(e.name));
       page.on('console', (m) => {
@@ -554,6 +584,10 @@ test(
         "INSERT INTO ledger.book(id,code,environment) VALUES($1,$2,'synthetic')",
         [empty, 'empty-browser-' + empty],
       );
+      await p.admin.query('INSERT INTO app_auth.book_grant VALUES($1,$2)', [
+        authUser,
+        empty,
+      ]);
       await page.goto(base + '/?book=' + empty);
       assert(
         (await page.getByText('Assurance: UNKNOWN', { exact: false }).count()) >
@@ -657,8 +691,8 @@ test(
       ).rows[0];
       assert(connections.total <= 4);
       assert.equal(connections.stranded, 0);
-      const metricsResponse = await fetch(base + '/metrics');
-      assert.equal(metricsResponse.status, 200);
+      const metricsResponse = await page.request.get(base + '/metrics');
+      assert.equal(metricsResponse.status(), 200);
       const metrics = await metricsResponse.text();
       assert(metrics.includes('flow_read_duration_seconds_bucket'));
       assert(
@@ -768,6 +802,7 @@ test(
     } finally {
       await browser?.close();
       if (child) await stop(child);
+      await authSeed.end();
       await rm(dir, { recursive: true, force: true });
     }
   },

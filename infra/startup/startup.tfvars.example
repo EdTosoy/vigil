@@ -1,0 +1,11 @@
+# Public configuration only. Do not put database/user/Stripe secrets in Terraform.
+ami_id           = "ami-REPLACE_WITH_REVIEWED_UBUNTU_24_04_ARM64_AMI"
+vpc_id           = "vpc-REPLACE_WITH_EXISTING_SYDNEY_VPC"
+public_subnet_id = "subnet-REPLACE_WITH_PUBLIC_SUBNET"
+domain           = "vigil.edtosoy.com"
+acme_email       = "REPLACE@example.com"
+images = {
+  ops    = "747240980964.dkr.ecr.ap-southeast-2.amazonaws.com/flow-demo/ops@sha256:REPLACE_WITH_ARM64_DIGEST"
+  stripe = "747240980964.dkr.ecr.ap-southeast-2.amazonaws.com/flow-demo/stripe@sha256:REPLACE_WITH_ARM64_DIGEST"
+  admin  = "747240980964.dkr.ecr.ap-southeast-2.amazonaws.com/flow-demo/admin@sha256:REPLACE_WITH_ARM64_DIGEST"
+}

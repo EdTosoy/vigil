@@ -2,6 +2,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import type { ReactNode } from 'react';
 import { url } from './common';
+import { SignOut } from './sign-out';
 const sections = [
   'overview',
   'reconciliation',
@@ -76,6 +77,7 @@ export function Shell({
           <span className="readonly">
             {publicDemo ? 'SYNTHETIC DEMO · READ ONLY' : 'READ ONLY'}
           </span>
+          {!publicDemo && <SignOut />}
         </header>
         <main id="main" tabIndex={-1}>
           {publicDemo && (

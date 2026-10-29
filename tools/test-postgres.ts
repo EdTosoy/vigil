@@ -821,12 +821,16 @@ async function main(): Promise<void> {
     );
     const requested = process.argv.slice(2);
     await admin.query(
+      'CREATE ROLE flow_test_auth LOGIN IN ROLE flow_auth_runtime; CREATE ROLE flow_test_auth_seed LOGIN IN ROLE flow_auth_seeder',
+    );
+    await admin.query(
       'CREATE ROLE flow_test_stripe_ingress LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS IN ROLE flow_stripe_ingress',
     );
     await admin.query(
       'CREATE ROLE flow_test_stripe_worker LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS IN ROLE flow_stripe_worker',
     );
     const files = [
+      'tests/auth.integration.test.ts',
       'tests/stripe.integration.test.ts',
       'tests/operations.integration.test.ts',
       'tests/operations-browser.integration.test.ts',
@@ -862,6 +866,7 @@ async function main(): Promise<void> {
         [
           '--import',
           'tsx',
+          '--conditions=react-server',
           '--test',
           '--test-concurrency=1',
           ...(requested.length ? requested : files),
