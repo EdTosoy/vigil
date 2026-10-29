@@ -498,7 +498,7 @@ export function runtimeInputStore(repository: string) {
     },
   };
 }
-async function hiddenInput(): Promise<string> {
+export async function hiddenInput(): Promise<string> {
   check(
     process.stdin.isTTY && process.stdout.isTTY,
     'Hidden local entry requires an interactive terminal; no secret arguments or redirected input',

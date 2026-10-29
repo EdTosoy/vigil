@@ -7,6 +7,7 @@ for (const [name, entry] of Object.entries({
   ingress: 'apps/integrations/src/main.ts',
   worker: 'tools/stripe-worker.ts',
   provision: 'tools/cloud-provision.ts',
+  cycleBindings: 'tools/cloud-cycle-bindings.ts',
   backfill: 'tools/stripe-backfill.ts',
   verify: 'tools/stripe-verify-sandbox.ts',
   proof: 'tools/cloud-stripe-proof.ts',

@@ -72,11 +72,11 @@ External proof covers capture/fee evidence. Refund, dispute and payout scope is 
 
 ## Cloud deployment
 
-Terraform separates persistent bootstrap (versioned S3 state with native S3 locking, ECR, delegated Route 53 zone and budget) from disposable runtime (ECS Fargate, ALB/ACM, private Single-AZ RDS PostgreSQL, SSM SecureString, scoped IAM and short-retention CloudWatch logs).
+The current Sydney target is account `747240980964`, profile `edtosoy`, region `ap-southeast-2`. Persistent foundations are versioned S3 state with native locking and immutable ECR images. The ephemeral runtime remains ECS Fargate, ALB/ACM, private Single-AZ RDS PostgreSQL, SSM SecureString, scoped IAM and short-retention CloudWatch logs. There is **no NAT Gateway**: public task IPs support outbound access while security groups restrict application/database ingress.
 
-Cloudflare remains authoritative for the parent domain; one-time NS delegation lets Route 53 manage `flow.edtosoy.com`. There is **no NAT Gateway**: tasks use public IPs for outbound access, while security groups allow application ingress only from the ALB and database ingress only from authorized tasks. A $10/month budget provides alerts, not a spending cap.
+Sydney uses manual Cloudflare DNS for `vigil.edtosoy.com` and an externally owned $5/month gross account budget, which provides alerts rather than a spending cap. The Route 53 delegation, `flow.edtosoy.com` and $10 budget in the original Phase 15 report describe the historical US East deployment.
 
-The lifecycle is bootstrap → confirm DNS delegation → build/push pinned images → apply → migrate/provision → demonstrate/verify → destroy. Detailed commands and manual checkpoints stay in the [deployment runbook](docs/phase15/README.md); reproducing the demonstration creates billable AWS resources.
+Start with the [Sydney audit](docs/phase15/sydney-redeployment.md) and [attended cycle runbook](docs/phase15/sydney-cycles.md). A separate locally implemented path supports fresh inputs, current-resource provisioning, application authentication, staged activation and complete runtime teardown over retained versioned state. Original first-use guards remain intact. Current images and cloud execution still need separate approval and hosted verification; reproducing the demonstration creates billable resources. The single-host startup proposal remains a separate locally prepared alternative.
 
 ## Design philosophy
 
