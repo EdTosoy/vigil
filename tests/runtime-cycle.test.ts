@@ -1026,7 +1026,7 @@ test('post-create refresh validates normalizations without weakening drift guard
   ] as const) {
     const attempt = structuredClone(plan);
     mutate(attempt.resource_drift!.find((r) => r.address === address)!.change.after!);
-    assert.throws(() => assertCyclePlan(attempt, snapshot, 'provisioning'), undefined, name);
+    assert.throws(() => assertCyclePlan(attempt, snapshot, 'provisioning'), name);
   }
 
   // Exercise independently managed child mirrors directly. The real state

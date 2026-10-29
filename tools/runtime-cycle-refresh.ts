@@ -200,8 +200,8 @@ export function expectedCycleRefresh(
           !Number.isFinite(Date.parse(notBefore)) ||
           !Number.isFinite(Date.parse(notAfter)) ||
           Date.parse(notAfter) <= Date.parse(notBefore) ||
-          ![null, undefined, ''].includes(before['not_before']) ||
-          ![null, undefined, ''].includes(before['not_after'])) return false;
+          ![null, undefined, ''].some((value) => value === before['not_before']) ||
+          ![null, undefined, ''].some((value) => value === before['not_after'])) return false;
     }
     before['status'] = after['status'];
     if ('not_before' in after) before['not_before'] = after['not_before'];
