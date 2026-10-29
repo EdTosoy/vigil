@@ -26,6 +26,8 @@ import {
 } from '../tools/runtime-cycle';
 import {
   assertCycleStart,
+  assertCycleOperatorChecks,
+  unverifiedBudgetAlertWarning,
   assertCycleState,
   assertCyclePlan,
   assertCycleBindings,
@@ -44,6 +46,93 @@ const images = Object.fromEntries(
     `${deployment.account}.dkr.ecr.${deployment.region}.amazonaws.com/flow-demo/${k}@sha256:${'a'.repeat(64)}`,
   ]),
 );
+
+test('UNKNOWN budget delivery requires explicit acknowledgement and preserves every operator cost gate', () => {
+  const id = randomUUID(),
+    now = Date.now();
+  const approval = {
+    cycle: id,
+    observedAt: new Date(now).toISOString(),
+    budgetAlertDeliveryStatus: 'UNKNOWN',
+    budgetAlertDeliveryConfirmed: false,
+    unverifiedBudgetAlertDeliveryAcknowledged: true,
+    accountWideSpendReviewed: true,
+    fourHourCleanupWindowConfirmed: true,
+  };
+  assert.equal(assertCycleOperatorChecks(approval, id, now), 'UNKNOWN');
+  for (const patch of [
+    { unverifiedBudgetAlertDeliveryAcknowledged: false },
+    { unverifiedBudgetAlertDeliveryAcknowledged: 'true' },
+    { budgetAlertDeliveryStatus: undefined },
+    { budgetAlertDeliveryStatus: 'FAILED' },
+    { budgetAlertDeliveryConfirmed: true },
+    { accountWideSpendReviewed: false },
+    { fourHourCleanupWindowConfirmed: false },
+    { observedAt: new Date(now - 900001).toISOString() },
+    { observedAt: new Date(now + 1).toISOString() },
+    { observedAt: 'invalid' },
+    { cycle: randomUUID() },
+  ])
+    assert.throws(() =>
+      assertCycleOperatorChecks({ ...approval, ...patch }, id, now),
+    );
+  assert.equal(
+    assertCycleOperatorChecks(
+      {
+        ...approval,
+        budgetAlertDeliveryStatus: 'CONFIRMED',
+        budgetAlertDeliveryConfirmed: true,
+        unverifiedBudgetAlertDeliveryAcknowledged: false,
+      },
+      id,
+      now,
+    ),
+    'CONFIRMED',
+  );
+  assert.equal(
+    assertCycleOperatorChecks(
+      {
+        cycle: id,
+        observedAt: approval.observedAt,
+        budgetAlertDeliveryConfirmed: true,
+        accountWideSpendReviewed: true,
+        fourHourCleanupWindowConfirmed: true,
+      },
+      id,
+      now,
+    ),
+    'CONFIRMED',
+  );
+  assert.match(unverifiedBudgetAlertWarning, /UNKNOWN/);
+  assert.match(unverifiedBudgetAlertWarning, /do not cap spending/);
+  assert.match(unverifiedBudgetAlertWarning, /four hours/);
+});
+
+test('operator CLI requires a deliberate delivery choice plus spend and four-hour acknowledgements', () => {
+  const id = randomUUID();
+  const args = [
+    'operator-checks',
+    id,
+    '--acknowledge-unverified-budget-alert-delivery',
+    '--account-spend-reviewed',
+    '--cleanup-window-confirmed',
+  ];
+  const command = runtimeCycleCommand(args);
+  assert.equal(command.operation, 'operator-checks');
+  if (command.operation === 'operator-checks')
+    assert.equal(command.deliveryStatus, 'UNKNOWN');
+  for (const bad of [
+    args.slice(0, -1),
+    [...args, '--budget-alert-delivery-confirmed'],
+    args.map((x) => (x === '--cleanup-window-confirmed' ? '--continuous' : x)),
+    args.map((x) =>
+      x === '--acknowledge-unverified-budget-alert-delivery'
+        ? '--skip-alerts'
+        : x,
+    ),
+  ])
+    assert.throws(() => runtimeCycleCommand(bad));
+});
 const taskArn = `arn:aws:ecs:${deployment.region}:${deployment.account}:task/flow-demo/${'a'.repeat(32)}`;
 const tags = {
   Project: 'vigil',

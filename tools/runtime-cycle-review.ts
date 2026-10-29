@@ -9,6 +9,39 @@ import { initialRuntimeAddresses } from './runtime-plan';
 import { releaseProof as proof } from './runtime-apply-review';
 import { stateInstances, type RecoveryState } from './runtime-recovery-review';
 
+export const unverifiedBudgetAlertWarning =
+  'WARNING: AWS budget email delivery is UNKNOWN. AWS budget alerts do not cap spending. Monitor gross spend and complete manual teardown within four hours.';
+
+export function assertCycleOperatorChecks(
+  approval: Record<string, unknown>,
+  id: string,
+  now = Date.now(),
+) {
+  const age = now - Date.parse(String(approval['observedAt']));
+  const status =
+    approval['budgetAlertDeliveryStatus'] ??
+    (approval['budgetAlertDeliveryConfirmed'] === true
+      ? 'CONFIRMED'
+      : undefined);
+  const deliveryAccepted =
+    status === 'CONFIRMED'
+      ? approval['budgetAlertDeliveryConfirmed'] === true
+      : status === 'UNKNOWN' &&
+        approval['budgetAlertDeliveryConfirmed'] !== true &&
+        approval['unverifiedBudgetAlertDeliveryAcknowledged'] === true;
+  proof(
+    approval['cycle'] === id &&
+      Number.isFinite(age) &&
+      age >= 0 &&
+      age <= 900000 &&
+      deliveryAccepted &&
+      approval['accountWideSpendReviewed'] === true &&
+      approval['fourHourCleanupWindowConfirmed'] === true,
+    'Fresh operator alert-delivery status/acknowledgement, spend review and four-hour cleanup checks required',
+  );
+  return status as 'CONFIRMED' | 'UNKNOWN';
+}
+
 export type CycleStage =
   'infrastructure' | 'provisioning' | 'https' | 'active' | 'teardown';
 export const cycleStages: CycleStage[] = [

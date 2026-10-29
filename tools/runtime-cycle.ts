@@ -27,6 +27,7 @@ import { sandboxKey } from '@vigil/stripe-integration';
 import { hiddenInput } from './runtime-inputs';
 import {
   cycleId,
+  unverifiedBudgetAlertWarning,
   cycleUuid,
   cycleTarget,
   cycleCapabilities,
@@ -941,12 +942,22 @@ export function runtimeCycleCommand(args: string[]) {
   if (
     args.length === 5 &&
     args[0] === 'operator-checks' &&
-    args[2] === '--budget-alert-delivery-confirmed' &&
+    [
+      '--budget-alert-delivery-confirmed',
+      '--acknowledge-unverified-budget-alert-delivery',
+    ].includes(args[2]!) &&
     args[3] === '--account-spend-reviewed' &&
     args[4] === '--cleanup-window-confirmed'
   ) {
     cycleId(args[1]!);
-    return { operation: 'operator-checks' as const, id: args[1]! };
+    return {
+      operation: 'operator-checks' as const,
+      id: args[1]!,
+      deliveryStatus:
+        args[2] === '--budget-alert-delivery-confirmed'
+          ? ('CONFIRMED' as const)
+          : ('UNKNOWN' as const),
+    };
   }
   if (args[0] === 'set' && args.length === 3) {
     cycleId(args[1]!);
@@ -1026,14 +1037,20 @@ async function main() {
     await save(temporary, {
       cycle: command.id,
       observedAt: new Date().toISOString(),
-      budgetAlertDeliveryConfirmed: true,
+      budgetAlertDeliveryStatus: command.deliveryStatus,
+      budgetAlertDeliveryConfirmed: command.deliveryStatus === 'CONFIRMED',
+      unverifiedBudgetAlertDeliveryAcknowledged:
+        command.deliveryStatus === 'UNKNOWN',
       accountWideSpendReviewed: true,
       fourHourCleanupWindowConfirmed: true,
     });
     await rename(temporary, store.path('operator-checks.json'));
+    if (command.deliveryStatus === 'UNKNOWN')
+      console.warn(unverifiedBudgetAlertWarning);
     return {
       cycle: command.id,
       operatorAssertionsRecorded: true,
+      budgetAlertDeliveryStatus: command.deliveryStatus,
       cloudAuthorization: 'NOT_GRANTED',
     };
   }
