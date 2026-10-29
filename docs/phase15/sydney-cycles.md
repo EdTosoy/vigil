@@ -40,6 +40,15 @@ pnpm aws:runtime:cycle operator-checks "$VIGIL_CYCLE" \
 
 These assertions expire after fifteen minutes and grant no cloud authority. The driver independently checks STS, Free Plan/credits, the gross USD 5 budget, versioned Sydney bucket and exact State-role policies. New resource work stops at T+3h; target completed removal by T+4h. Cleanup bypasses budget-window/headroom requirements so expired credits do not prevent approved deletion.
 
+If email delivery is unverified, record it honestly as **UNKNOWN** with an explicit acknowledgement instead of the confirmed-delivery flag:
+
+```sh
+pnpm aws:runtime:cycle operator-checks "$VIGIL_CYCLE" \
+  --acknowledge-unverified-budget-alert-delivery --account-spend-reviewed --cleanup-window-confirmed
+```
+
+This records delivery as UNKNOWN, not confirmed, and emits a warning both when recorded and at non-cleanup cloud readiness checks: **AWS budget alerts do not cap spending.** Monitor gross spending and complete manual teardown within four hours. Missing acknowledgement, stale assertions, absent spend review or absent cleanup confirmation still block launch. The USD 5 budget/notifications, Free Plan/credit checks and runtime limits remain unchanged. This does not authorize cloud execution or continuous hosting.
+
 ## Future execution — not authorized or run here
 
 Every command below needs separate explicit authorization for its effects. `--cloud-approved` is an operator gate, not approval or a security credential. Locked plans include remote init and lock writes/deletes. Each apply requires separate review of the actual saved plan and its **new** `run:sha256`; never reuse a historical or earlier-stage review. Do not invoke Terraform in source roots.

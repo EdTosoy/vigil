@@ -31,6 +31,8 @@ import {
 } from './runtime-cycle';
 import {
   cycleInstances,
+  assertCycleOperatorChecks,
+  unverifiedBudgetAlertWarning,
   assertCycleImages,
   type CycleState,
   type CycleBindings,
@@ -720,16 +722,8 @@ export async function runtimeCycleDriver(
           billing_view_arn: b.BillingViewArn,
         });
         const approval = await privateCycleJson(path('operator-checks.json'));
-        const age = Date.now() - Date.parse(approval.observedAt);
-        proof(
-          approval.cycle === id &&
-            age >= 0 &&
-            age <= 900000 &&
-            approval.budgetAlertDeliveryConfirmed === true &&
-            approval.accountWideSpendReviewed === true &&
-            approval.fourHourCleanupWindowConfirmed === true,
-          'Fresh operator budget-delivery/spend/attended cleanup checks required',
-        );
+        if (assertCycleOperatorChecks(approval, id) === 'UNKNOWN')
+          console.warn(unverifiedBudgetAlertWarning);
       }
     },
     snapshot,
