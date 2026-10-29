@@ -343,7 +343,8 @@ export async function runtimeCycleDriver(
         typeof p.revision !== 'string' ||
         !/^[a-f0-9]{40}$/.test(p.revision) ||
         !/^[a-f0-9]{40}$/.test(revision)
-      ) return false;
+      )
+        return false;
       if (p.revision === revision) return true;
       try {
         return (
@@ -386,7 +387,7 @@ export async function runtimeCycleDriver(
       proof(
         i.verified === true &&
           i.smokePassed === true &&
-          i.revision === revision &&
+          i.revision === p.revision &&
           i.architecture === 'amd64' &&
           i.os === 'linux' &&
           i.user === 'node' &&
