@@ -2,6 +2,8 @@
 
 Read root instructions, Phase 15 documentation and ADR-018 before changes.
 
+The separate repeat-cycle executor is locally implemented under ADR-021; read `docs/phase15/sydney-cycles.md`. This task authorizes local implementation and verification only. Its cloud flag grants no authority. Future locked plans, exact saved-plan applies, one-shot tasks, sandbox destination creation/retirement and teardown need separate explicit authorization. Preserve historical first-use guards, old claims and state versions. Current-HEAD ECS sources use application auth with narrow SSM references and owner-free verification; never substitute historical images or public snapshot mode. Backend State-role permissions remain unchanged.
+
 `infra/startup` is a separate, locally prepared single-host proposal; read [its runbook](../docs/phase15/startup.md) and ADR-020. The user authorized local completion/verification only. `pnpm aws:startup:validate:offline` may copy allowlisted sources into a new private temporary directory, initialize with `-backend=false` and run validation/mocked plan-only tests without AWS credentials. Never run Terraform in the startup source directory, initialize its remote backend, publish images or provision/change cloud resources under this local authorization. Existing demo/bootstrap gates below remain unchanged.
 
 - Historical Phase 15 evidence used `iamadmin-general`, account `163596511125`, region `us-east-1`; its state/resources are foreign to the Sydney preparation. Never use them as fallback or migrate/copy their state.

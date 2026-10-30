@@ -2,7 +2,7 @@ locals {
   workloads = {
     ops = {
       image = var.images["ops"], command = ["node", "apps/ops/server.js"], port = 3000, memory = 1024, parameters = {
-        DATABASE_OPERATIONS_URL = "operations_url", FLOW_DEMO_USERNAME = "demo_username", FLOW_DEMO_PASSWORD = "demo_password"
+        DATABASE_OPERATIONS_URL = "operations_url", DATABASE_AUTH_URL = "auth_url", BETTER_AUTH_SECRET = "auth_secret"
       }
     }
     ingress = {
@@ -17,12 +17,12 @@ locals {
     }
     admin = {
       image = var.images["admin"], command = ["node", "tools/provision.cjs"], port = 0, memory = 1024, parameters = {
-        DATABASE_ADMIN_URL = "admin_url", FLOW_PROVISIONING_CONFIG = "provisioning"
+        DATABASE_ADMIN_URL = "admin_url", FLOW_PROVISIONING_CONFIG = "provisioning", VIGIL_ADMIN_EMAIL = "admin_email", VIGIL_SEED_PASSWORD = "seed_password"
       }
     }
     verify = {
       image = var.images["admin"], command = ["node", "tools/verify.cjs"], port = 0, memory = 512, parameters = {
-        STRIPE_SECRET_KEY = "stripe_key", STRIPE_INGRESS_DATABASE_URL = "ingress_url", STRIPE_WORKER_DATABASE_URL = "stripeworker_url"
+        STRIPE_SECRET_KEY = "stripe_key", STRIPE_INGRESS_DATABASE_URL = "ingress_url", STRIPE_WORKER_DATABASE_URL = "stripeworker_url", DATABASE_AUTH_URL = "auth_url", VIGIL_ADMIN_EMAIL = "admin_email"
       }
     }
 
@@ -95,6 +95,15 @@ resource "aws_ecs_task_definition" "app" {
       containerPort = each.value.port, protocol = "tcp"
     }],
     environment = [
+      {
+        name = "VIGIL_DEPLOYMENT_MODE", value = "demo"
+      },
+      {
+        name = "BETTER_AUTH_URL", value = "https://${var.hostname}"
+      },
+      {
+        name = "VIGIL_APPLICATION_AUTH", value = "true"
+      },
       {
         name = "FLOW_DEPLOYMENT_MODE", value = "demo"
         }, {

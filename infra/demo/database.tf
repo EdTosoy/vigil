@@ -41,7 +41,7 @@ resource "aws_db_instance" "demo" {
   ca_cert_identifier           = "rds-ca-rsa2048-g1"
 }
 locals {
-  runtime_parameter_names = toset(["admin_url", "provisioning", "stripe_key", "webhook_secrets", "demo_username", "demo_password", "operations_url", "ingress_url", "stripeworker_url"])
+  runtime_parameter_names = toset(["admin_url", "provisioning", "stripe_key", "webhook_secrets", "operations_url", "ingress_url", "stripeworker_url", "auth_url", "auth_secret", "admin_email", "seed_password"])
   # Exact future references are safe to register before values exist. Tasks must
   # not be launched until their actual SSM parameters and DB bindings are ready.
   runtime_parameter_arns  = { for name in local.runtime_parameter_names : name => "arn:aws:ssm:${var.aws_region}:${var.aws_account_id}:parameter/flow/demo/${name}" }
@@ -49,7 +49,7 @@ locals {
   runtime_values = {
     for name in local.planned_parameter_names : name => (
       name == "admin_url" ? "postgresql://flow_admin:${var.secrets["admin_password"]}@${aws_db_instance.demo.address}:5432/flow?sslmode=verify-full" :
-      contains(["operations_url", "ingress_url", "stripeworker_url"], name) ? "postgresql://flow_demo_${trimsuffix(name, "_url")}:${var.secrets["${trimsuffix(name, "_url")}_password"]}@${aws_db_instance.demo.address}:5432/flow?sslmode=verify-full" :
+      contains(["operations_url", "ingress_url", "stripeworker_url", "auth_url"], name) ? "postgresql://flow_demo_${trimsuffix(name, "_url")}:${var.secrets["${trimsuffix(name, "_url")}_password"]}@${aws_db_instance.demo.address}:5432/flow?sslmode=verify-full" :
       var.secrets[name]
     )
   }

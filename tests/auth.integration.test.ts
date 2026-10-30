@@ -14,6 +14,8 @@ import {
 } from '../apps/ops/server/auth-service';
 import { seedAccount } from '../apps/ops/server/seed-account';
 import { visitor } from '../apps/ops/visitor';
+import { PostgresIngestion } from '@vigil/ingestion-postgres';
+import { verifyCycleBindings } from '../tools/cloud-cycle-bindings';
 
 const adminURL = process.env['VIGIL_TEST_ADMIN_URL'];
 if (!adminURL)
@@ -76,6 +78,72 @@ before(async () => {
 });
 after(async () => {
   await Promise.all([admin, runtime, seed].map((p) => p.end()));
+});
+
+test('deployment binding verification uses current source and exact Admin/Viewer grants with owner-free logins', async () => {
+  const email = `cycle-${randomUUID()}@example.test`;
+  const loginName = 'flow_cycle_worker_' + randomUUID().replaceAll('-', '');
+  const accountId = 'acct_cycle_demo';
+  const sourceAccountId = await new PostgresIngestion(admin).registerSource({
+    bookId: books[2]!,
+    environment: 'test',
+    provider: 'stripe',
+    externalAccountId: accountId,
+  });
+  await admin.query(
+    `CREATE ROLE ${loginName} LOGIN IN ROLE flow_stripe_worker`,
+  );
+  await admin.query("SELECT stripe.configure($1,$2,$3,'worker')", [
+    sourceAccountId,
+    accountId,
+    loginName,
+  ]);
+  await seedAccount(seed, {
+    email,
+    name: 'Deployment administrator',
+    password: randomUUID() + randomUUID(),
+    role: 'Admin',
+    books: [books[0]!, books[2]!],
+  });
+  const worker = new Pool({
+    connectionString: adminURL.replace('flow_test_admin@', loginName + '@'),
+  });
+  const input = {
+    stripeBookId: books[2]!,
+    syntheticBookId: books[0]!,
+    sourceAccountId,
+    accountId,
+  };
+  try {
+    await verifyCycleBindings(worker, runtime, input, email);
+    await assert.rejects(
+      verifyCycleBindings(
+        worker,
+        runtime,
+        { ...input, sourceAccountId: randomUUID() },
+        email,
+      ),
+      /source binding not proven/,
+    );
+    await assert.rejects(
+      verifyCycleBindings(
+        worker,
+        runtime,
+        { ...input, syntheticBookId: books[1]! },
+        email,
+      ),
+      /book grants not proven/,
+    );
+    await assert.rejects(
+      verifyCycleBindings(worker, admin, input, email),
+      /Unsafe auth/,
+    );
+    await assert.rejects(worker.query('DELETE FROM ledger.book WHERE false'), {
+      code: '42501',
+    });
+  } finally {
+    await worker.end();
+  }
 });
 
 test('scoped auth credentials cannot read financial tables or change grants; owner/read/seed credentials are refused', async () => {
@@ -316,6 +384,8 @@ test(
             DATABASE_ADMIN_URL: '',
             DATABASE_AUTH_SEED_URL: '',
             VIGIL_DEPLOYMENT_MODE: 'application',
+            // Do not inherit an operator's prior deployment book from .env.local.
+            OPS_BOOK_ID: '',
             DATABASE_AUTH_URL: runtimeURL,
             DATABASE_OPERATIONS_URL: process.env['VIGIL_TEST_OPERATIONS_URL'],
             BETTER_AUTH_URL: base,

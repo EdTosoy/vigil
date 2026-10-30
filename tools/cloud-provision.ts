@@ -210,6 +210,7 @@ async function main(): Promise<void> {
         stripeBookId: config.bookId,
         sourceAccountId,
         syntheticBookId: demo.bookId,
+        applicationAuth: applicationAuth ? 'PASS' : 'NOT_CONFIGURED',
         assurance: demo.assurance,
         bank: 'synthetic only',
       }),

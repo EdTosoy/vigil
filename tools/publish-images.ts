@@ -187,13 +187,23 @@ export function assertPublishedManifest(
 export async function publishImages(
   repository: string,
   inherited = process.env,
+  cycle?: string,
 ) {
+  check(
+    cycle === undefined ||
+      /^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/.test(cycle),
+    'Exact publication cycle UUID required',
+  );
   assertDeploymentEnvironment(inherited);
   check(
     !Object.keys(inherited).some((k) => /^(DOCKER_|BUILDX_)/.test(k)),
     'Inherited Docker endpoint/config overrides refused',
   );
   const context = deploymentContext(repository, 'demo');
+  if (cycle) {
+    const { runtimeCycleStore } = await import('./runtime-cycle.js');
+    await runtimeCycleStore(repository, cycle).load();
+  }
   const boot = deploymentContext(repository, 'bootstrap');
   const calls: object[] = [];
   const env = {
@@ -295,7 +305,9 @@ export async function publishImages(
     );
   }
   const stateBefore = await stateSnapshot();
-  const claim = context.path('d3a-publication.json');
+  const claim = context.path(
+    cycle ? `cycles/${cycle}/image-publication.json` : 'd3a-publication.json',
+  );
   try {
     await lstat(claim);
     throw new DeploymentSafetyError(
@@ -593,7 +605,19 @@ export async function publishImages(
         flag: 'wx',
       });
       if (image === 'ops') {
-        const httpSmoke = `const a=require('node:assert/strict'),s=require('node:child_process').spawn(process.execPath,['apps/ops/server.js'],{env:{...process.env,HOSTNAME:'127.0.0.1',PORT:'3000'},stdio:'ignore'});(async()=>{try{let live;for(let i=0;i<100;i++){try{live=await fetch('http://127.0.0.1:3000/health/live');if(live.status===200)break;}catch{}await new Promise(r=>setTimeout(r,200));}a.equal(live?.status,200);for(const p of ['/health/ready','/metrics','/overview'])a.equal((await fetch('http://127.0.0.1:3000'+p)).status,503);console.log('PASS live=200 readiness/metrics/dashboard=503 fail-closed');}finally{s.kill('SIGTERM');}})().catch(()=>{process.exitCode=1;});`;
+        const expected = cycle
+          ? [
+              ['/health/ready', 503],
+              ['/sign-in', 200],
+              ['/metrics', 307],
+              ['/overview', 307],
+            ]
+          : [
+              ['/health/ready', 503],
+              ['/metrics', 503],
+              ['/overview', 503],
+            ];
+        const httpSmoke = `const a=require('node:assert/strict'),s=require('node:child_process').spawn(process.execPath,['apps/ops/server.js'],{env:{...process.env,HOSTNAME:'127.0.0.1',PORT:'3000'},stdio:'ignore'});(async()=>{try{let live;for(let i=0;i<100;i++){try{live=await fetch('http://127.0.0.1:3000/health/live');if(live.status===200)break;}catch{}await new Promise(r=>setTimeout(r,200));}a.equal(live?.status,200);for(const [p,status] of ${JSON.stringify(expected)})a.equal((await fetch('http://127.0.0.1:3000'+p,{redirect:'manual'})).status,status);console.log('PASS health/access boundary');}finally{s.kill('SIGTERM');}})().catch(()=>{process.exitCode=1;});`;
         await writeFile(
           path('ops-http-smoke.log'),
           command(
@@ -789,12 +813,21 @@ export async function publishImages(
   }
 }
 async function main() {
+  const args = process.argv.slice(2);
+  const cycle =
+    args.length === 3 && args[0] === '--cycle' && args[2] === '--cloud-approved'
+      ? args[1]
+      : undefined;
   check(
-    process.argv.length === 2,
-    'D3A publication accepts no arguments, source, repository, tag or target overrides',
+    !args.length || cycle !== undefined,
+    'Use no arguments for historical D3A, or --cycle <uuid> --cloud-approved after separate publication approval; no target overrides',
   );
   console.log(
-    JSON.stringify(await publishImages(resolve(__dirname, '..')), null, 2),
+    JSON.stringify(
+      await publishImages(resolve(__dirname, '..'), process.env, cycle),
+      null,
+      2,
+    ),
   );
 }
 if (require.main === module) void main().catch(reportDeploymentFailure);
