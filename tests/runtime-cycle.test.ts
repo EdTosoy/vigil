@@ -26,6 +26,8 @@ import {
 } from '../tools/runtime-cycle';
 import {
   assertCycleStart,
+  cycleWebhookPreflight,
+  cycleWebhookUrl,
   retainedCycleEcsMetadata,
   verifyCycleRuleInventory,
   verifyCycleServiceInventory,
@@ -50,6 +52,59 @@ const images = Object.fromEntries(
     `${deployment.account}.dkr.ecr.${deployment.region}.amazonaws.com/flow-demo/${k}@sha256:${'a'.repeat(64)}`,
   ]),
 );
+
+test('Stripe preflight reports only exact active sandbox URL IDs and sanitized descriptions', () => {
+  const endpoint = {
+    id: 'we_existing',
+    url: cycleWebhookUrl,
+    livemode: false,
+    status: 'enabled',
+    description:
+      'Old cycle whsec_private sk_test_private rk_live_private\nlabel',
+    secret: 'whsec_never_output',
+  };
+  const response = {
+    has_more: false,
+    data: [
+      endpoint,
+      { ...endpoint, id: 'we_disabled', status: 'disabled' },
+      { ...endpoint, id: 'we_other', url: cycleWebhookUrl + '/other' },
+    ],
+  };
+  assert.deepEqual(
+    cycleWebhookPreflight(
+      {
+        has_more: false,
+        data: [{ ...endpoint, description: 'credential private-password' }],
+      },
+      ['private-password'],
+    ).active,
+    [{ id: endpoint.id, description: 'credential [REDACTED]' }],
+  );
+  const result = cycleWebhookPreflight(response);
+  assert.deepEqual(result.active, [
+    {
+      id: endpoint.id,
+      description: 'Old cycle [REDACTED] [REDACTED] [REDACTED] label',
+    },
+  ]);
+  assert(!JSON.stringify(result).includes('private'));
+  assert(!JSON.stringify(result).includes('never_output'));
+  for (const bad of [
+    null,
+    {},
+    { data: [] },
+    { ...response, has_more: true },
+    ...[
+      { livemode: true },
+      { status: 'unknown' },
+      { id: 'other' },
+      { url: undefined },
+      { description: undefined },
+    ].map((patch) => ({ has_more: false, data: [{ ...endpoint, ...patch }] })),
+  ])
+    assert.throws(() => cycleWebhookPreflight(bad), /preflight/);
+});
 
 test('retained ECS tags are excluded only for verified inactive metadata in the exact Sydney runtime', () => {
   const prefix = `arn:aws:ecs:${deployment.region}:${deployment.account}:`;
@@ -329,6 +384,15 @@ test('UNKNOWN budget delivery requires explicit acknowledgement and preserves ev
     fourHourCleanupWindowConfirmed: true,
   };
   assert.equal(assertCycleOperatorChecks(approval, id, now), 'UNKNOWN');
+  for (const age of [900001, 3599999, 3600000])
+    assert.equal(
+      assertCycleOperatorChecks(
+        { ...approval, observedAt: new Date(now - age).toISOString() },
+        id,
+        now,
+      ),
+      'UNKNOWN',
+    );
   for (const patch of [
     { unverifiedBudgetAlertDeliveryAcknowledged: false },
     { unverifiedBudgetAlertDeliveryAcknowledged: 'true' },
@@ -337,7 +401,7 @@ test('UNKNOWN budget delivery requires explicit acknowledgement and preserves ev
     { budgetAlertDeliveryConfirmed: true },
     { accountWideSpendReviewed: false },
     { fourHourCleanupWindowConfirmed: false },
-    { observedAt: new Date(now - 900001).toISOString() },
+    { observedAt: new Date(now - 3600001).toISOString() },
     { observedAt: new Date(now + 1).toISOString() },
     { observedAt: 'invalid' },
     { cycle: randomUUID() },
@@ -656,6 +720,10 @@ async function fixture() {
     destination: async () => {
       calls.push({ operation: 'destination' });
     },
+    preflightDestination: async () => {
+      calls.push({ operation: 'stripe-preflight' });
+      return { url: cycleWebhookUrl, active: [] };
+    },
     registerDestination: async () => ({
       id: 'we_current',
       secret: 'whsec_' + 'b'.repeat(32),
@@ -722,6 +790,152 @@ async function fixture() {
     cleanup: () => rm(root, { recursive: true, force: true }),
   };
 }
+
+test('early preflight blocks initial planning without claims and safely allows retry after review', async () => {
+  const f = await fixture();
+  try {
+    const c = await f.prepare();
+    const clear = f.driver.preflightDestination;
+    f.driver.preflightDestination = async () => ({
+      url: cycleWebhookUrl,
+      active: [{ id: 'we_old', description: 'Previous cycle' }],
+    });
+    const diagnostic = await (await c.workflow()).preflight();
+    assert.equal(diagnostic.status, 'BLOCKED');
+    assert.equal(diagnostic.registrationAttempt, 'NONE');
+    assert.deepEqual(
+      runtimeCycleCommand(['preflight', c.id, '--cloud-approved']),
+      { operation: 'preflight', id: c.id },
+    );
+    assert.throws(
+      () => runtimeCycleCommand(['preflight', c.id]),
+      /Cloud commands/,
+    );
+    await assert.rejects(
+      (await c.workflow()).plan('infrastructure'),
+      /we_old.*Previous cycle/,
+    );
+    assert.equal(
+      f.calls.length,
+      0,
+      'No AWS readiness or Terraform before Stripe preflight',
+    );
+    await assert.rejects(readFile(c.store.path('anchor.json')), {
+      code: 'ENOENT',
+    });
+    await assert.rejects(readFile(c.store.path('destination-attempt.json')), {
+      code: 'ENOENT',
+    });
+    f.driver.preflightDestination = async () => {
+      throw new Error('unavailable');
+    };
+    await assert.rejects((await c.workflow()).plan('infrastructure'));
+    assert.equal(f.calls.length, 0);
+    f.driver.preflightDestination = clear;
+    const p = await (await c.workflow()).plan('infrastructure');
+    f.driver.preflightDestination = async () => ({
+      url: cycleWebhookUrl,
+      active: [{ id: 'we_new', description: null }],
+    });
+    await assert.rejects((await c.workflow()).apply(p.reviewId), /we_new/);
+    assert(!f.calls.some((c) => c.operation === 'apply'));
+    f.driver.preflightDestination = clear;
+    await (await c.workflow()).apply(p.reviewId);
+    f.driver.account = async () => 'acct_foreign';
+    await assert.rejects((await c.workflow()).preflight(), /account changed/);
+  } finally {
+    await f.cleanup();
+  }
+});
+
+test('destination preflight failures remain retryable, uncertain creates retain a permanent blocking claim', async () => {
+  const f = await fixture();
+  try {
+    const c = await f.prepare();
+    for (const stage of ['infrastructure', 'provisioning', 'https'] as const) {
+      const plan = await (await c.workflow()).plan(stage);
+      await (await c.workflow()).apply(plan.reviewId);
+      if (stage === 'provisioning') await (await c.workflow()).provision();
+    }
+    const clear = f.driver.preflightDestination;
+    let creates = 0;
+    f.driver.registerDestination = async () => {
+      creates++;
+      throw new Error('connection lost whsec_private');
+    };
+    f.driver.preflightDestination = async () => ({
+      url: cycleWebhookUrl,
+      active: [{ id: 'we_old', description: null }],
+    });
+    await assert.rejects(
+      (await c.workflow()).destination(),
+      /no registration attempted/,
+    );
+    await assert.rejects(readFile(c.store.path('destination-attempt.json')), {
+      code: 'ENOENT',
+    });
+    assert.equal(creates, 0);
+    f.driver.preflightDestination = clear;
+    await assert.rejects(
+      (await c.workflow()).destination(),
+      /FAILED_OR_UNKNOWN/,
+    );
+    const attempt = await readFile(
+      c.store.path('destination-attempt.json'),
+      'utf8',
+    );
+    assert.equal(creates, 1);
+    const diagnostic = await (await c.workflow()).preflight();
+    assert.equal(
+      diagnostic.registrationAttempt,
+      'RETAINED_POTENTIALLY_SIDE_EFFECTING',
+    );
+    assert.equal(diagnostic.status, 'BLOCKED');
+    await assert.rejects((await c.workflow()).destination(), /retain history/);
+    assert.equal(creates, 1);
+    assert.equal(
+      await readFile(c.store.path('destination-attempt.json'), 'utf8'),
+      attempt,
+    );
+  } finally {
+    await f.cleanup();
+  }
+});
+
+test('cycle saved plans remain valid after fifteen minutes but expire after thirty; new-work cutoff is unchanged', async () => {
+  for (const age of [20 * 60000, 30 * 60000 + 1000]) {
+    const f = await fixture();
+    try {
+      const c = await f.prepare(),
+        plan = await (await c.workflow()).plan('infrastructure');
+      const file = c.store.context.path(
+        `plan-preparation/${plan.reviewId.split(':')[0]}/cycle-review.json`,
+      );
+      const review = JSON.parse(await readFile(file, 'utf8'));
+      review.createdAt = new Date(Date.now() - age).toISOString();
+      await writeFile(file, JSON.stringify(review), { mode: 0o600 });
+      if (age < 30 * 60000) {
+        await (await c.workflow()).apply(plan.reviewId);
+        const anchorPath = c.store.path('anchor.json');
+        const anchor = JSON.parse(await readFile(anchorPath, 'utf8'));
+        anchor.startedAt = new Date(Date.now() - 3 * 3600000).toISOString();
+        await writeFile(anchorPath, JSON.stringify(anchor), { mode: 0o600 });
+        await assert.rejects(
+          (await c.workflow()).plan('provisioning'),
+          /T\+3h/,
+        );
+        const cleanup = await (await c.workflow()).plan('teardown');
+        await (await c.workflow()).apply(cleanup.reviewId);
+      } else
+        await assert.rejects(
+          (await c.workflow()).apply(plan.reviewId),
+          /expired cycle review/,
+        );
+    } finally {
+      await f.cleanup();
+    }
+  }
+});
 
 test('two full attended cycles retain one lineage, old claims and all activated teardown resources', async () => {
   const f = await fixture();
@@ -906,7 +1120,7 @@ test('state/lineage drift, expired reviews, changed inputs and changed source pr
       if (problem === 'expiry') {
         const p = resolve(prefix, 'cycle-review.json');
         const r = JSON.parse(await readFile(p, 'utf8'));
-        r.createdAt = new Date(Date.now() - 900001).toISOString();
+        r.createdAt = new Date(Date.now() - 1800001).toISOString();
         await writeFile(p, JSON.stringify(r), { mode: 0o600 });
       }
       if (problem === 'inputs') {

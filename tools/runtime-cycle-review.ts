@@ -9,6 +9,57 @@ import { initialRuntimeAddresses } from './runtime-plan';
 import { releaseProof as proof } from './runtime-apply-review';
 import { stateInstances, type RecoveryState } from './runtime-recovery-review';
 
+export const cycleOperatorCheckValidityMs = 60 * 60 * 1000;
+export const cyclePlanReviewValidityMs = 30 * 60 * 1000;
+export const cycleWebhookUrl = `https://${deployment.domain}/webhooks/stripe`;
+
+/** Whitelist diagnostics; never return raw Stripe objects or signing secrets. */
+export function cycleWebhookPreflight(
+  response: unknown,
+  privateValues: string[] = [],
+) {
+  const page = response as Record<string, unknown> | null;
+  proof(
+    page && page['has_more'] === false && Array.isArray(page['data']),
+    'Stripe webhook preflight incomplete; no registration attempted',
+  );
+  const active: { id: string; description: string | null }[] = [];
+  for (const value of page['data'] as unknown[]) {
+    const e = value as Record<string, unknown> | null;
+    proof(
+      e &&
+        typeof e['id'] === 'string' &&
+        /^we_[A-Za-z0-9]+$/.test(e['id']) &&
+        typeof e['url'] === 'string' &&
+        e['livemode'] === false &&
+        ['enabled', 'disabled'].includes(String(e['status'])) &&
+        (e['description'] === null || typeof e['description'] === 'string'),
+      'Stripe webhook preflight malformed or not sandbox evidence; no registration attempted',
+    );
+    if (e['url'] === cycleWebhookUrl && e['status'] === 'enabled')
+      active.push({
+        id: e['id'] as string,
+        description:
+          typeof e['description'] === 'string'
+            ? privateValues
+                .filter(Boolean)
+                .reduce(
+                  (description, value) =>
+                    description.split(value).join('[REDACTED]'),
+                  e['description'],
+                )
+                .replace(
+                  /(?:[sr]k_(?:test|live)_|whsec_)[A-Za-z0-9_]+/g,
+                  '[REDACTED]',
+                )
+                .replace(/[\x00-\x1f\x7f]/g, ' ')
+                .slice(0, 500)
+            : null,
+      });
+  }
+  return { url: cycleWebhookUrl, active };
+}
+
 export const unverifiedBudgetAlertWarning =
   'WARNING: AWS budget email delivery is UNKNOWN. AWS budget alerts do not cap spending. Monitor gross spend and complete manual teardown within four hours.';
 
@@ -155,7 +206,7 @@ export function assertCycleOperatorChecks(
     approval['cycle'] === id &&
       Number.isFinite(age) &&
       age >= 0 &&
-      age <= 900000 &&
+      age <= cycleOperatorCheckValidityMs &&
       deliveryAccepted &&
       approval['accountWideSpendReviewed'] === true &&
       approval['fourHourCleanupWindowConfirmed'] === true,
