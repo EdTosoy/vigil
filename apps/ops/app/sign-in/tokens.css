@@ -1,0 +1,28 @@
+/* Hallmark · Vigil authentication tokens, derived from the existing brand · v2.0.0 */
+:root {
+  --auth-paper: #f4f6f5;
+  --auth-surface: #ffffff;
+  --auth-ink: #1d2c34;
+  --auth-muted: #596d76;
+  --auth-control: #778990;
+  --auth-line: #dde4e5;
+  --auth-field: #142d33;
+  --auth-field-ink: #f4f6f5;
+  --auth-field-muted: #c5d6d8;
+  --auth-accent: #086f69;
+  --auth-accent-hover: #075e5a;
+  --auth-accent-active: #064d49;
+  --auth-accent-ink: #ffffff;
+  --auth-error: #a33132;
+  --auth-clear: transparent;
+  --auth-font:
+    system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --auth-radius: 6px;
+  --auth-space-xs: 8px;
+  --auth-space-sm: 12px;
+  --auth-space-md: 16px;
+  --auth-space-lg: 24px;
+  --auth-space-xl: 32px;
+  --auth-space-2xl: 48px;
+  --auth-space-3xl: 64px;
+}
