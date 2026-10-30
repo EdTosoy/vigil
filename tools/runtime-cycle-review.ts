@@ -127,15 +127,23 @@ export async function verifyCycleServiceInventory(
   for (const arn of arns) {
     if (approved.has(arn)) {
       const response = await describe(prefix + 'cluster/flow-demo', arn);
-      if (
+      const inactive =
         Array.isArray(response.failures) &&
         response.failures.length === 0 &&
         Array.isArray(response.services) &&
         response.services.length === 1 &&
         response.services[0] &&
-        retainedCycleEcsMetadata(arn, response.services[0])
-      )
-        continue;
+        retainedCycleEcsMetadata(arn, response.services[0]);
+      const deleted =
+        Array.isArray(response.services) &&
+        response.services.length === 0 &&
+        Array.isArray(response.failures) &&
+        response.failures.length === 1 &&
+        response.failures[0] !== null &&
+        typeof response.failures[0] === 'object' &&
+        (response.failures[0] as { arn?: unknown }).arn === arn &&
+        (response.failures[0] as { reason?: unknown }).reason === 'MISSING';
+      if (inactive || deleted) continue;
     }
     retained.push(arn);
   }

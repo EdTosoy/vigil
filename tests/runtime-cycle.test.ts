@@ -266,6 +266,38 @@ test('retained services require exact scoped identity and complete inactive nati
   );
 });
 
+test('native ECS MISSING proves exact owned deleted services only', async () => {
+  const prefix = `arn:aws:ecs:${deployment.region}:${deployment.account}:`;
+  const arns = ['ops', 'ingress', 'worker'].map(
+    (name) => prefix + `service/flow-demo/flow-demo-${name}`,
+  );
+  assert.deepEqual(
+    await verifyCycleServiceInventory(arns, async (_, arn) => ({
+      services: [],
+      failures: [{ arn, reason: 'MISSING' }],
+    })),
+    [],
+  );
+  for (const response of [
+    { services: [], failures: [{ arn: arns[0], reason: 'ACCESS_DENIED' }] },
+    { services: [], failures: [{ arn: arns[1], reason: 'MISSING' }] },
+    { services: [], failures: [{ reason: 'MISSING' }] },
+    {
+      services: [],
+      failures: [
+        { arn: arns[0], reason: 'MISSING' },
+        { arn: arns[0], reason: 'MISSING' },
+      ],
+    },
+    { services: [{}], failures: [{ arn: arns[0], reason: 'MISSING' }] },
+  ]) {
+    assert.deepEqual(
+      await verifyCycleServiceInventory([arns[0]!], async () => response),
+      [arns[0]],
+    );
+  }
+});
+
 test('stale tagged EC2 rules require complete native absence proof; live and unknown resources still block', async () => {
   const prefix = `arn:aws:ec2:${deployment.region}:${deployment.account}:security-group-rule/`;
   const id = 'sgr-' + '1'.repeat(17),
