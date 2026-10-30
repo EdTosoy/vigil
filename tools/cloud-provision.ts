@@ -5,6 +5,8 @@ import { PostgresIngestion } from '@vigil/ingestion-postgres';
 import { migrate } from './migrations';
 import { seedDemo, type DemoPools } from './ops-demo-seed';
 import type { SystemInput } from '@vigil/simulator';
+import { seedAccount } from '../apps/ops/server/seed-account';
+import { visitor } from '../apps/ops/visitor';
 
 const capabilities = {
   operations: 'flow_operations_reader',
@@ -18,6 +20,8 @@ const capabilities = {
   controls: 'flow_control_writer',
   worker: 'flow_worker',
   integrity: 'flow_integrity_reader',
+  auth: 'flow_auth_runtime',
+  authSeed: 'flow_auth_seeder',
 } as const;
 type Capability = keyof typeof capabilities;
 interface Configuration {
@@ -47,6 +51,14 @@ async function main(): Promise<void> {
   });
   const entries: [Capability, Pool][] = [];
   let owner: Pool | undefined;
+  const applicationAuth = process.env['VIGIL_APPLICATION_AUTH'] === 'true';
+  if (
+    applicationAuth &&
+    (!process.env['VIGIL_ADMIN_EMAIL'] ||
+      !process.env['VIGIL_SEED_PASSWORD'] ||
+      process.env['VIGIL_SEED_PASSWORD']!.length < 12)
+  )
+    throw new Error('Private initial administrator credentials required');
   try {
     // RDS master is not a PostgreSQL superuser. Explicit owner membership is confined to this administrator.
     await admin.query(`DO $$ BEGIN IF NOT EXISTS(SELECT FROM pg_roles WHERE rolname='flow_ledger_owner') THEN
@@ -60,6 +72,8 @@ async function main(): Promise<void> {
       Capability,
       string,
     ][]) {
+      if (!applicationAuth && (kind === 'auth' || kind === 'authSeed'))
+        continue;
       const login = 'flow_demo_' + kind.toLowerCase();
       const password = config.passwords[kind];
       if (!/^[A-Za-z0-9_-]{40,100}$/.test(password))
@@ -140,15 +154,63 @@ async function main(): Promise<void> {
       await readFile('/app/demo/input.json', 'utf8'),
     ) as SystemInput;
     const demo = await seedDemo(pools, [input], 'phase15-public-synthetic');
+    if (applicationAuth) {
+      // Never reset a user's password or widen grants when provisioning is rerun.
+      const accounts = [
+        {
+          email: process.env['VIGIL_ADMIN_EMAIL']!.toLowerCase(),
+          name: process.env['VIGIL_ADMIN_NAME'] ?? 'Vigil administrator',
+          password: process.env['VIGIL_SEED_PASSWORD']!,
+          role: 'Admin' as const,
+          books: [config.bookId, demo.bookId],
+          visitor: false,
+        },
+        {
+          ...visitor,
+          role: 'Viewer' as const,
+          books: [demo.bookId],
+          visitor: true,
+        },
+      ];
+      for (const account of accounts) {
+        const existing = await byKind.authSeed.query<{
+          id: string;
+          role: string;
+          synthetic_only: boolean;
+        }>(
+          'SELECT u.id,p.role,p.synthetic_only FROM app_auth."user" u LEFT JOIN app_auth.principal p ON p.user_id=u.id WHERE u.email=$1',
+          [account.email],
+        );
+        if (!existing.rowCount) {
+          await seedAccount(byKind.authSeed, account);
+          continue;
+        }
+        const user = existing.rows[0]!;
+        const grants = await byKind.authSeed.query<{ book_id: string }>(
+          'SELECT book_id FROM app_auth.book_grant WHERE user_id=$1 ORDER BY book_id',
+          [user.id],
+        );
+        if (
+          user.role !== account.role ||
+          user.synthetic_only !== account.visitor ||
+          JSON.stringify(grants.rows.map((g) => g.book_id)) !==
+            JSON.stringify([...new Set(account.books)].sort())
+        )
+          throw new Error(
+            'Existing account permissions differ; stop for review',
+          );
+      }
+    }
     console.log(
       JSON.stringify({
         operation: 'cloud-provision',
         outcome: 'PASS',
-        migrations: 13,
+        migrations: 14,
         permissions: 'PASS',
         stripeBookId: config.bookId,
         sourceAccountId,
         syntheticBookId: demo.bookId,
+        applicationAuth: applicationAuth ? 'PASS' : 'NOT_CONFIGURED',
         assurance: demo.assurance,
         bank: 'synthetic only',
       }),

@@ -14,6 +14,10 @@
       "inputs": ["default", "^default"],
       "cache": true
     },
-    "test": { "inputs": ["default", "^default"], "cache": false }
-  }
+    "test": {
+      "inputs": ["default", "^default"],
+      "cache": false
+    }
+  },
+  "analytics": false
 }

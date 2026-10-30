@@ -24,6 +24,7 @@ variables {
     admin_password      = "test-not-a-real-password", provisioning = "{}", stripe_key = "test-not-a-real-key"
     webhook_secrets     = "pending", demo_username = "demo", demo_password = "test-not-a-real-password"
     operations_password = "test-not-a-real-password", ingress_password = "test-not-a-real-password", stripeworker_password = "test-not-a-real-password"
+    auth_password       = "test-not-a-real-password", auth_secret = "test-not-a-real-secret", admin_email = "admin@example.test", seed_password = "test-not-a-real-password"
   }
 }
 run "private_disposable_database_and_disabled_services" {
@@ -77,10 +78,11 @@ run "provisioning_stage_needs_no_hosted_signing_secret" {
       admin_password      = "test-not-a-real-password", provisioning = "{}", stripe_key = "test-not-a-real-key"
       demo_username       = "demo", demo_password = "test-not-a-real-password"
       operations_password = "test-not-a-real-password", ingress_password = "test-not-a-real-password", stripeworker_password = "test-not-a-real-password"
+      auth_password       = "test-not-a-real-password", auth_secret = "test-not-a-real-secret", admin_email = "admin@example.test", seed_password = "test-not-a-real-password"
     }
   }
   assert {
-    condition     = length(aws_ssm_parameter.runtime) == 8 && !contains(keys(aws_ssm_parameter.runtime), "webhook_secrets") && length(aws_ecs_service.app) == 0
+    condition     = length(aws_ssm_parameter.runtime) == 10 && !contains(keys(aws_ssm_parameter.runtime), "webhook_secrets") && length(aws_ecs_service.app) == 0
     error_message = "Migrations/provisioning precede webhook registration without fake signing credentials."
   }
 }
@@ -182,4 +184,54 @@ run "wrong_repository_for_role_refused" {
     }
   }
   expect_failures = [var.images]
+}
+
+run "current_head_auth_is_narrow_and_enabled" {
+  command = plan
+  assert {
+    condition = alltrue([
+      for key in ["auth_url", "auth_secret", "admin_email", "seed_password"] : contains(keys(aws_ssm_parameter.runtime), key)
+    ]) && length(aws_ssm_parameter.runtime) == 11
+    error_message = "Current HEAD requires scoped authentication and private administrator provisioning inputs."
+  }
+  assert {
+    condition = alltrue([
+      for key in ["DATABASE_AUTH_URL", "BETTER_AUTH_SECRET", "DATABASE_OPERATIONS_URL"] : contains([for secret in jsondecode(aws_ecs_task_definition.app["ops"].container_definitions)[0].secrets : secret.name], key)
+    ]) && !contains([for secret in jsondecode(aws_ecs_task_definition.app["ops"].container_definitions)[0].secrets : secret.name], "DATABASE_ADMIN_URL")
+    error_message = "Serving tasks must use distinct auth/financial read logins and no owner/seed credential."
+  }
+  assert {
+    condition = sort(jsondecode(aws_iam_role_policy.execution["ops"].policy).Statement[3].Resource) == sort([
+      "arn:aws:ssm:ap-southeast-2:747240980964:parameter/flow/demo/operations_url",
+      "arn:aws:ssm:ap-southeast-2:747240980964:parameter/flow/demo/auth_url",
+      "arn:aws:ssm:ap-southeast-2:747240980964:parameter/flow/demo/auth_secret"
+    ])
+    error_message = "Ops may retrieve only its three exact SSM parameters."
+  }
+  assert {
+    condition = alltrue([
+      for task in aws_ecs_task_definition.app : contains(jsondecode(task.container_definitions)[0].environment, { name = "VIGIL_DEPLOYMENT_MODE", value = "demo" }) && contains(jsondecode(task.container_definitions)[0].environment, { name = "BETTER_AUTH_URL", value = "https://vigil.edtosoy.com" }) && contains(jsondecode(task.container_definitions)[0].environment, { name = "VIGIL_APPLICATION_AUTH", value = "true" })
+    ])
+    error_message = "Application sessions and exact HTTPS origin must remain enabled; no public snapshot or insecure-cookie bypass."
+  }
+  assert {
+    condition = alltrue([
+      for key in ["VIGIL_ADMIN_EMAIL", "VIGIL_SEED_PASSWORD"] : contains([for secret in jsondecode(aws_ecs_task_definition.app["admin"].container_definitions)[0].secrets : secret.name], key)
+    ]) && !contains([for secret in jsondecode(aws_ecs_task_definition.app["verify"].container_definitions)[0].secrets : secret.name], "DATABASE_ADMIN_URL") && !contains([for secret in jsondecode(aws_ecs_task_definition.app["verify"].container_definitions)[0].secrets : secret.name], "VIGIL_SEED_PASSWORD")
+    error_message = "Only one-shot provisioning may seed users; independent verification stays owner-free."
+  }
+}
+
+run "activation_retains_all_parameters_and_three_single_replica_services" {
+  command = plan
+  variables {
+    start_services            = true
+    certificate_dns_confirmed = true
+    stripe_source_id          = "11111111-1111-4111-8111-111111111111"
+    ops_book_id               = "22222222-2222-4222-8222-222222222222"
+  }
+  assert {
+    condition     = length(aws_ssm_parameter.runtime) == 11 && length(aws_ecs_service.app) == 3 && alltrue([for service in aws_ecs_service.app : service.desired_count == 1]) && length(aws_lb_listener.https) == 1
+    error_message = "The complete activated inventory includes every parameter, service and HTTPS listener."
+  }
 }

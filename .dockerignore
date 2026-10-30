@@ -22,4 +22,5 @@ artifacts
 **/*.tfvars*
 **/*.tfplan
 container/build
+container/startup/secrets
 **/.git

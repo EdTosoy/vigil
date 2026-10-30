@@ -1,17 +1,64 @@
 import { createHash, timingSafeEqual } from 'node:crypto';
 
+/** Static assets shipped with the operations app; exact paths only. */
+const publicBrandAssets = new Set([
+  '/android-chrome-192x192.png',
+  '/android-chrome-512x512.png',
+  '/apple-touch-icon.png',
+  '/favicon-16x16.png',
+  '/favicon-32x32.png',
+  '/favicon-48x48.png',
+  '/site.webmanifest',
+]);
+
+/** Path shapes only; the synthetic read port independently validates book/record identity. */
+function publicRoute(path: string): boolean {
+  if (publicBrandAssets.has(path)) return true;
+  if (
+    /^\/(?:overview|reconciliation|exceptions|controls|workers|integrity)?$/.test(
+      path,
+    ) ||
+    path === '/health/live' ||
+    path === '/health/ready'
+  )
+    return true;
+  if (
+    /^\/(?:reconciliation|exceptions|workers)\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+      path,
+    )
+  )
+    return true;
+  // Control keys are opaque and can contain an encoded slash (currency scope).
+  if (!/^\/controls\/[^/]+$/.test(path)) return false;
+  try {
+    const key = decodeURIComponent(path.slice('/controls/'.length));
+    return (
+      key !== '.' &&
+      key !== '..' &&
+      ![...key].some(
+        (c) => c.charCodeAt(0) < 32 || c.charCodeAt(0) === 127 || c === '\\',
+      )
+    );
+  } catch {
+    return false;
+  }
+}
+
 /** Server-side demo gate; shared access is deliberately not a production identity system. */
 export function demoAccess(
   path: string,
   authorization: string | null,
   env: NodeJS.ProcessEnv,
-): 200 | 401 | 503 {
+  method = 'GET',
+): 200 | 401 | 404 | 503 {
   const mode = env['VIGIL_DEPLOYMENT_MODE'] ?? env['FLOW_DEPLOYMENT_MODE'];
   if (mode === undefined) return 200;
   if (mode === 'public-demo') {
-    // Explicit opt-in only: never open privileged metrics or unknown routes.
-    if (path === '/metrics') return 401;
-    return 200;
+    return env['VIGIL_DEPLOYMENT_MODE'] === 'public-demo' &&
+      (method === 'GET' || method === 'HEAD') &&
+      publicRoute(path)
+      ? 200
+      : 404;
   }
   if (mode !== 'demo') return 503;
   // Exact cheap technical probes only. Financial diagnostics and metrics remain protected.

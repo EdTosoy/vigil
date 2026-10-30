@@ -502,6 +502,8 @@ async function verifyTouch(
     viewport: { width: 390, height: 1000 },
     hasTouch: true,
     isMobile: true,
+    // The touch journey is the same authenticated user in a separate viewport.
+    storageState: await page.context().storageState(),
   });
   const touch = await context.newPage();
   try {

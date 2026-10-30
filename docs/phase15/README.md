@@ -1,6 +1,10 @@
 # Phase 15 — Ephemeral AWS portfolio deployment
 
-This page records the historical US East workflow. Current tracked infrastructure sources are prepared offline for Sydney; use the [Sydney D1B runbook](sydney-d1b.md). All mutating deployment wrappers remain disabled. Historical commands below are not current deployment instructions or authorization.
+This page records the historical US East workflow. Current tracked sources target Sydney; use the [Sydney D1B runbook](sydney-d1b.md) for the original isolation boundaries and the [new cycle runbook](sydney-cycles.md) for locally implemented repeat deployment. Legacy mutating wrappers remain disabled; no cloud execution is authorized by the new path. Historical commands below are not current deployment instructions or authorization.
+
+For the existing Sydney account and repeat-deployment readiness, start with the [current Sydney audit and redeployment runbook](sydney-redeployment.md). It distinguishes working browser credentials and retained foundations from the first-cycle/activation/cleanup blockers; no historical saved plan or wrapper grants redeployment authority.
+
+The separate [single-host startup preparation](startup.md) is locally implemented and tested; it does not authorize a hosted architecture change or remote-state writes.
 
 Container packaging, separate Terraform roots and actual hosted application/Stripe verification are implemented. See [verification](verification.md) for the deployment and teardown evidence and [ADR-018](../architecture/adr/018-ephemeral-aws-demo.md) for decisions. This is a production-shaped demonstration, not a high-availability production environment. Phase 16 remains deferred.
 
