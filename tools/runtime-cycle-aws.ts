@@ -31,8 +31,11 @@ import {
 } from './runtime-cycle';
 import {
   cycleInstances,
+  cycleWebhookPreflight,
+  cycleWebhookUrl,
   retainedCycleEcsMetadata,
   verifyCycleRuleInventory,
+  verifyCycleServiceInventory,
   assertCycleOperatorChecks,
   unverifiedBudgetAlertWarning,
   assertCycleImages,
@@ -313,7 +316,16 @@ export async function runtimeCycleDriver(
     );
     return (
       await verifyCycleRuleInventory(
-        retained.filter((arn): arn is string => arn !== null),
+        await verifyCycleServiceInventory(
+          retained.filter((arn): arn is string => arn !== null),
+          async (cluster, arn) =>
+            aws('ecs', 'describe-services', [
+              '--cluster',
+              cluster,
+              '--services',
+              arn,
+            ]),
+        ),
         async (ids) =>
           aws('ec2', 'describe-security-group-rules', [
             '--filters',
@@ -880,6 +892,18 @@ export async function runtimeCycleDriver(
         'Dedicated current sandbox destination is not verified',
       );
     },
+    async preflightDestination(key) {
+      let response: unknown;
+      try {
+        response = await sandboxSdk(key).webhookEndpoints.list({ limit: 100 });
+      } catch {
+        proof(
+          false,
+          'Stripe webhook preflight API failed; no registration attempted; safe to rerun preflight',
+        );
+      }
+      return cycleWebhookPreflight(response, Object.values(config.values));
+    },
     async registerDestination(key) {
       const anchor = await privateCycleJson(path('anchor.json'));
       proof(
@@ -887,16 +911,7 @@ export async function runtimeCycleDriver(
         'Current sandbox account mismatch',
       );
       const sdk = sandboxSdk(key),
-        url = `https://${deployment.domain}/webhooks/stripe`;
-      const old = await sdk.webhookEndpoints.list({ limit: 100 });
-      proof(
-        !old.has_more &&
-          !old.data.some(
-            (e: { url: string; status: string }) =>
-              e.url === url && e.status === 'enabled',
-          ),
-        'Existing active dedicated URL destination must be reviewed/retired before registering this cycle',
-      );
+        url = cycleWebhookUrl;
       const endpoint = await sdk.webhookEndpoints.create(
         {
           url,

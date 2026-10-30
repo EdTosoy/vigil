@@ -27,6 +27,8 @@ import { sandboxKey } from '@vigil/stripe-integration';
 import { hiddenInput } from './runtime-inputs';
 import {
   cycleId,
+  cyclePlanReviewValidityMs,
+  cycleWebhookUrl,
   unverifiedBudgetAlertWarning,
   cycleUuid,
   cycleTarget,
@@ -66,6 +68,10 @@ export interface CycleDriver {
   ): Promise<string>;
   dns(snapshot: CycleState): Promise<void>;
   destination(key: string, id: string): Promise<void>;
+  preflightDestination(key: string): Promise<{
+    url: string;
+    active: { id: string; description: string | null }[];
+  }>;
   registerDestination(key: string): Promise<{ id: string; secret: string }>;
   retireDestination(key: string, endpoint: string): Promise<void>;
   provision(
@@ -406,6 +412,38 @@ export async function runtimeCycle(
     );
     return evidence;
   }
+  async function preflightDestination() {
+    const key = sandboxKey(config.values['stripe_key']);
+    let account: string;
+    try {
+      account = await driver.account(key);
+    } catch {
+      throw new DeploymentSafetyError(
+        'Stripe account preflight failed; no registration attempted; safe to rerun preflight',
+      );
+    }
+    proof(
+      /^acct_[A-Za-z0-9]+$/.test(account),
+      'Verified sandbox account required',
+    );
+    try {
+      const anchor = await readAnchor();
+      proof(account === anchor.account, 'Sandbox credential account changed');
+    } catch (e) {
+      if ((e as NodeJS.ErrnoException).code !== 'ENOENT') throw e;
+    }
+    const result = await driver.preflightDestination(key);
+    proof(result.url === cycleWebhookUrl, 'Unexpected Stripe preflight URL');
+    return { ...result, account };
+  }
+  async function requireDestinationAvailable() {
+    const result = await preflightDestination();
+    proof(
+      result.active.length === 0,
+      `Stripe webhook preflight BLOCKED; no registration attempted. Existing active destinations: ${JSON.stringify(result.active)}. Review separately; never automatically delete or reuse.`,
+    );
+    return result;
+  }
   async function secureAssembly(review: CycleReview) {
     const a = review.assembly;
     proof(
@@ -446,9 +484,33 @@ export async function runtimeCycle(
     return a;
   }
   return {
+    async preflight() {
+      const result = await preflightDestination();
+      let registrationAttempt = 'NONE';
+      try {
+        await privateCycleJson(path('destination-attempt.json'));
+        registrationAttempt = 'RETAINED_POTENTIALLY_SIDE_EFFECTING';
+      } catch (e) {
+        if ((e as NodeJS.ErrnoException).code !== 'ENOENT') throw e;
+      }
+      return {
+        cycle: id,
+        ...result,
+        status:
+          result.active.length || registrationAttempt !== 'NONE'
+            ? 'BLOCKED'
+            : 'CLEAR',
+        registrationAttempt,
+        registrationAuthorized: false,
+      };
+    },
     async plan(stage: CycleStage) {
       proof(cycleStages.includes(stage), 'Unknown cycle stage');
       const cleanup = stage === 'teardown';
+      const stripePreflight =
+        stage === 'infrastructure'
+          ? await requireDestinationAvailable()
+          : undefined;
       await driver.readiness(cleanup);
       const snapshot = await driver.snapshot();
       let anchor: Awaited<ReturnType<typeof readAnchor>>;
@@ -461,13 +523,7 @@ export async function runtimeCycle(
         assertCycleStart(snapshot, await driver.inventory());
         const images = await driver.images();
         assertCycleImages(images);
-        const account = await driver.account(
-          sandboxKey(config.values['stripe_key']),
-        );
-        proof(
-          /^acct_[A-Za-z0-9]+$/.test(account),
-          'Verified sandbox account required',
-        );
+        const account = stripePreflight!.account;
         // An exclusive permanent claim binds an empty state version to one cycle.
         await mkdir(context.path('cycle-claims'), {
           recursive: true,
@@ -647,7 +703,7 @@ export async function runtimeCycle(
           cycleStages.includes(review.stage) &&
           Number.isFinite(age) &&
           age >= 0 &&
-          age <= 900000,
+          age <= cyclePlanReviewValidityMs,
         'Foreign, modified or expired cycle review',
       );
       proof(
@@ -680,6 +736,8 @@ export async function runtimeCycle(
         review.snapshot,
         review.stage,
       );
+      if (review.stage === 'infrastructure')
+        await requireDestinationAvailable();
       await driver.readiness(review.stage === 'teardown');
       assertCycleState(review.snapshot, await driver.snapshot());
       if (review.stage === 'infrastructure')
@@ -863,20 +921,27 @@ export async function runtimeCycle(
         anchor = await sameCycle(snapshot);
       await currentBindings(snapshot);
       await driver.dns(snapshot);
-      const result = await claimRuntimeOperation(
-        path('destination-attempt.json'),
-        { cycle: id, snapshot },
-        () =>
-          driver.registerDestination(sandboxKey(config.values['stripe_key'])),
-      );
-      await store.set('webhook_endpoint', result.id);
-      await store.set('webhook_secrets', result.secret);
-      await save(path('destination.json'), {
-        cycle: id,
-        accountId: anchor.account,
-        endpointId: result.id,
-        secretHash: cycleHash(result.secret),
-      });
+      await requireDestinationAvailable();
+      try {
+        const result = await claimRuntimeOperation(
+          path('destination-attempt.json'),
+          { cycle: id, snapshot },
+          () =>
+            driver.registerDestination(sandboxKey(config.values['stripe_key'])),
+        );
+        await store.set('webhook_endpoint', result.id);
+        await store.set('webhook_secrets', result.secret);
+        await save(path('destination.json'), {
+          cycle: id,
+          accountId: anchor.account,
+          endpointId: result.id,
+          secretHash: cycleHash(result.secret),
+        });
+      } catch {
+        throw new DeploymentSafetyError(
+          'Stripe destination registration FAILED_OR_UNKNOWN; a side effect may exist. Retain destination-attempt.json and all evidence; never repeat creation or reuse an endpoint. Run read-only preflight and obtain explicit recovery review.',
+        );
+      }
       return {
         cycle: id,
         dedicatedSandboxDestination: 'REGISTERED',
@@ -997,6 +1062,7 @@ export function runtimeCycleCommand(args: string[]) {
     return { operation: 'apply' as const, id: args[1]!, review: args[3]! };
   if (
     [
+      'preflight',
       'provision',
       'verify',
       'verify-teardown',
@@ -1007,6 +1073,7 @@ export function runtimeCycleCommand(args: string[]) {
   )
     return {
       operation: args[0] as
+        | 'preflight'
         | 'provision'
         | 'verify'
         | 'verify-teardown'
@@ -1057,6 +1124,11 @@ async function main() {
   const { runtimeCycleDriver } = await import('./runtime-cycle-aws.js');
   const driver = await runtimeCycleDriver(repository, command.id, process.env);
   const cycle = await runtimeCycle(repository, command.id, driver);
+  if (command.operation === 'preflight') {
+    const result = await cycle.preflight();
+    if (result.status === 'BLOCKED') process.exitCode = 1;
+    return result;
+  }
   if (command.operation === 'plan') return cycle.plan(command.stage);
   if (command.operation === 'apply') return cycle.apply(command.review);
   if (command.operation === 'verify-teardown') return cycle.verifyTeardown();

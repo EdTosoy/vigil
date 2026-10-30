@@ -35,12 +35,13 @@ refresh AWS identity, permissions, costs, DNS, images or teardown evidence.
 5. Prepare a **new** cycle and hidden admin/sandbox inputs. After the real spend
    review and cleanup commitment, record fresh operator checks using
    `--acknowledge-unverified-budget-alert-delivery`, `--account-spend-reviewed`
-   and `--cleanup-window-confirmed`. Assertions expire after fifteen minutes.
+   and `--cleanup-window-confirmed`. Assertions expire after one hour.
 6. With separate publication/execution approval, publish fresh committed-source
    immutable images for that cycle. Plan/review/apply **infrastructure**, then
    **provisioning**; run `provision` once for migrations, seeding and current
-   permission/binding evidence. Use each stage's fresh review ID. Stop on
-   unexpected deletes/replacements, state conflicts, costs or unknown outcomes.
+   permission/binding evidence. Use each stage's fresh review ID within thirty
+   minutes. Stop on unexpected deletes/replacements, state conflicts, costs or
+   unknown outcomes.
 7. Stop for actual manual Cloudflare ACM validation and application CNAMEs,
    DNS-only, for **vigil.edtosoy.com**. Require current ALB DNS and ACM ISSUED;
    do not assume Route 53 delegation. Plan/review/apply **https**, separately

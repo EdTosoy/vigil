@@ -6,7 +6,7 @@ Target: **747240980964 / edtosoy / ap-southeast-2 / vigil.edtosoy.com**. Read th
 
 `tools/runtime-cycle.ts` owns private cycle inputs and staged lifecycle; `runtime-cycle-review.ts` validates state/inventory/plan identity; `runtime-cycle-aws.ts` implements the separately gated cloud driver. Historical D3E/D3F/legacy wrappers and their first-use guards remain intact.
 
-A cycle exclusively claims the **current empty state version**, ETag, digest, lineage and serial and additionally requires absent actual AWS inventory. Retained versions and old claims are expected, never deleted. Every plan uses a new isolated allowlisted source assembly, the unchanged State-role backend, native locking and the default workspace. Apply requires exact saved-plan, source, executor, input and state identities and a fifteen-minute review. Competing plans cannot both apply. New cycles continue the retained lineage after actual teardown produces a new empty state version.
+A cycle exclusively claims the **current empty state version**, ETag, digest, lineage and serial and additionally requires absent actual AWS inventory. Retained versions and old claims are expected, never deleted. Every plan uses a new isolated allowlisted source assembly, the unchanged State-role backend, native locking and the default workspace. Apply requires exact saved-plan, source, executor, input and state identities and a thirty-minute review. Competing plans cannot both apply. New cycles continue the retained lineage after actual teardown produces a new empty state version.
 
 Stages advance through stopped infrastructure, provisioning inputs, current-database provisioning, HTTPS with desired counts zero, dedicated sandbox destination registration and activation. No stale endpoint/source/book values are copied. RDS URLs derive directly from the actual Terraform resource. The provisioner receipt identifies the current task and immutable RDS resource ID; an owner-free task checks existing immutable Stripe source/principal bindings and exact Admin/Viewer book grants. The source-to-book association comes from the pinned current-database provisioner receipt; worker permissions are not widened to read ingestion source tables.
 
@@ -16,7 +16,7 @@ Activation verifies actual public ACM/application CNAMEs, ACM issuance, current 
 
 Teardown binds deletions to every actual allowed physical instance, including services, HTTPS, auth/SSM parameters and task definitions. Its review also binds owned one-shot task ARNs, which are stopped before infrastructure deletion. Completion requires empty state **and** absent actual runtime inventory. Persistent bootstrap resources are excluded from ephemeral-tag discovery and deletion. Backend policy files are unchanged. Inactive task revisions may remain as non-running metadata.
 
-ECS can retain resource tags after deletion. Discovery excludes a retained task-definition revision only when its exact account/region/family/ARN and authoritative `INACTIVE` status are verified. The exact `flow-demo` cluster is excluded only when `INACTIVE` with zero running tasks, pending tasks and services. Active, unknown, mismatched and foreign records continue to block launch; no retained metadata or state history is deleted.
+ECS can retain resource tags after deletion. Discovery excludes a retained task-definition revision only when its exact account/region/family/ARN and authoritative `INACTIVE` status are verified. The exact `flow-demo` cluster is excluded only when `INACTIVE` with zero running tasks, pending tasks and services. The three exact `flow-demo/flow-demo-{ops,ingress,worker}` service ARNs are excluded only after native `DescribeServices` returns exactly the requested service, no failures, matching service/cluster identities, `INACTIVE` status and zero desired/running/pending counts. Missing or incomplete responses and API errors cannot prove removal. Active, unknown, mismatched and foreign records continue to block launch; no retained metadata or state history is deleted.
 
 The tagging API can also retain deleted EC2 security-group-rule ARNs. For exact Sydney/account rule IDs, discovery confirms existence through complete, filtered `DescribeSecurityGroupRules` responses. Only IDs proven absent are excluded. Live rules, API errors, truncated or malformed results and unknown resource types still block verification. Authoritative Terraform-state and AWS-inventory failures have distinct diagnostics.
 
@@ -28,6 +28,25 @@ pnpm aws:runtime:cycle verify-teardown "$VIGIL_CYCLE" --cloud-approved
 
 Failed/uncertain operations retain their claims and evidence. Forward stages stop. Cleanup can receive a new, separately reviewed deletion plan from current full state after partial work; no automatic retry occurs. Orphans, physical drift, tainted/deposed instances or unpersisted error state need explicit recovery review, never import/state push/unlock. Dedicated sandbox destination retirement and manual application DNS changes remain separate approved actions.
 
+## Early Stripe preflight and guarded recovery
+
+Before any billable AWS work, configure this cycle's private sandbox key and run:
+
+```sh
+AWS_PROFILE=edtosoy AWS_REGION=ap-southeast-2 \
+  pnpm aws:runtime:cycle preflight "$VIGIL_CYCLE" --cloud-approved
+```
+
+This command only reads the sandbox account, webhook list and local cycle evidence. It does not invoke Terraform, create claims, write deployment history or mutate endpoints. It reports the exact intended URL, active endpoint IDs and sanitized descriptions. A blocked result exits nonzero. Incomplete/truncated/non-sandbox responses and API failures fail closed. Description diagnostics redact known private cycle values and Stripe key/signing-secret patterns; never put credentials or personal data in endpoint descriptions. The installed SDK/API version remains unchanged.
+
+Initial infrastructure planning and apply automatically repeat the same preflight before AWS readiness or resource work. Registration checks again before acquiring its exclusive creation claim. This catches endpoints created after planning; a preflight cannot reserve a URL against concurrent external operators, so serialize attended registration. Existing active endpoints are never automatically deleted, adopted or reused, even if their descriptions mention this cycle.
+
+Safe recovery: a preflight failure occurs before registration is attempted and creates no `destination-attempt.json`. Resolve API access or separately review the reported endpoints. Any endpoint retirement requires its own explicit authorization outside this workflow. Rerun the read-only preflight, confirm `CLEAR` and `registrationAttempt: NONE`, then explicitly rerun the blocked plan/apply/destination command using its normal fresh review and safety gates. No claim/history removal is needed. Expired plans require a new reviewed plan, not a bypass.
+
+Uncertain recovery: once `destination-attempt.json` exists, creation or secret persistence may have happened. Registration failures report `FAILED_OR_UNKNOWN`; preflight reports `RETAINED_POTENTIALLY_SIDE_EFFECTING` and blocks even when the URL currently has no active endpoints. Preserve the attempt, inputs, receipts and Stripe request history. Inspect Stripe request logs and the read-only endpoint report; obtain explicit recovery review before any further mutation. Neither an empty list nor an old idempotency key proves creation never occurred. Legacy attempts are conservatively uncertain because they do not prove whether their failure preceded creation. This change intentionally supplies no claim reset, endpoint adoption or automatic creation retry. If safe same-cycle recovery cannot be independently established, use separately approved runtime cleanup and endpoint retirement, retain all history, and only then separately authorize a fresh cycle. Do not start one merely to bypass a retained claim.
+
+Stripe contracts: [webhook endpoint listing](https://docs.stripe.com/api/webhook_endpoints/list) and [idempotency retention](https://docs.stripe.com/api/idempotent_requests). Stripe CLI documentation access was unavailable locally; the official API references were checked directly.
+
 ## Local preparation
 
 ```sh
@@ -37,6 +56,7 @@ pnpm aws:runtime:cycle prepare
 # Set VIGIL_CYCLE to the returned new UUID.
 pnpm aws:runtime:cycle set "$VIGIL_CYCLE" admin_email
 pnpm aws:runtime:cycle set "$VIGIL_CYCLE" stripe_key
+pnpm aws:runtime:cycle preflight "$VIGIL_CYCLE" --cloud-approved
 ```
 
 `set` uses a real hidden terminal prompt; values never belong in argv. Fresh passwords and the auth session secret are generated independently. Inputs live under `.deployment/747240980964/ap-southeast-2/demo/cycles/<uuid>/inputs.json`, with owned 0700 directories and unshared 0600 files. A newly requested Stripe book UUID is not treated as an existing identity until provisioning proves it. No endpoint or source/synthetic-book UUID is accepted as configuration. Retrieve the generated administrator password privately from this file, never into shared output.
@@ -48,7 +68,7 @@ pnpm aws:runtime:cycle operator-checks "$VIGIL_CYCLE" \
   --budget-alert-delivery-confirmed --account-spend-reviewed --cleanup-window-confirmed
 ```
 
-These assertions expire after fifteen minutes and grant no cloud authority. The driver independently checks STS, Free Plan/credits, the gross USD 5 budget, versioned Sydney bucket and exact State-role policies. New resource work stops at T+3h; target completed removal by T+4h. Cleanup bypasses budget-window/headroom requirements so expired credits do not prevent approved deletion.
+These assertions expire after one hour and grant no cloud authority. The driver independently checks STS, Free Plan/credits, the gross USD 5 budget, versioned Sydney bucket and exact State-role policies. New resource work stops at T+3h; target completed removal by T+4h. Cleanup bypasses budget-window/headroom requirements so expired credits do not prevent approved deletion.
 
 If email delivery is unverified, record it honestly as **UNKNOWN** with an explicit acknowledgement instead of the confirmed-delivery flag:
 

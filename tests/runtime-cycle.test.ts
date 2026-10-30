@@ -26,8 +26,11 @@ import {
 } from '../tools/runtime-cycle';
 import {
   assertCycleStart,
+  cycleWebhookPreflight,
+  cycleWebhookUrl,
   retainedCycleEcsMetadata,
   verifyCycleRuleInventory,
+  verifyCycleServiceInventory,
   assertCycleOperatorChecks,
   unverifiedBudgetAlertWarning,
   assertCycleState,
@@ -49,6 +52,59 @@ const images = Object.fromEntries(
     `${deployment.account}.dkr.ecr.${deployment.region}.amazonaws.com/flow-demo/${k}@sha256:${'a'.repeat(64)}`,
   ]),
 );
+
+test('Stripe preflight reports only exact active sandbox URL IDs and sanitized descriptions', () => {
+  const endpoint = {
+    id: 'we_existing',
+    url: cycleWebhookUrl,
+    livemode: false,
+    status: 'enabled',
+    description:
+      'Old cycle whsec_private sk_test_private rk_live_private\nlabel',
+    secret: 'whsec_never_output',
+  };
+  const response = {
+    has_more: false,
+    data: [
+      endpoint,
+      { ...endpoint, id: 'we_disabled', status: 'disabled' },
+      { ...endpoint, id: 'we_other', url: cycleWebhookUrl + '/other' },
+    ],
+  };
+  assert.deepEqual(
+    cycleWebhookPreflight(
+      {
+        has_more: false,
+        data: [{ ...endpoint, description: 'credential private-password' }],
+      },
+      ['private-password'],
+    ).active,
+    [{ id: endpoint.id, description: 'credential [REDACTED]' }],
+  );
+  const result = cycleWebhookPreflight(response);
+  assert.deepEqual(result.active, [
+    {
+      id: endpoint.id,
+      description: 'Old cycle [REDACTED] [REDACTED] [REDACTED] label',
+    },
+  ]);
+  assert(!JSON.stringify(result).includes('private'));
+  assert(!JSON.stringify(result).includes('never_output'));
+  for (const bad of [
+    null,
+    {},
+    { data: [] },
+    { ...response, has_more: true },
+    ...[
+      { livemode: true },
+      { status: 'unknown' },
+      { id: 'other' },
+      { url: undefined },
+      { description: undefined },
+    ].map((patch) => ({ has_more: false, data: [{ ...endpoint, ...patch }] })),
+  ])
+    assert.throws(() => cycleWebhookPreflight(bad), /preflight/);
+});
 
 test('retained ECS tags are excluded only for verified inactive metadata in the exact Sydney runtime', () => {
   const prefix = `arn:aws:ecs:${deployment.region}:${deployment.account}:`;
@@ -98,6 +154,148 @@ test('retained ECS tags are excluded only for verified inactive metadata in the 
   ])
     assert(!retainedCycleEcsMetadata(ca, { ...cluster, ...patch }));
   assert(!retainedCycleEcsMetadata(prefix + 'service/flow-demo', cluster));
+});
+
+test('retained services require exact scoped identity and complete inactive native proof', async () => {
+  const prefix = `arn:aws:ecs:${deployment.region}:${deployment.account}:`;
+  const cluster = prefix + 'cluster/flow-demo';
+  const services = ['ops', 'ingress', 'worker'].map((name) => ({
+    serviceArn: prefix + `service/flow-demo/flow-demo-${name}`,
+    serviceName: `flow-demo-${name}`,
+    clusterArn: cluster,
+    status: 'INACTIVE',
+    desiredCount: 0,
+    runningCount: 0,
+    pendingCount: 0,
+  }));
+  const arns = services.map((service) => service.serviceArn);
+  const calls: string[] = [];
+  const absent = await verifyCycleServiceInventory(arns, async (c, arn) => {
+    assert.equal(c, cluster);
+    calls.push(arn);
+    return {
+      failures: [],
+      services: [services.find((s) => s.serviceArn === arn)!],
+    };
+  });
+  assert.deepEqual(calls, arns);
+  assert.deepEqual(absent, []);
+  assertCycleStart(snapshotFrom([]), absent);
+  for (const service of services) {
+    assert(retainedCycleEcsMetadata(service.serviceArn, service));
+    for (const patch of [
+      { status: 'ACTIVE' },
+      { status: 'DRAINING' },
+      { status: 'UNKNOWN' },
+      { desiredCount: 1 },
+      { runningCount: 1 },
+      { pendingCount: 1 },
+      { desiredCount: '0' },
+      { serviceArn: arns[0] + '-other' },
+      { serviceName: 'flow-demo-other' },
+      { clusterArn: cluster + '-other' },
+      ...Object.keys(service).map((key) => ({ [key]: undefined })),
+    ]) {
+      const observed = { ...service, ...patch };
+      assert(!retainedCycleEcsMetadata(service.serviceArn, observed));
+      const retained = await verifyCycleServiceInventory(
+        [service.serviceArn],
+        async () => ({
+          failures: [],
+          services: [observed],
+        }),
+      );
+      assert.deepEqual(retained, [service.serviceArn]);
+      assert.throws(
+        () => assertCycleStart(snapshotFrom([]), retained),
+        /AWS runtime inventory/,
+      );
+    }
+  }
+  const service = services[0]!;
+  for (const response of [
+    {},
+    { services: [] },
+    { failures: [] },
+    { services: [service] },
+    { failures: [], services: [] },
+    { failures: [], services: [{}] },
+    { failures: [{ reason: 'MISSING' }], services: [service] },
+    { failures: [], services: [service, service] },
+    { failures: [], services: [services[1]!] },
+  ])
+    assert.deepEqual(
+      await verifyCycleServiceInventory(
+        [service.serviceArn],
+        async () => response,
+      ),
+      [service.serviceArn],
+    );
+  await assert.rejects(
+    verifyCycleServiceInventory(arns, async () => {
+      throw new Error('native API unavailable');
+    }),
+    /native API unavailable/,
+  );
+  const foreign = [
+    service.serviceArn.replace(deployment.account, '163596511125'),
+    service.serviceArn.replace(deployment.region, 'us-east-1'),
+    service.serviceArn.replace('service/flow-demo/', 'service/other/'),
+    service.serviceArn + '-other',
+    prefix + 'service/flow-demo/flow-demo-admin',
+    prefix + 'service/flow-demo-ops',
+    'arn:aws:other:ap-southeast-2:747240980964:unknown/example',
+  ];
+  for (const arn of foreign)
+    assert(!retainedCycleEcsMetadata(arn, { ...service, serviceArn: arn }));
+  assert.deepEqual(
+    await verifyCycleServiceInventory(foreign, async () => {
+      assert.fail('Unexpected identities must not be queried or excluded');
+    }),
+    foreign,
+  );
+  assert.deepEqual(
+    await verifyCycleServiceInventory(
+      [...arns, ...foreign],
+      async (_, arn) => ({
+        failures: [],
+        services: [services.find((s) => s.serviceArn === arn)!],
+      }),
+    ),
+    foreign,
+  );
+});
+
+test('native ECS MISSING proves exact owned deleted services only', async () => {
+  const prefix = `arn:aws:ecs:${deployment.region}:${deployment.account}:`;
+  const arns = ['ops', 'ingress', 'worker'].map(
+    (name) => prefix + `service/flow-demo/flow-demo-${name}`,
+  );
+  assert.deepEqual(
+    await verifyCycleServiceInventory(arns, async (_, arn) => ({
+      services: [],
+      failures: [{ arn, reason: 'MISSING' }],
+    })),
+    [],
+  );
+  for (const response of [
+    { services: [], failures: [{ arn: arns[0], reason: 'ACCESS_DENIED' }] },
+    { services: [], failures: [{ arn: arns[1], reason: 'MISSING' }] },
+    { services: [], failures: [{ reason: 'MISSING' }] },
+    {
+      services: [],
+      failures: [
+        { arn: arns[0], reason: 'MISSING' },
+        { arn: arns[0], reason: 'MISSING' },
+      ],
+    },
+    { services: [{}], failures: [{ arn: arns[0], reason: 'MISSING' }] },
+  ]) {
+    assert.deepEqual(
+      await verifyCycleServiceInventory([arns[0]!], async () => response),
+      [arns[0]],
+    );
+  }
 });
 
 test('stale tagged EC2 rules require complete native absence proof; live and unknown resources still block', async () => {
@@ -218,6 +416,15 @@ test('UNKNOWN budget delivery requires explicit acknowledgement and preserves ev
     fourHourCleanupWindowConfirmed: true,
   };
   assert.equal(assertCycleOperatorChecks(approval, id, now), 'UNKNOWN');
+  for (const age of [900001, 3599999, 3600000])
+    assert.equal(
+      assertCycleOperatorChecks(
+        { ...approval, observedAt: new Date(now - age).toISOString() },
+        id,
+        now,
+      ),
+      'UNKNOWN',
+    );
   for (const patch of [
     { unverifiedBudgetAlertDeliveryAcknowledged: false },
     { unverifiedBudgetAlertDeliveryAcknowledged: 'true' },
@@ -226,7 +433,7 @@ test('UNKNOWN budget delivery requires explicit acknowledgement and preserves ev
     { budgetAlertDeliveryConfirmed: true },
     { accountWideSpendReviewed: false },
     { fourHourCleanupWindowConfirmed: false },
-    { observedAt: new Date(now - 900001).toISOString() },
+    { observedAt: new Date(now - 3600001).toISOString() },
     { observedAt: new Date(now + 1).toISOString() },
     { observedAt: 'invalid' },
     { cycle: randomUUID() },
@@ -545,6 +752,10 @@ async function fixture() {
     destination: async () => {
       calls.push({ operation: 'destination' });
     },
+    preflightDestination: async () => {
+      calls.push({ operation: 'stripe-preflight' });
+      return { url: cycleWebhookUrl, active: [] };
+    },
     registerDestination: async () => ({
       id: 'we_current',
       secret: 'whsec_' + 'b'.repeat(32),
@@ -611,6 +822,152 @@ async function fixture() {
     cleanup: () => rm(root, { recursive: true, force: true }),
   };
 }
+
+test('early preflight blocks initial planning without claims and safely allows retry after review', async () => {
+  const f = await fixture();
+  try {
+    const c = await f.prepare();
+    const clear = f.driver.preflightDestination;
+    f.driver.preflightDestination = async () => ({
+      url: cycleWebhookUrl,
+      active: [{ id: 'we_old', description: 'Previous cycle' }],
+    });
+    const diagnostic = await (await c.workflow()).preflight();
+    assert.equal(diagnostic.status, 'BLOCKED');
+    assert.equal(diagnostic.registrationAttempt, 'NONE');
+    assert.deepEqual(
+      runtimeCycleCommand(['preflight', c.id, '--cloud-approved']),
+      { operation: 'preflight', id: c.id },
+    );
+    assert.throws(
+      () => runtimeCycleCommand(['preflight', c.id]),
+      /Cloud commands/,
+    );
+    await assert.rejects(
+      (await c.workflow()).plan('infrastructure'),
+      /we_old.*Previous cycle/,
+    );
+    assert.equal(
+      f.calls.length,
+      0,
+      'No AWS readiness or Terraform before Stripe preflight',
+    );
+    await assert.rejects(readFile(c.store.path('anchor.json')), {
+      code: 'ENOENT',
+    });
+    await assert.rejects(readFile(c.store.path('destination-attempt.json')), {
+      code: 'ENOENT',
+    });
+    f.driver.preflightDestination = async () => {
+      throw new Error('unavailable');
+    };
+    await assert.rejects((await c.workflow()).plan('infrastructure'));
+    assert.equal(f.calls.length, 0);
+    f.driver.preflightDestination = clear;
+    const p = await (await c.workflow()).plan('infrastructure');
+    f.driver.preflightDestination = async () => ({
+      url: cycleWebhookUrl,
+      active: [{ id: 'we_new', description: null }],
+    });
+    await assert.rejects((await c.workflow()).apply(p.reviewId), /we_new/);
+    assert(!f.calls.some((c) => c.operation === 'apply'));
+    f.driver.preflightDestination = clear;
+    await (await c.workflow()).apply(p.reviewId);
+    f.driver.account = async () => 'acct_foreign';
+    await assert.rejects((await c.workflow()).preflight(), /account changed/);
+  } finally {
+    await f.cleanup();
+  }
+});
+
+test('destination preflight failures remain retryable, uncertain creates retain a permanent blocking claim', async () => {
+  const f = await fixture();
+  try {
+    const c = await f.prepare();
+    for (const stage of ['infrastructure', 'provisioning', 'https'] as const) {
+      const plan = await (await c.workflow()).plan(stage);
+      await (await c.workflow()).apply(plan.reviewId);
+      if (stage === 'provisioning') await (await c.workflow()).provision();
+    }
+    const clear = f.driver.preflightDestination;
+    let creates = 0;
+    f.driver.registerDestination = async () => {
+      creates++;
+      throw new Error('connection lost whsec_private');
+    };
+    f.driver.preflightDestination = async () => ({
+      url: cycleWebhookUrl,
+      active: [{ id: 'we_old', description: null }],
+    });
+    await assert.rejects(
+      (await c.workflow()).destination(),
+      /no registration attempted/,
+    );
+    await assert.rejects(readFile(c.store.path('destination-attempt.json')), {
+      code: 'ENOENT',
+    });
+    assert.equal(creates, 0);
+    f.driver.preflightDestination = clear;
+    await assert.rejects(
+      (await c.workflow()).destination(),
+      /FAILED_OR_UNKNOWN/,
+    );
+    const attempt = await readFile(
+      c.store.path('destination-attempt.json'),
+      'utf8',
+    );
+    assert.equal(creates, 1);
+    const diagnostic = await (await c.workflow()).preflight();
+    assert.equal(
+      diagnostic.registrationAttempt,
+      'RETAINED_POTENTIALLY_SIDE_EFFECTING',
+    );
+    assert.equal(diagnostic.status, 'BLOCKED');
+    await assert.rejects((await c.workflow()).destination(), /retain history/);
+    assert.equal(creates, 1);
+    assert.equal(
+      await readFile(c.store.path('destination-attempt.json'), 'utf8'),
+      attempt,
+    );
+  } finally {
+    await f.cleanup();
+  }
+});
+
+test('cycle saved plans remain valid after fifteen minutes but expire after thirty; new-work cutoff is unchanged', async () => {
+  for (const age of [20 * 60000, 30 * 60000 + 1000]) {
+    const f = await fixture();
+    try {
+      const c = await f.prepare(),
+        plan = await (await c.workflow()).plan('infrastructure');
+      const file = c.store.context.path(
+        `plan-preparation/${plan.reviewId.split(':')[0]}/cycle-review.json`,
+      );
+      const review = JSON.parse(await readFile(file, 'utf8'));
+      review.createdAt = new Date(Date.now() - age).toISOString();
+      await writeFile(file, JSON.stringify(review), { mode: 0o600 });
+      if (age < 30 * 60000) {
+        await (await c.workflow()).apply(plan.reviewId);
+        const anchorPath = c.store.path('anchor.json');
+        const anchor = JSON.parse(await readFile(anchorPath, 'utf8'));
+        anchor.startedAt = new Date(Date.now() - 3 * 3600000).toISOString();
+        await writeFile(anchorPath, JSON.stringify(anchor), { mode: 0o600 });
+        await assert.rejects(
+          (await c.workflow()).plan('provisioning'),
+          /T\+3h/,
+        );
+        const cleanup = await (await c.workflow()).plan('teardown');
+        await (await c.workflow()).apply(cleanup.reviewId);
+      } else
+        await assert.rejects(
+          (await c.workflow()).apply(plan.reviewId),
+          /expired cycle review/,
+        );
+    } finally {
+      await f.cleanup();
+    }
+  }
+});
 
 test('two full attended cycles retain one lineage, old claims and all activated teardown resources', async () => {
   const f = await fixture();
@@ -795,7 +1152,7 @@ test('state/lineage drift, expired reviews, changed inputs and changed source pr
       if (problem === 'expiry') {
         const p = resolve(prefix, 'cycle-review.json');
         const r = JSON.parse(await readFile(p, 'utf8'));
-        r.createdAt = new Date(Date.now() - 900001).toISOString();
+        r.createdAt = new Date(Date.now() - 1800001).toISOString();
         await writeFile(p, JSON.stringify(r), { mode: 0o600 });
       }
       if (problem === 'inputs') {
@@ -983,6 +1340,205 @@ test('complete teardown rejects omission, foreign/bootstrap IAM, replacement and
   ];
   assertCyclePlan(certDrift, s, 'teardown');
   assert.throws(() => assertCycleState(s, { ...s, versionId: 'other' }));
+});
+
+test('sanitized activation plan refresh evidence accepts only the observed owned lifecycle metadata', async () => {
+  // Allowlisted projection of the retained activation plan; unique ARNs/VPC IDs anonymized.
+  const evidence = JSON.parse(
+    await readFile(
+      resolve(__dirname, 'fixtures/runtime-cycle-activation-refresh.json'),
+      'utf8',
+    ),
+  ) as {
+    live: Parameters<typeof expectedCycleRefresh>[1];
+    drift: Parameters<typeof expectedCycleRefresh>[0][];
+  };
+  assert.equal(evidence.drift.length, 3);
+  for (const drift of evidence.drift) {
+    assert(expectedCycleRefresh(drift, evidence.live, 'active'), drift.address);
+    const bad = structuredClone(drift);
+    bad.change.after!['unexpected'] = 'change';
+    assert(!expectedCycleRefresh(bad, evidence.live, 'active'));
+  }
+});
+
+test('issued ACM renewal eligibility requires exact owned certificate identity and no other change', () => {
+  const arn = `arn:aws:acm:${deployment.region}:${deployment.account}:certificate/11111111-1111-4111-8111-111111111111`;
+  const before = {
+    id: arn,
+    arn,
+    domain_name: deployment.domain,
+    status: 'ISSUED',
+    renewal_eligibility: 'INELIGIBLE',
+  };
+  const after = { ...before, renewal_eligibility: 'ELIGIBLE' };
+  const owned = { address: 'aws_acm_certificate.demo', attributes: before };
+  const check = (
+    b = before,
+    a = after,
+    live = [owned],
+    address = owned.address,
+    stage = 'active',
+  ) =>
+    expectedCycleRefresh(
+      { address, change: { actions: ['update'], before: b, after: a } },
+      live,
+      stage,
+    );
+  assert(check());
+  assert(check(before, after, [owned], owned.address, 'teardown'));
+  for (const patch of [
+    { status: 'PENDING_VALIDATION' },
+    { status: 'REVOKED' },
+    { status: undefined },
+    { renewal_eligibility: 'UNKNOWN' },
+    { renewal_eligibility: undefined },
+    { id: undefined },
+    { arn: undefined },
+    { arn: arn + '-other' },
+    { domain_name: 'foreign.example' },
+  ])
+    assert(!check({ ...before, ...patch } as typeof before));
+  for (const patch of [
+    { status: 'PENDING_VALIDATION' },
+    { status: 'REVOKED' },
+    { status: undefined },
+    { renewal_eligibility: 'UNKNOWN' },
+    { renewal_eligibility: undefined },
+    { id: undefined },
+    { arn: undefined },
+    { arn: arn + '-other' },
+    { domain_name: 'foreign.example' },
+  ])
+    assert(!check(before, { ...after, ...patch } as typeof after));
+  for (const foreign of [
+    arn.replace(deployment.account, '163596511125'),
+    arn.replace(deployment.region, 'us-east-1'),
+  ]) {
+    const b = { ...before, id: foreign, arn: foreign };
+    assert(
+      !check(b, { ...b, renewal_eligibility: 'ELIGIBLE' }, [
+        { ...owned, attributes: b },
+      ]),
+    );
+  }
+  assert(!check(before, after, []));
+  assert(
+    !check(before, after, [
+      { ...owned, attributes: { ...before, status: 'PENDING_VALIDATION' } },
+    ]),
+  );
+  assert(!check(before, after, [owned, owned]));
+  assert(
+    !check(before, after, [
+      { ...owned, attributes: { ...before, arn: arn + '-other' } },
+    ]),
+  );
+  assert(!check(before, after, [owned], 'aws_acm_certificate.foreign'));
+  assert(!check(before, after, [owned], owned.address, 'infrastructure'));
+  assert(
+    !check(before, { ...after, validation_method: 'EMAIL' } as typeof after),
+  );
+});
+
+test('target group ALB refresh requires exact owned target and single authoritative cycle ALB', () => {
+  const prefix = `arn:aws:elasticloadbalancing:${deployment.region}:${deployment.account}:`;
+  const alb = {
+    id: prefix + 'loadbalancer/app/flow-demo/' + 'a'.repeat(16),
+    arn: prefix + 'loadbalancer/app/flow-demo/' + 'a'.repeat(16),
+  };
+  for (const name of ['ops', 'ingress']) {
+    const arn = prefix + `targetgroup/flow-demo-${name}/` + 'b'.repeat(16);
+    const before = {
+      id: arn,
+      arn,
+      name: `flow-demo-${name}`,
+      load_balancer_arns: [] as string[],
+    };
+    const after = { ...before, load_balancer_arns: [alb.arn] };
+    const own = {
+      address: `aws_lb_target_group.app["${name}"]`,
+      attributes: before,
+    };
+    const owner = { address: 'aws_lb.demo', attributes: alb };
+    const check = (
+      b = before,
+      a = after,
+      live: { address: string; attributes: Record<string, unknown> }[] = [
+        own,
+        owner,
+      ],
+      address = own.address,
+    ) =>
+      expectedCycleRefresh(
+        { address, change: { actions: ['update'], before: b, after: a } },
+        live,
+        'active',
+      );
+    assert(check());
+    for (const value of [undefined, null, [alb.arn, 'foreign'], ['foreign']])
+      assert(!check({ ...before, load_balancer_arns: value } as typeof before));
+    for (const value of [
+      undefined,
+      null,
+      [alb.arn, alb.arn],
+      [alb.arn + '-other'],
+      [alb.arn.replace(deployment.account, '163596511125')],
+      [alb.arn.replace(deployment.region, 'us-east-1')],
+    ])
+      assert(
+        !check(before, { ...after, load_balancer_arns: value } as typeof after),
+      );
+    for (const patch of [
+      { id: undefined },
+      { arn: undefined },
+      { arn: arn + '-other' },
+      { name: 'other' },
+    ]) {
+      assert(!check({ ...before, ...patch } as typeof before));
+      assert(!check(before, { ...after, ...patch } as typeof after));
+    }
+    for (const live of [
+      [],
+      [own],
+      [owner],
+      [own, own, owner],
+      [own, owner, owner],
+      [own, { ...owner, attributes: { id: alb.id } }],
+      [own, { ...owner, attributes: { ...alb, id: alb.id + '-other' } }],
+      [{ ...own, attributes: { ...before, arn: arn + '-other' } }, owner],
+    ])
+      assert(!check(before, after, live));
+    for (const foreign of [
+      alb.arn.replace(deployment.account, '163596511125'),
+      alb.arn.replace(deployment.region, 'us-east-1'),
+    ])
+      assert(
+        !check(before, { ...after, load_balancer_arns: [foreign] }, [
+          own,
+          { ...owner, attributes: { id: foreign, arn: foreign } },
+        ]),
+      );
+    assert(
+      !check(before, after, [own, { ...owner, attributes: { arn: alb.arn } }]),
+    );
+    for (const foreign of [
+      arn.replace(deployment.account, '163596511125'),
+      arn.replace(deployment.region, 'us-east-1'),
+    ]) {
+      const b = { ...before, id: foreign, arn: foreign };
+      assert(
+        !check(b, { ...b, load_balancer_arns: [alb.arn] }, [
+          { ...own, attributes: b },
+          owner,
+        ]),
+      );
+    }
+    assert(
+      !check(before, after, [own, owner], 'aws_lb_target_group.app["worker"]'),
+    );
+    assert(!check(before, { ...after, protocol: 'HTTP' } as typeof after));
+  }
 });
 
 test('post-create refresh validates normalizations without weakening drift guards', () => {

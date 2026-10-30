@@ -1,0 +1,353 @@
+/* Hallmark · shape: app screen · genre: modern-minimal · theme: brand · redesign: full
+ * brand: Vigil (repository palette and original logo) · display: system sans · body: system sans
+ * nav: identity only · signature: quiet split workspace · states: default, hover, focus, active, disabled, loading, error, redirect
+ * axes: light/grotesk-sans/cool · posture: Restrained · v2.0.0 */
+/* Hallmark · pre-emit critique: P4 H4 E4 S3 R5 V4 · weakest: specificity; retained Vigil's original mark and investigation statement. */
+/* Hallmark · reworded account guidance at user request; provisioning and disabled registration policy retained. */
+/* Hallmark · dismissed 25 · the brand panel contains a one-sentence caption, within the 28ch lede exception. */
+.page {
+  padding: 0;
+  max-width: none;
+  min-height: 100svh;
+  background: var(--auth-paper);
+  color: var(--auth-ink);
+  font-family: var(--auth-font);
+  font-size: 16px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  caret-color: var(--auth-accent);
+  scrollbar-color: var(--auth-control) var(--auth-paper);
+}
+
+:global(html):has(.page),
+:global(body):has(.page) {
+  overflow-x: clip;
+}
+
+.page ::selection {
+  background: var(--auth-field);
+  color: var(--auth-field-ink);
+}
+
+.workspace {
+  display: grid;
+  grid-template-columns: minmax(0, 0.88fr) minmax(0, 1.12fr);
+  min-height: 100svh;
+  max-width: 1600px;
+  margin-inline: auto;
+}
+
+.brandPanel {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: var(--auth-space-3xl);
+  padding: var(--auth-space-3xl);
+  background: var(--auth-field);
+  color: var(--auth-field-ink);
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: var(--auth-space-md);
+}
+
+.brand img {
+  flex-shrink: 0;
+  border-radius: var(--auth-radius);
+}
+
+.wordmark,
+.brandCaption {
+  display: block;
+}
+
+.wordmark {
+  font-size: 28px;
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: -0.04em;
+}
+
+.brandCaption,
+.brandFooter {
+  font-size: 14px;
+  color: var(--auth-field-muted);
+}
+
+.brandCaption {
+  margin-top: 4px;
+}
+
+.statement p {
+  margin: 0;
+  max-width: 28ch;
+  text-wrap: pretty;
+}
+
+.statement .statementTitle {
+  max-width: 12ch;
+  margin-bottom: var(--auth-space-lg);
+  font-size: 48px;
+  font-weight: 500;
+  letter-spacing: -0.04em;
+  line-height: 1.12;
+  text-wrap: balance;
+  overflow-wrap: break-word;
+  min-width: 0;
+}
+
+.brandFooter {
+  margin: 0;
+}
+
+.access {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  padding: var(--auth-space-3xl) var(--auth-space-2xl);
+  background: var(--auth-surface);
+  color: var(--auth-ink);
+}
+
+.formContainer {
+  width: 100%;
+  max-width: 400px;
+}
+
+.formContainer h1 {
+  margin: 0;
+  font-size: 32px;
+  font-weight: 600;
+  letter-spacing: -0.04em;
+  line-height: 1.2;
+  text-wrap: balance;
+  overflow-wrap: break-word;
+  min-width: 0;
+}
+
+.introduction {
+  margin: var(--auth-space-sm) 0 var(--auth-space-lg);
+  color: var(--auth-muted);
+}
+
+.form p {
+  text-wrap: pretty;
+}
+
+.requiredNote {
+  color: var(--auth-muted);
+  font-size: 14px;
+  margin: 0 0 var(--auth-space-md);
+}
+
+.field + .field {
+  margin-top: var(--auth-space-sm);
+}
+
+.field label {
+  display: block;
+  font-size: 14px;
+  font-weight: 600;
+  margin-bottom: var(--auth-space-xs);
+}
+
+.field input {
+  width: 100%;
+  height: 48px;
+  padding: var(--auth-space-sm) var(--auth-space-md);
+  border: 1px solid var(--auth-control);
+  border-radius: var(--auth-radius);
+  background: var(--auth-surface);
+  color: var(--auth-ink);
+  font: inherit;
+}
+
+.field input[aria-invalid='true'] {
+  border-width: 1px;
+  border-color: var(--auth-error);
+}
+
+.page :focus-visible {
+  outline: 3px solid var(--auth-accent);
+  outline-offset: 3px;
+}
+
+.passwordField {
+  position: relative;
+}
+
+.passwordField input {
+  padding-right: 80px;
+}
+
+.page .visibility {
+  position: absolute;
+  inset-block: 2px;
+  right: 4px;
+  min-width: 60px;
+  min-height: 44px;
+  padding: 0 var(--auth-space-xs);
+  border: 0;
+  border-radius: 4px;
+  background: var(--auth-clear);
+  color: var(--auth-muted);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.page .visibility:focus-visible {
+  outline-offset: -3px;
+}
+
+.fieldError,
+.error {
+  color: var(--auth-error);
+  font-size: 14px;
+}
+
+.fieldError {
+  min-height: 1.5em;
+  margin: 4px 0 0;
+}
+
+.error {
+  min-height: 1.5em;
+  margin: var(--auth-space-xs) 0 var(--auth-space-sm);
+}
+
+.page .submit {
+  display: block;
+  width: 100%;
+  min-height: 48px;
+  padding: var(--auth-space-sm) var(--auth-space-lg);
+  border: 1px solid var(--auth-accent);
+  border-radius: var(--auth-radius);
+  background: var(--auth-accent);
+  color: var(--auth-accent-ink);
+  font: inherit;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+@media (hover: hover) {
+  .page .submit:hover:not(:disabled) {
+    background: var(--auth-accent-hover);
+  }
+
+  .page .visibility:hover {
+    background: var(--auth-paper);
+  }
+
+  .field input:hover {
+    border-color: var(--auth-muted);
+  }
+}
+
+.page .submit:active:not(:disabled) {
+  background: var(--auth-accent-active);
+}
+
+.page .visibility:active {
+  background: var(--auth-line);
+}
+
+.page .submit:disabled {
+  background: var(--auth-accent);
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+.accountAccess {
+  margin-top: var(--auth-space-xl);
+}
+
+.accountAccess h2,
+.visitor h2 {
+  font-size: 14px;
+  font-weight: 600;
+  margin: 0 0 var(--auth-space-xs);
+}
+
+.accountAccess p,
+.visitor p {
+  margin: 0;
+  font-size: 14px;
+  color: var(--auth-muted);
+}
+
+.visitor {
+  margin-top: var(--auth-space-xl);
+  padding-top: var(--auth-space-lg);
+  border-top: 1px solid var(--auth-line);
+  overflow-wrap: anywhere;
+}
+
+.visitor p + p {
+  margin-top: var(--auth-space-sm);
+}
+
+.visitor code {
+  color: var(--auth-ink);
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: clip;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+@media (max-width: 1023px) {
+  .brandPanel {
+    padding: var(--auth-space-xl);
+  }
+
+  .statement .statementTitle {
+    font-size: 40px;
+  }
+
+  .access {
+    padding-inline: var(--auth-space-xl);
+  }
+}
+
+@media (max-width: 959px) {
+  .page,
+  .workspace {
+    background: var(--auth-surface);
+  }
+
+  .workspace {
+    grid-template-columns: minmax(0, 1fr);
+    align-content: start;
+  }
+
+  .brandPanel {
+    width: 100%;
+    max-width: 448px;
+    margin-inline: auto;
+    padding: var(--auth-space-xl) var(--auth-space-lg) var(--auth-space-2xl);
+    background: var(--auth-surface);
+    color: var(--auth-ink);
+  }
+
+  .brandCaption {
+    color: var(--auth-muted);
+  }
+
+  .statement,
+  .brandFooter {
+    display: none;
+  }
+
+  .access {
+    align-items: start;
+    padding: 0 var(--auth-space-lg) var(--auth-space-xl);
+  }
+}
