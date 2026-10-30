@@ -1,5 +1,6 @@
 /** Validate only explainable post-create provider refresh. No Terraform state mutation. */
 import { isDeepStrictEqual } from 'node:util';
+import { deployment } from './deployment-guards';
 
 interface LiveResource {
   address: string;
@@ -290,6 +291,73 @@ export function expectedCycleRefresh(
     before['status'] = after['status'];
     if ('not_before' in after) before['not_before'] = after['not_before'];
     if ('not_after' in after) before['not_after'] = after['not_after'];
+  }
+  if (
+    drift.address === 'aws_acm_certificate.demo' &&
+    !isDeepStrictEqual(
+      before['renewal_eligibility'],
+      after['renewal_eligibility'],
+    )
+  ) {
+    const owned = live.filter((r) => r.address === drift.address);
+    const arn = before['arn'];
+    const prefix = `arn:aws:acm:${deployment.region}:${deployment.account}:certificate/`;
+    if (
+      stage === 'infrastructure' ||
+      owned.length !== 1 ||
+      typeof arn !== 'string' ||
+      !arn.startsWith(prefix) ||
+      !/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/.test(
+        arn.slice(prefix.length),
+      ) ||
+      before['id'] !== arn ||
+      owned[0]!.attributes['arn'] !== arn ||
+      before['domain_name'] !== deployment.domain ||
+      owned[0]!.attributes['domain_name'] !== deployment.domain ||
+      owned[0]!.attributes['status'] !== 'ISSUED' ||
+      originalBefore['status'] !== 'ISSUED' ||
+      originalAfter['status'] !== 'ISSUED' ||
+      before['renewal_eligibility'] !== 'INELIGIBLE' ||
+      after['renewal_eligibility'] !== 'ELIGIBLE'
+    )
+      return false;
+    before['renewal_eligibility'] = after['renewal_eligibility'];
+  }
+  const target = /^aws_lb_target_group\.app\["(ops|ingress)"\]$/.exec(
+    drift.address,
+  );
+  if (
+    target &&
+    !isDeepStrictEqual(
+      before['load_balancer_arns'],
+      after['load_balancer_arns'],
+    )
+  ) {
+    const owned = live.filter((r) => r.address === drift.address);
+    const owners = live.filter((r) => r.address === 'aws_lb.demo');
+    const arn = before['arn'];
+    const prefix = `arn:aws:elasticloadbalancing:${deployment.region}:${deployment.account}:`;
+    const targetPrefix = prefix + `targetgroup/flow-demo-${target[1]}/`;
+    const albPrefix = prefix + 'loadbalancer/app/flow-demo/';
+    const alb = owners[0]?.attributes['arn'];
+    if (
+      owned.length !== 1 ||
+      owners.length !== 1 ||
+      typeof arn !== 'string' ||
+      !arn.startsWith(targetPrefix) ||
+      !/^[0-9a-f]{16}$/.test(arn.slice(targetPrefix.length)) ||
+      before['id'] !== arn ||
+      owned[0]!.attributes['arn'] !== arn ||
+      before['name'] !== `flow-demo-${target[1]}` ||
+      typeof alb !== 'string' ||
+      !alb.startsWith(albPrefix) ||
+      !/^[0-9a-f]{16}$/.test(alb.slice(albPrefix.length)) ||
+      owners[0]!.attributes['id'] !== alb ||
+      !isDeepStrictEqual(before['load_balancer_arns'], []) ||
+      !isDeepStrictEqual(after['load_balancer_arns'], [alb])
+    )
+      return false;
+    before['load_balancer_arns'] = after['load_balancer_arns'];
   }
   if (
     /^aws_iam_role\.execution\["[^\"]+"\]$/.test(drift.address) &&

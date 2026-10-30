@@ -1310,6 +1310,205 @@ test('complete teardown rejects omission, foreign/bootstrap IAM, replacement and
   assert.throws(() => assertCycleState(s, { ...s, versionId: 'other' }));
 });
 
+test('sanitized activation plan refresh evidence accepts only the observed owned lifecycle metadata', async () => {
+  // Allowlisted projection of the retained activation plan; unique ARNs/VPC IDs anonymized.
+  const evidence = JSON.parse(
+    await readFile(
+      resolve(__dirname, 'fixtures/runtime-cycle-activation-refresh.json'),
+      'utf8',
+    ),
+  ) as {
+    live: Parameters<typeof expectedCycleRefresh>[1];
+    drift: Parameters<typeof expectedCycleRefresh>[0][];
+  };
+  assert.equal(evidence.drift.length, 3);
+  for (const drift of evidence.drift) {
+    assert(expectedCycleRefresh(drift, evidence.live, 'active'), drift.address);
+    const bad = structuredClone(drift);
+    bad.change.after!['unexpected'] = 'change';
+    assert(!expectedCycleRefresh(bad, evidence.live, 'active'));
+  }
+});
+
+test('issued ACM renewal eligibility requires exact owned certificate identity and no other change', () => {
+  const arn = `arn:aws:acm:${deployment.region}:${deployment.account}:certificate/11111111-1111-4111-8111-111111111111`;
+  const before = {
+    id: arn,
+    arn,
+    domain_name: deployment.domain,
+    status: 'ISSUED',
+    renewal_eligibility: 'INELIGIBLE',
+  };
+  const after = { ...before, renewal_eligibility: 'ELIGIBLE' };
+  const owned = { address: 'aws_acm_certificate.demo', attributes: before };
+  const check = (
+    b = before,
+    a = after,
+    live = [owned],
+    address = owned.address,
+    stage = 'active',
+  ) =>
+    expectedCycleRefresh(
+      { address, change: { actions: ['update'], before: b, after: a } },
+      live,
+      stage,
+    );
+  assert(check());
+  assert(check(before, after, [owned], owned.address, 'teardown'));
+  for (const patch of [
+    { status: 'PENDING_VALIDATION' },
+    { status: 'REVOKED' },
+    { status: undefined },
+    { renewal_eligibility: 'UNKNOWN' },
+    { renewal_eligibility: undefined },
+    { id: undefined },
+    { arn: undefined },
+    { arn: arn + '-other' },
+    { domain_name: 'foreign.example' },
+  ])
+    assert(!check({ ...before, ...patch } as typeof before));
+  for (const patch of [
+    { status: 'PENDING_VALIDATION' },
+    { status: 'REVOKED' },
+    { status: undefined },
+    { renewal_eligibility: 'UNKNOWN' },
+    { renewal_eligibility: undefined },
+    { id: undefined },
+    { arn: undefined },
+    { arn: arn + '-other' },
+    { domain_name: 'foreign.example' },
+  ])
+    assert(!check(before, { ...after, ...patch } as typeof after));
+  for (const foreign of [
+    arn.replace(deployment.account, '163596511125'),
+    arn.replace(deployment.region, 'us-east-1'),
+  ]) {
+    const b = { ...before, id: foreign, arn: foreign };
+    assert(
+      !check(b, { ...b, renewal_eligibility: 'ELIGIBLE' }, [
+        { ...owned, attributes: b },
+      ]),
+    );
+  }
+  assert(!check(before, after, []));
+  assert(
+    !check(before, after, [
+      { ...owned, attributes: { ...before, status: 'PENDING_VALIDATION' } },
+    ]),
+  );
+  assert(!check(before, after, [owned, owned]));
+  assert(
+    !check(before, after, [
+      { ...owned, attributes: { ...before, arn: arn + '-other' } },
+    ]),
+  );
+  assert(!check(before, after, [owned], 'aws_acm_certificate.foreign'));
+  assert(!check(before, after, [owned], owned.address, 'infrastructure'));
+  assert(
+    !check(before, { ...after, validation_method: 'EMAIL' } as typeof after),
+  );
+});
+
+test('target group ALB refresh requires exact owned target and single authoritative cycle ALB', () => {
+  const prefix = `arn:aws:elasticloadbalancing:${deployment.region}:${deployment.account}:`;
+  const alb = {
+    id: prefix + 'loadbalancer/app/flow-demo/' + 'a'.repeat(16),
+    arn: prefix + 'loadbalancer/app/flow-demo/' + 'a'.repeat(16),
+  };
+  for (const name of ['ops', 'ingress']) {
+    const arn = prefix + `targetgroup/flow-demo-${name}/` + 'b'.repeat(16);
+    const before = {
+      id: arn,
+      arn,
+      name: `flow-demo-${name}`,
+      load_balancer_arns: [] as string[],
+    };
+    const after = { ...before, load_balancer_arns: [alb.arn] };
+    const own = {
+      address: `aws_lb_target_group.app["${name}"]`,
+      attributes: before,
+    };
+    const owner = { address: 'aws_lb.demo', attributes: alb };
+    const check = (
+      b = before,
+      a = after,
+      live: { address: string; attributes: Record<string, unknown> }[] = [
+        own,
+        owner,
+      ],
+      address = own.address,
+    ) =>
+      expectedCycleRefresh(
+        { address, change: { actions: ['update'], before: b, after: a } },
+        live,
+        'active',
+      );
+    assert(check());
+    for (const value of [undefined, null, [alb.arn, 'foreign'], ['foreign']])
+      assert(!check({ ...before, load_balancer_arns: value } as typeof before));
+    for (const value of [
+      undefined,
+      null,
+      [alb.arn, alb.arn],
+      [alb.arn + '-other'],
+      [alb.arn.replace(deployment.account, '163596511125')],
+      [alb.arn.replace(deployment.region, 'us-east-1')],
+    ])
+      assert(
+        !check(before, { ...after, load_balancer_arns: value } as typeof after),
+      );
+    for (const patch of [
+      { id: undefined },
+      { arn: undefined },
+      { arn: arn + '-other' },
+      { name: 'other' },
+    ]) {
+      assert(!check({ ...before, ...patch } as typeof before));
+      assert(!check(before, { ...after, ...patch } as typeof after));
+    }
+    for (const live of [
+      [],
+      [own],
+      [owner],
+      [own, own, owner],
+      [own, owner, owner],
+      [own, { ...owner, attributes: { id: alb.id } }],
+      [own, { ...owner, attributes: { ...alb, id: alb.id + '-other' } }],
+      [{ ...own, attributes: { ...before, arn: arn + '-other' } }, owner],
+    ])
+      assert(!check(before, after, live));
+    for (const foreign of [
+      alb.arn.replace(deployment.account, '163596511125'),
+      alb.arn.replace(deployment.region, 'us-east-1'),
+    ])
+      assert(
+        !check(before, { ...after, load_balancer_arns: [foreign] }, [
+          own,
+          { ...owner, attributes: { id: foreign, arn: foreign } },
+        ]),
+      );
+    assert(
+      !check(before, after, [own, { ...owner, attributes: { arn: alb.arn } }]),
+    );
+    for (const foreign of [
+      arn.replace(deployment.account, '163596511125'),
+      arn.replace(deployment.region, 'us-east-1'),
+    ]) {
+      const b = { ...before, id: foreign, arn: foreign };
+      assert(
+        !check(b, { ...b, load_balancer_arns: [alb.arn] }, [
+          { ...own, attributes: b },
+          owner,
+        ]),
+      );
+    }
+    assert(
+      !check(before, after, [own, owner], 'aws_lb_target_group.app["worker"]'),
+    );
+    assert(!check(before, { ...after, protocol: 'HTTP' } as typeof after));
+  }
+});
+
 test('post-create refresh validates normalizations without weakening drift guards', () => {
   const first = planFor(snapshotFrom([]), 'infrastructure');
   const rows = first.resource_changes!.map((r) => ({
