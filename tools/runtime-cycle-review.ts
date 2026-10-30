@@ -30,6 +30,20 @@ export function retainedCycleEcsMetadata(
       observed['family'] === task[1] &&
       observed['status'] === 'INACTIVE'
     );
+  const service =
+    /^service\/flow-demo\/(flow-demo-(?:ops|ingress|worker))$/.exec(
+      arn.slice(prefix.length),
+    );
+  if (service)
+    return (
+      observed['serviceArn'] === arn &&
+      observed['serviceName'] === service[1] &&
+      observed['clusterArn'] === prefix + 'cluster/flow-demo' &&
+      observed['status'] === 'INACTIVE' &&
+      observed['desiredCount'] === 0 &&
+      observed['runningCount'] === 0 &&
+      observed['pendingCount'] === 0
+    );
   return (
     arn === prefix + 'cluster/flow-demo' &&
     observed['clusterArn'] === arn &&
@@ -38,6 +52,43 @@ export function retainedCycleEcsMetadata(
     observed['pendingTasksCount'] === 0 &&
     observed['activeServicesCount'] === 0
   );
+}
+
+/** Only exact approved service ARNs with complete native inactive proof are
+ * excluded. Missing, failed or unexpected responses cannot prove removal. */
+export async function verifyCycleServiceInventory(
+  arns: string[],
+  describe: (
+    cluster: string,
+    arn: string,
+  ) => Promise<{
+    services?: Record<string, unknown>[];
+    failures?: unknown[];
+  }>,
+) {
+  const prefix = `arn:aws:ecs:${deployment.region}:${deployment.account}:`;
+  const approved = new Set(
+    ['ops', 'ingress', 'worker'].map(
+      (name) => prefix + `service/flow-demo/flow-demo-${name}`,
+    ),
+  );
+  const retained: string[] = [];
+  for (const arn of arns) {
+    if (approved.has(arn)) {
+      const response = await describe(prefix + 'cluster/flow-demo', arn);
+      if (
+        Array.isArray(response.failures) &&
+        response.failures.length === 0 &&
+        Array.isArray(response.services) &&
+        response.services.length === 1 &&
+        response.services[0] &&
+        retainedCycleEcsMetadata(arn, response.services[0])
+      )
+        continue;
+    }
+    retained.push(arn);
+  }
+  return retained;
 }
 
 /** Tagging can retain deleted rules. Only a complete, successful native EC2

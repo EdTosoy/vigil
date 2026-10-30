@@ -28,6 +28,7 @@ import {
   assertCycleStart,
   retainedCycleEcsMetadata,
   verifyCycleRuleInventory,
+  verifyCycleServiceInventory,
   assertCycleOperatorChecks,
   unverifiedBudgetAlertWarning,
   assertCycleState,
@@ -98,6 +99,116 @@ test('retained ECS tags are excluded only for verified inactive metadata in the 
   ])
     assert(!retainedCycleEcsMetadata(ca, { ...cluster, ...patch }));
   assert(!retainedCycleEcsMetadata(prefix + 'service/flow-demo', cluster));
+});
+
+test('retained services require exact scoped identity and complete inactive native proof', async () => {
+  const prefix = `arn:aws:ecs:${deployment.region}:${deployment.account}:`;
+  const cluster = prefix + 'cluster/flow-demo';
+  const services = ['ops', 'ingress', 'worker'].map((name) => ({
+    serviceArn: prefix + `service/flow-demo/flow-demo-${name}`,
+    serviceName: `flow-demo-${name}`,
+    clusterArn: cluster,
+    status: 'INACTIVE',
+    desiredCount: 0,
+    runningCount: 0,
+    pendingCount: 0,
+  }));
+  const arns = services.map((service) => service.serviceArn);
+  const calls: string[] = [];
+  const absent = await verifyCycleServiceInventory(arns, async (c, arn) => {
+    assert.equal(c, cluster);
+    calls.push(arn);
+    return {
+      failures: [],
+      services: [services.find((s) => s.serviceArn === arn)!],
+    };
+  });
+  assert.deepEqual(calls, arns);
+  assert.deepEqual(absent, []);
+  assertCycleStart(snapshotFrom([]), absent);
+  for (const service of services) {
+    assert(retainedCycleEcsMetadata(service.serviceArn, service));
+    for (const patch of [
+      { status: 'ACTIVE' },
+      { status: 'DRAINING' },
+      { status: 'UNKNOWN' },
+      { desiredCount: 1 },
+      { runningCount: 1 },
+      { pendingCount: 1 },
+      { desiredCount: '0' },
+      { serviceArn: arns[0] + '-other' },
+      { serviceName: 'flow-demo-other' },
+      { clusterArn: cluster + '-other' },
+      ...Object.keys(service).map((key) => ({ [key]: undefined })),
+    ]) {
+      const observed = { ...service, ...patch };
+      assert(!retainedCycleEcsMetadata(service.serviceArn, observed));
+      const retained = await verifyCycleServiceInventory(
+        [service.serviceArn],
+        async () => ({
+          failures: [],
+          services: [observed],
+        }),
+      );
+      assert.deepEqual(retained, [service.serviceArn]);
+      assert.throws(
+        () => assertCycleStart(snapshotFrom([]), retained),
+        /AWS runtime inventory/,
+      );
+    }
+  }
+  const service = services[0]!;
+  for (const response of [
+    {},
+    { services: [] },
+    { failures: [] },
+    { services: [service] },
+    { failures: [], services: [] },
+    { failures: [], services: [{}] },
+    { failures: [{ reason: 'MISSING' }], services: [service] },
+    { failures: [], services: [service, service] },
+    { failures: [], services: [services[1]!] },
+  ])
+    assert.deepEqual(
+      await verifyCycleServiceInventory(
+        [service.serviceArn],
+        async () => response,
+      ),
+      [service.serviceArn],
+    );
+  await assert.rejects(
+    verifyCycleServiceInventory(arns, async () => {
+      throw new Error('native API unavailable');
+    }),
+    /native API unavailable/,
+  );
+  const foreign = [
+    service.serviceArn.replace(deployment.account, '163596511125'),
+    service.serviceArn.replace(deployment.region, 'us-east-1'),
+    service.serviceArn.replace('service/flow-demo/', 'service/other/'),
+    service.serviceArn + '-other',
+    prefix + 'service/flow-demo/flow-demo-admin',
+    prefix + 'service/flow-demo-ops',
+    'arn:aws:other:ap-southeast-2:747240980964:unknown/example',
+  ];
+  for (const arn of foreign)
+    assert(!retainedCycleEcsMetadata(arn, { ...service, serviceArn: arn }));
+  assert.deepEqual(
+    await verifyCycleServiceInventory(foreign, async () => {
+      assert.fail('Unexpected identities must not be queried or excluded');
+    }),
+    foreign,
+  );
+  assert.deepEqual(
+    await verifyCycleServiceInventory(
+      [...arns, ...foreign],
+      async (_, arn) => ({
+        failures: [],
+        services: [services.find((s) => s.serviceArn === arn)!],
+      }),
+    ),
+    foreign,
+  );
 });
 
 test('stale tagged EC2 rules require complete native absence proof; live and unknown resources still block', async () => {

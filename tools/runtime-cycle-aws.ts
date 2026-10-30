@@ -33,6 +33,7 @@ import {
   cycleInstances,
   retainedCycleEcsMetadata,
   verifyCycleRuleInventory,
+  verifyCycleServiceInventory,
   assertCycleOperatorChecks,
   unverifiedBudgetAlertWarning,
   assertCycleImages,
@@ -313,7 +314,16 @@ export async function runtimeCycleDriver(
     );
     return (
       await verifyCycleRuleInventory(
-        retained.filter((arn): arn is string => arn !== null),
+        await verifyCycleServiceInventory(
+          retained.filter((arn): arn is string => arn !== null),
+          async (cluster, arn) =>
+            aws('ecs', 'describe-services', [
+              '--cluster',
+              cluster,
+              '--services',
+              arn,
+            ]),
+        ),
         async (ids) =>
           aws('ec2', 'describe-security-group-rules', [
             '--filters',
