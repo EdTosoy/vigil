@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="en">
+  <meta charset="utf-8" /><meta
+    name="viewport"
+    content="width=device-width,initial-scale=1"
+  /><title>Vigil authentication comparison</title
+  ><style>
+    :root {
+      --paper: #f4f6f5;
+      --ink: #1d2c34;
+      --font: system-ui, sans-serif;
+    }
+    body {
+      margin: 24px;
+      background: var(--paper);
+      color: var(--ink);
+      font-family: var(--font);
+    }
+    h1,
+    h2 {
+      font-weight: 600;
+    }
+    .pair {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 24px;
+    }
+    figure {
+      margin: 0;
+    }
+    figcaption {
+      margin-bottom: 12px;
+    }
+    img {
+      max-width: 100%;
+      height: auto;
+    }
+    @media (max-width: 600px) {
+      .pair {
+        grid-template-columns: minmax(0, 1fr);
+      }
+    }
+  </style>
+  <h1>Vigil authentication</h1>
+  <p>Matching widths, with the existing synthetic visitor option enabled.</p>
+  <section>
+    <h2>320px</h2>
+    <div class="pair">
+      <figure>
+        <figcaption>Before</figcaption>
+        <img
+          src="before/sign-in-320.png"
+          alt="Original Vigil sign-in at 320px"
+        />
+      </figure>
+      <figure>
+        <figcaption>After</figcaption>
+        <img
+          src="after/sign-in-320.png"
+          alt="Redesigned Vigil sign-in at 320px"
+        />
+      </figure>
+    </div>
+  </section>
+  <section>
+    <h2>375px</h2>
+    <div class="pair">
+      <figure>
+        <figcaption>Before</figcaption>
+        <img
+          src="before/sign-in-375.png"
+          alt="Original Vigil sign-in at 375px"
+        />
+      </figure>
+      <figure>
+        <figcaption>After</figcaption>
+        <img
+          src="after/sign-in-375.png"
+          alt="Redesigned Vigil sign-in at 375px"
+        />
+      </figure>
+    </div>
+  </section>
+  <section>
+    <h2>414px</h2>
+    <div class="pair">
+      <figure>
+        <figcaption>Before</figcaption>
+        <img
+          src="before/sign-in-414.png"
+          alt="Original Vigil sign-in at 414px"
+        />
+      </figure>
+      <figure>
+        <figcaption>After</figcaption>
+        <img
+          src="after/sign-in-414.png"
+          alt="Redesigned Vigil sign-in at 414px"
+        />
+      </figure>
+    </div>
+  </section>
+  <section>
+    <h2>768px</h2>
+    <div class="pair">
+      <figure>
+        <figcaption>Before</figcaption>
+        <img
+          src="before/sign-in-768.png"
+          alt="Original Vigil sign-in at 768px"
+        />
+      </figure>
+      <figure>
+        <figcaption>After</figcaption>
+        <img
+          src="after/sign-in-768.png"
+          alt="Redesigned Vigil sign-in at 768px"
+        />
+      </figure>
+    </div>
+  </section>
+  <section>
+    <h2>1440px</h2>
+    <div class="pair">
+      <figure>
+        <figcaption>Before</figcaption>
+        <img
+          src="before/sign-in-1440.png"
+          alt="Original Vigil sign-in at 1440px"
+        />
+      </figure>
+      <figure>
+        <figcaption>After</figcaption>
+        <img
+          src="after/sign-in-1440.png"
+          alt="Redesigned Vigil sign-in at 1440px"
+        />
+      </figure>
+    </div>
+  </section>
+</html>

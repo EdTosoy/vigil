@@ -16,6 +16,9 @@ import { seedAccount } from '../apps/ops/server/seed-account';
 import { visitor } from '../apps/ops/visitor';
 import { PostgresIngestion } from '@vigil/ingestion-postgres';
 import { verifyCycleBindings } from '../tools/cloud-cycle-bindings';
+import { verifyAuthExperience } from './helpers/auth-experience';
+import { mkdir } from 'node:fs/promises';
+import { join } from 'node:path';
 
 const adminURL = process.env['VIGIL_TEST_ADMIN_URL'];
 if (!adminURL)
@@ -353,7 +356,7 @@ test('password attempt limits persist in PostgreSQL and unsafe auth origins fail
 
 test(
   'production UI: sign-in/out, authorized navigation, cross-book details, metrics and expired sessions',
-  { timeout: 90000 },
+  { timeout: 180000 },
   async () => {
     const reservation = createServer();
     await new Promise<void>((resolve) =>
@@ -438,6 +441,7 @@ test(
       });
       const errors: string[] = [];
       page.on('pageerror', (e) => errors.push(e.name));
+      await verifyAuthExperience(page, base);
       await page.goto(base + '/sign-in');
       await page.getByLabel('Password', { exact: true }).fill(visitor.password);
       await page.getByRole('button', { name: 'Sign in', exact: true }).click();
@@ -498,6 +502,22 @@ test(
       );
       await page.goto(base + '/?book=' + books[0]);
       await page.waitForURL(base + '/sign-in');
+      const adminEmail = `auth-admin-${randomUUID()}@example.test`;
+      const adminPassword = randomUUID() + randomUUID();
+      await seedAccount(seed, {
+        email: adminEmail,
+        password: adminPassword,
+        name: 'Authentication browser administrator',
+        role: 'Admin',
+        books: [books[0]!],
+      });
+      await page.getByLabel('Email', { exact: true }).fill(adminEmail);
+      await page.getByLabel('Password', { exact: true }).fill(adminPassword);
+      await page.getByRole('button', { name: 'Sign in', exact: true }).click();
+      await page.waitForURL(base + '/');
+      assert.equal((await page.request.get(base + '/metrics')).status(), 200);
+      await page.getByRole('button', { name: 'Sign out' }).click();
+      await page.waitForURL(base + '/sign-in');
       assert.deepEqual(errors, []);
     } finally {
       await browser?.close();
@@ -507,6 +527,144 @@ test(
           child!.once('exit', () => resolve()),
         );
       }
+    }
+  },
+);
+
+test(
+  'production access UI: visitor flag off and public snapshot isolation',
+  { timeout: 90000 },
+  async () => {
+    let executable = process.env['PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH'];
+    if (!executable) {
+      try {
+        executable = (
+          await promisify(execFile)('which', ['chromium'])
+        ).stdout.trim();
+      } catch {
+        /* managed Chromium */
+      }
+    }
+    const browser = await chromium.launch({
+      headless: true,
+      ...(executable ? { executablePath: executable } : {}),
+    });
+    try {
+      for (const mode of ['application', 'public-demo']) {
+        const reservation = createServer();
+        await new Promise<void>((resolve) =>
+          reservation.listen(0, '127.0.0.1', resolve),
+        );
+        const address = reservation.address();
+        assert(address && typeof address !== 'string');
+        const port = address.port;
+        await new Promise<void>((resolve) =>
+          reservation.close(() => resolve()),
+        );
+        const base = 'http://127.0.0.1:' + port;
+        const child = spawn(
+          process.execPath,
+          [
+            'apps/ops/node_modules/next/dist/bin/next',
+            'start',
+            'apps/ops',
+            '--hostname',
+            '127.0.0.1',
+            '--port',
+            String(port),
+          ],
+          {
+            env: {
+              ...process.env,
+              VIGIL_DEPLOYMENT_MODE: mode,
+              VIGIL_VISITOR_LOGIN: 'false',
+              DATABASE_ADMIN_URL: '',
+              DATABASE_AUTH_SEED_URL: '',
+              DATABASE_AUTH_URL: runtimeURL,
+              DATABASE_OPERATIONS_URL: process.env['VIGIL_TEST_OPERATIONS_URL'],
+              BETTER_AUTH_URL: base,
+              BETTER_AUTH_SECRET: env['BETTER_AUTH_SECRET'],
+              OPS_BOOK_ID: '',
+            },
+            stdio: 'ignore',
+          },
+        );
+        const page = await browser.newPage({
+          viewport: { width: 1440, height: 900 },
+        });
+        try {
+          let ready = false;
+          for (let attempt = 0; attempt < 100; attempt++) {
+            if (child.exitCode !== null)
+              throw new Error('Production app exited');
+            try {
+              if ((await fetch(base + '/health/live')).ok) {
+                ready = true;
+                break;
+              }
+            } catch {
+              /* startup */
+            }
+            await new Promise((resolve) => setTimeout(resolve, 100));
+          }
+          assert(ready);
+          const response = await page.goto(base + '/sign-in');
+          assert.equal(
+            (
+              await page.request.post(base + '/api/auth/sign-up/email')
+            ).status(),
+            404,
+          );
+          if (mode === 'public-demo') {
+            assert.equal(response!.status(), 404);
+            assert.equal(await page.locator('form').count(), 0);
+            assert.equal(
+              (
+                await page.request.post(base + '/api/auth/sign-in/email')
+              ).status(),
+              404,
+            );
+          } else {
+            assert.equal(response!.status(), 200);
+            assert.equal(
+              await page
+                .getByRole('heading', { name: 'Explore Vigil' })
+                .count(),
+              0,
+            );
+            assert.equal(
+              await page.getByLabel('Email', { exact: true }).inputValue(),
+              '',
+            );
+            assert(!(await page.content()).includes(visitor.password));
+            assert(
+              (await page.getByRole('main').textContent())!.includes(
+                'public registration is disabled',
+              ),
+            );
+            const directory =
+              process.env['VIGIL_AUTH_ARTIFACTS'] ?? '/tmp/vigil-auth-after';
+            await mkdir(directory, { recursive: true });
+            await page.getByRole('button', { name: 'Show password' }).click();
+            await page.getByRole('button', { name: 'Hide password' }).click();
+            await page.screenshot({
+              path: join(directory, 'visitor-disabled-1440.png'),
+              fullPage: true,
+            });
+          }
+        } finally {
+          await page.close();
+          if (child.exitCode === null) {
+            const exited = new Promise<void>((resolve) =>
+              child.once('exit', () => resolve()),
+            );
+            child.kill('SIGTERM');
+            await exited;
+          }
+        }
+      }
+    } finally {
+      await browser.close();
     }
   },
 );

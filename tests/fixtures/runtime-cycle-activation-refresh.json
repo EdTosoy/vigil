@@ -1,0 +1,203 @@
+{
+  "live": [
+    {
+      "address": "aws_acm_certificate.demo",
+      "attributes": {
+        "id": "arn:aws:acm:ap-southeast-2:747240980964:certificate/11111111-1111-4111-8111-111111111111",
+        "arn": "arn:aws:acm:ap-southeast-2:747240980964:certificate/11111111-1111-4111-8111-111111111111",
+        "domain_name": "vigil.edtosoy.com",
+        "status": "ISSUED",
+        "renewal_eligibility": "INELIGIBLE",
+        "validation_method": "DNS",
+        "tags": {},
+        "tags_all": {
+          "DeploymentAccount": "747240980964",
+          "DeploymentRegion": "ap-southeast-2",
+          "Environment": "demo",
+          "Lifecycle": "ephemeral",
+          "ManagedBy": "terraform",
+          "Project": "vigil"
+        }
+      }
+    },
+    {
+      "address": "aws_lb.demo",
+      "attributes": {
+        "id": "arn:aws:elasticloadbalancing:ap-southeast-2:747240980964:loadbalancer/app/flow-demo/aaaaaaaaaaaaaaaa",
+        "arn": "arn:aws:elasticloadbalancing:ap-southeast-2:747240980964:loadbalancer/app/flow-demo/aaaaaaaaaaaaaaaa"
+      }
+    },
+    {
+      "address": "aws_lb_target_group.app[\"ingress\"]",
+      "attributes": {
+        "id": "arn:aws:elasticloadbalancing:ap-southeast-2:747240980964:targetgroup/flow-demo-ingress/cccccccccccccccc",
+        "arn": "arn:aws:elasticloadbalancing:ap-southeast-2:747240980964:targetgroup/flow-demo-ingress/cccccccccccccccc",
+        "name": "flow-demo-ingress",
+        "load_balancer_arns": [],
+        "port": 4242,
+        "protocol": "HTTP",
+        "vpc_id": "vpc-11111111111111111",
+        "tags": {},
+        "tags_all": {
+          "DeploymentAccount": "747240980964",
+          "DeploymentRegion": "ap-southeast-2",
+          "Environment": "demo",
+          "Lifecycle": "ephemeral",
+          "ManagedBy": "terraform",
+          "Project": "vigil"
+        }
+      }
+    },
+    {
+      "address": "aws_lb_target_group.app[\"ops\"]",
+      "attributes": {
+        "id": "arn:aws:elasticloadbalancing:ap-southeast-2:747240980964:targetgroup/flow-demo-ops/bbbbbbbbbbbbbbbb",
+        "arn": "arn:aws:elasticloadbalancing:ap-southeast-2:747240980964:targetgroup/flow-demo-ops/bbbbbbbbbbbbbbbb",
+        "name": "flow-demo-ops",
+        "load_balancer_arns": [],
+        "port": 3000,
+        "protocol": "HTTP",
+        "vpc_id": "vpc-11111111111111111",
+        "tags": {},
+        "tags_all": {
+          "DeploymentAccount": "747240980964",
+          "DeploymentRegion": "ap-southeast-2",
+          "Environment": "demo",
+          "Lifecycle": "ephemeral",
+          "ManagedBy": "terraform",
+          "Project": "vigil"
+        }
+      }
+    }
+  ],
+  "drift": [
+    {
+      "address": "aws_acm_certificate.demo",
+      "change": {
+        "actions": ["update"],
+        "before": {
+          "id": "arn:aws:acm:ap-southeast-2:747240980964:certificate/11111111-1111-4111-8111-111111111111",
+          "arn": "arn:aws:acm:ap-southeast-2:747240980964:certificate/11111111-1111-4111-8111-111111111111",
+          "domain_name": "vigil.edtosoy.com",
+          "status": "ISSUED",
+          "renewal_eligibility": "INELIGIBLE",
+          "validation_method": "DNS",
+          "tags": {},
+          "tags_all": {
+            "DeploymentAccount": "747240980964",
+            "DeploymentRegion": "ap-southeast-2",
+            "Environment": "demo",
+            "Lifecycle": "ephemeral",
+            "ManagedBy": "terraform",
+            "Project": "vigil"
+          }
+        },
+        "after": {
+          "id": "arn:aws:acm:ap-southeast-2:747240980964:certificate/11111111-1111-4111-8111-111111111111",
+          "arn": "arn:aws:acm:ap-southeast-2:747240980964:certificate/11111111-1111-4111-8111-111111111111",
+          "domain_name": "vigil.edtosoy.com",
+          "status": "ISSUED",
+          "renewal_eligibility": "ELIGIBLE",
+          "validation_method": "DNS",
+          "tags": {},
+          "tags_all": {
+            "DeploymentAccount": "747240980964",
+            "DeploymentRegion": "ap-southeast-2",
+            "Environment": "demo",
+            "Lifecycle": "ephemeral",
+            "ManagedBy": "terraform",
+            "Project": "vigil"
+          }
+        }
+      }
+    },
+    {
+      "address": "aws_lb_target_group.app[\"ingress\"]",
+      "change": {
+        "actions": ["update"],
+        "before": {
+          "id": "arn:aws:elasticloadbalancing:ap-southeast-2:747240980964:targetgroup/flow-demo-ingress/cccccccccccccccc",
+          "arn": "arn:aws:elasticloadbalancing:ap-southeast-2:747240980964:targetgroup/flow-demo-ingress/cccccccccccccccc",
+          "name": "flow-demo-ingress",
+          "load_balancer_arns": [],
+          "port": 4242,
+          "protocol": "HTTP",
+          "vpc_id": "vpc-11111111111111111",
+          "tags": {},
+          "tags_all": {
+            "DeploymentAccount": "747240980964",
+            "DeploymentRegion": "ap-southeast-2",
+            "Environment": "demo",
+            "Lifecycle": "ephemeral",
+            "ManagedBy": "terraform",
+            "Project": "vigil"
+          }
+        },
+        "after": {
+          "id": "arn:aws:elasticloadbalancing:ap-southeast-2:747240980964:targetgroup/flow-demo-ingress/cccccccccccccccc",
+          "arn": "arn:aws:elasticloadbalancing:ap-southeast-2:747240980964:targetgroup/flow-demo-ingress/cccccccccccccccc",
+          "name": "flow-demo-ingress",
+          "load_balancer_arns": [
+            "arn:aws:elasticloadbalancing:ap-southeast-2:747240980964:loadbalancer/app/flow-demo/aaaaaaaaaaaaaaaa"
+          ],
+          "port": 4242,
+          "protocol": "HTTP",
+          "vpc_id": "vpc-11111111111111111",
+          "tags": {},
+          "tags_all": {
+            "DeploymentAccount": "747240980964",
+            "DeploymentRegion": "ap-southeast-2",
+            "Environment": "demo",
+            "Lifecycle": "ephemeral",
+            "ManagedBy": "terraform",
+            "Project": "vigil"
+          }
+        }
+      }
+    },
+    {
+      "address": "aws_lb_target_group.app[\"ops\"]",
+      "change": {
+        "actions": ["update"],
+        "before": {
+          "id": "arn:aws:elasticloadbalancing:ap-southeast-2:747240980964:targetgroup/flow-demo-ops/bbbbbbbbbbbbbbbb",
+          "arn": "arn:aws:elasticloadbalancing:ap-southeast-2:747240980964:targetgroup/flow-demo-ops/bbbbbbbbbbbbbbbb",
+          "name": "flow-demo-ops",
+          "load_balancer_arns": [],
+          "port": 3000,
+          "protocol": "HTTP",
+          "vpc_id": "vpc-11111111111111111",
+          "tags": {},
+          "tags_all": {
+            "DeploymentAccount": "747240980964",
+            "DeploymentRegion": "ap-southeast-2",
+            "Environment": "demo",
+            "Lifecycle": "ephemeral",
+            "ManagedBy": "terraform",
+            "Project": "vigil"
+          }
+        },
+        "after": {
+          "id": "arn:aws:elasticloadbalancing:ap-southeast-2:747240980964:targetgroup/flow-demo-ops/bbbbbbbbbbbbbbbb",
+          "arn": "arn:aws:elasticloadbalancing:ap-southeast-2:747240980964:targetgroup/flow-demo-ops/bbbbbbbbbbbbbbbb",
+          "name": "flow-demo-ops",
+          "load_balancer_arns": [
+            "arn:aws:elasticloadbalancing:ap-southeast-2:747240980964:loadbalancer/app/flow-demo/aaaaaaaaaaaaaaaa"
+          ],
+          "port": 3000,
+          "protocol": "HTTP",
+          "vpc_id": "vpc-11111111111111111",
+          "tags": {},
+          "tags_all": {
+            "DeploymentAccount": "747240980964",
+            "DeploymentRegion": "ap-southeast-2",
+            "Environment": "demo",
+            "Lifecycle": "ephemeral",
+            "ManagedBy": "terraform",
+            "Project": "vigil"
+          }
+        }
+      }
+    }
+  ]
+}

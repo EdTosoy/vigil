@@ -9,6 +9,57 @@ import { initialRuntimeAddresses } from './runtime-plan';
 import { releaseProof as proof } from './runtime-apply-review';
 import { stateInstances, type RecoveryState } from './runtime-recovery-review';
 
+export const cycleOperatorCheckValidityMs = 60 * 60 * 1000;
+export const cyclePlanReviewValidityMs = 30 * 60 * 1000;
+export const cycleWebhookUrl = `https://${deployment.domain}/webhooks/stripe`;
+
+/** Whitelist diagnostics; never return raw Stripe objects or signing secrets. */
+export function cycleWebhookPreflight(
+  response: unknown,
+  privateValues: string[] = [],
+) {
+  const page = response as Record<string, unknown> | null;
+  proof(
+    page && page['has_more'] === false && Array.isArray(page['data']),
+    'Stripe webhook preflight incomplete; no registration attempted',
+  );
+  const active: { id: string; description: string | null }[] = [];
+  for (const value of page['data'] as unknown[]) {
+    const e = value as Record<string, unknown> | null;
+    proof(
+      e &&
+        typeof e['id'] === 'string' &&
+        /^we_[A-Za-z0-9]+$/.test(e['id']) &&
+        typeof e['url'] === 'string' &&
+        e['livemode'] === false &&
+        ['enabled', 'disabled'].includes(String(e['status'])) &&
+        (e['description'] === null || typeof e['description'] === 'string'),
+      'Stripe webhook preflight malformed or not sandbox evidence; no registration attempted',
+    );
+    if (e['url'] === cycleWebhookUrl && e['status'] === 'enabled')
+      active.push({
+        id: e['id'] as string,
+        description:
+          typeof e['description'] === 'string'
+            ? privateValues
+                .filter(Boolean)
+                .reduce(
+                  (description, value) =>
+                    description.split(value).join('[REDACTED]'),
+                  e['description'],
+                )
+                .replace(
+                  /(?:[sr]k_(?:test|live)_|whsec_)[A-Za-z0-9_]+/g,
+                  '[REDACTED]',
+                )
+                .replace(/[\x00-\x1f\x7f]/g, ' ')
+                .slice(0, 500)
+            : null,
+      });
+  }
+  return { url: cycleWebhookUrl, active };
+}
+
 export const unverifiedBudgetAlertWarning =
   'WARNING: AWS budget email delivery is UNKNOWN. AWS budget alerts do not cap spending. Monitor gross spend and complete manual teardown within four hours.';
 
@@ -30,6 +81,20 @@ export function retainedCycleEcsMetadata(
       observed['family'] === task[1] &&
       observed['status'] === 'INACTIVE'
     );
+  const service =
+    /^service\/flow-demo\/(flow-demo-(?:ops|ingress|worker))$/.exec(
+      arn.slice(prefix.length),
+    );
+  if (service)
+    return (
+      observed['serviceArn'] === arn &&
+      observed['serviceName'] === service[1] &&
+      observed['clusterArn'] === prefix + 'cluster/flow-demo' &&
+      observed['status'] === 'INACTIVE' &&
+      observed['desiredCount'] === 0 &&
+      observed['runningCount'] === 0 &&
+      observed['pendingCount'] === 0
+    );
   return (
     arn === prefix + 'cluster/flow-demo' &&
     observed['clusterArn'] === arn &&
@@ -38,6 +103,51 @@ export function retainedCycleEcsMetadata(
     observed['pendingTasksCount'] === 0 &&
     observed['activeServicesCount'] === 0
   );
+}
+
+/** Only exact approved service ARNs with complete native inactive proof are
+ * excluded. Missing, failed or unexpected responses cannot prove removal. */
+export async function verifyCycleServiceInventory(
+  arns: string[],
+  describe: (
+    cluster: string,
+    arn: string,
+  ) => Promise<{
+    services?: Record<string, unknown>[];
+    failures?: unknown[];
+  }>,
+) {
+  const prefix = `arn:aws:ecs:${deployment.region}:${deployment.account}:`;
+  const approved = new Set(
+    ['ops', 'ingress', 'worker'].map(
+      (name) => prefix + `service/flow-demo/flow-demo-${name}`,
+    ),
+  );
+  const retained: string[] = [];
+  for (const arn of arns) {
+    if (approved.has(arn)) {
+      const response = await describe(prefix + 'cluster/flow-demo', arn);
+      const inactive =
+        Array.isArray(response.failures) &&
+        response.failures.length === 0 &&
+        Array.isArray(response.services) &&
+        response.services.length === 1 &&
+        response.services[0] &&
+        retainedCycleEcsMetadata(arn, response.services[0]);
+      const deleted =
+        Array.isArray(response.services) &&
+        response.services.length === 0 &&
+        Array.isArray(response.failures) &&
+        response.failures.length === 1 &&
+        response.failures[0] !== null &&
+        typeof response.failures[0] === 'object' &&
+        (response.failures[0] as { arn?: unknown }).arn === arn &&
+        (response.failures[0] as { reason?: unknown }).reason === 'MISSING';
+      if (inactive || deleted) continue;
+    }
+    retained.push(arn);
+  }
+  return retained;
 }
 
 /** Tagging can retain deleted rules. Only a complete, successful native EC2
@@ -104,7 +214,7 @@ export function assertCycleOperatorChecks(
     approval['cycle'] === id &&
       Number.isFinite(age) &&
       age >= 0 &&
-      age <= 900000 &&
+      age <= cycleOperatorCheckValidityMs &&
       deliveryAccepted &&
       approval['accountWideSpendReviewed'] === true &&
       approval['fourHourCleanupWindowConfirmed'] === true,

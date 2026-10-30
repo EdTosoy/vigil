@@ -1,0 +1,67 @@
+[
+  {
+    "width": 320,
+    "foreground": "rgb(29, 44, 52)",
+    "background": "rgb(255, 255, 255)",
+    "contrast": 14.36288627263566,
+    "headingUnobscured": true,
+    "rect": {
+      "x": 24,
+      "y": 138.59375,
+      "width": 272,
+      "height": 38.390625
+    }
+  },
+  {
+    "width": 375,
+    "foreground": "rgb(29, 44, 52)",
+    "background": "rgb(255, 255, 255)",
+    "contrast": 14.36288627263566,
+    "headingUnobscured": true,
+    "rect": {
+      "x": 24,
+      "y": 138.59375,
+      "width": 327,
+      "height": 38.390625
+    }
+  },
+  {
+    "width": 414,
+    "foreground": "rgb(29, 44, 52)",
+    "background": "rgb(255, 255, 255)",
+    "contrast": 14.36288627263566,
+    "headingUnobscured": true,
+    "rect": {
+      "x": 24,
+      "y": 138.59375,
+      "width": 366,
+      "height": 38.390625
+    }
+  },
+  {
+    "width": 768,
+    "foreground": "rgb(29, 44, 52)",
+    "background": "rgb(255, 255, 255)",
+    "contrast": 14.36288627263566,
+    "headingUnobscured": true,
+    "rect": {
+      "x": 184,
+      "y": 138.59375,
+      "width": 400,
+      "height": 38.390625
+    }
+  },
+  {
+    "width": 1440,
+    "foreground": "rgb(29, 44, 52)",
+    "background": "rgb(255, 255, 255)",
+    "contrast": 14.36288627263566,
+    "headingUnobscured": true,
+    "rect": {
+      "x": 836.796875,
+      "y": 74.796875,
+      "width": 400,
+      "height": 38.390625
+    }
+  }
+]
