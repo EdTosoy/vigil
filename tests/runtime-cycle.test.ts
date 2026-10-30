@@ -998,13 +998,21 @@ test('post-create refresh validates normalizations without weakening drift guard
   const attribute = (address: string) =>
     rows.find((r) => r.address === address)!.attributes;
   plan.resource_drift = [];
-  const add = (address: string, mutate: (a: Record<string, unknown>) => void) => {
+  const add = (
+    address: string,
+    mutate: (a: Record<string, unknown>) => void,
+  ) => {
     const before = structuredClone(attribute(address));
     const after = structuredClone(before);
     mutate(after);
-    plan.resource_drift!.push({ address, change: { actions: ['update'], before, after } });
+    plan.resource_drift!.push({
+      address,
+      change: { actions: ['update'], before, after },
+    });
   };
-  add('aws_ecs_cluster.demo', (a) => { a['tags'] = {}; });
+  add('aws_ecs_cluster.demo', (a) => {
+    a['tags'] = {};
+  });
   add('aws_db_instance.demo', (a) => {
     a['tags'] = {};
     a['domain_dns_ips'] = [];
@@ -1019,14 +1027,43 @@ test('post-create refresh validates normalizations without weakening drift guard
   assertCyclePlan(plan, snapshot, 'provisioning');
 
   for (const [name, address, mutate] of [
-    ['foreign physical ID', 'aws_ecs_cluster.demo', (a: Record<string, unknown>) => { a['id'] = 'foreign'; }],
-    ['nonempty tag', 'aws_ecs_cluster.demo', (a: Record<string, unknown>) => { a['tags'] = { Admin: 'external' }; }],
-    ['RDS log export change', 'aws_db_instance.demo', (a: Record<string, unknown>) => { a['enabled_cloudwatch_logs_exports'] = ['postgresql']; }],
-    ['certificate domain change', 'aws_acm_certificate.demo', (a: Record<string, unknown>) => { a['domain_name'] = 'foreign.example'; }],
+    [
+      'foreign physical ID',
+      'aws_ecs_cluster.demo',
+      (a: Record<string, unknown>) => {
+        a['id'] = 'foreign';
+      },
+    ],
+    [
+      'nonempty tag',
+      'aws_ecs_cluster.demo',
+      (a: Record<string, unknown>) => {
+        a['tags'] = { Admin: 'external' };
+      },
+    ],
+    [
+      'RDS log export change',
+      'aws_db_instance.demo',
+      (a: Record<string, unknown>) => {
+        a['enabled_cloudwatch_logs_exports'] = ['postgresql'];
+      },
+    ],
+    [
+      'certificate domain change',
+      'aws_acm_certificate.demo',
+      (a: Record<string, unknown>) => {
+        a['domain_name'] = 'foreign.example';
+      },
+    ],
   ] as const) {
     const attempt = structuredClone(plan);
-    mutate(attempt.resource_drift!.find((r) => r.address === address)!.change.after!);
-    assert.throws(() => assertCyclePlan(attempt, snapshot, 'provisioning'), name);
+    mutate(
+      attempt.resource_drift!.find((r) => r.address === address)!.change.after!,
+    );
+    assert.throws(
+      () => assertCyclePlan(attempt, snapshot, 'provisioning'),
+      name,
+    );
   }
 
   // Exercise independently managed child mirrors directly. The real state
@@ -1042,88 +1079,193 @@ test('post-create refresh validates normalizations without weakening drift guard
   ) => {
     const live: MirrorRow[] = [{ address, attributes: before }, ...owned];
     const drift = { address, change: { actions: ['update'], before, after } };
-    assert.equal(expectedCycleRefresh(drift, live, 'provisioning'), true, address);
+    assert.equal(
+      expectedCycleRefresh(drift, live, 'provisioning'),
+      true,
+      address,
+    );
     const bad = structuredClone(drift);
     corrupt(bad.change.after);
-    assert.equal(expectedCycleRefresh(bad, live, 'provisioning'), false, address);
+    assert.equal(
+      expectedCycleRefresh(bad, live, 'provisioning'),
+      false,
+      address,
+    );
   };
 
   const role = attribute('aws_iam_role.execution["admin"]');
   const policy = JSON.stringify({
     Version: '2012-10-17',
-    Statement: [{ Effect: 'Allow', Action: 'logs:CreateLogStream', Resource: 'arn:aws:logs:example' }],
+    Statement: [
+      {
+        Effect: 'Allow',
+        Action: 'logs:CreateLogStream',
+        Resource: 'arn:aws:logs:example',
+      },
+    ],
   });
   const policyName = 'flow-demo-admin-execution';
   check(
-    'aws_iam_role.execution["admin"]', role,
+    'aws_iam_role.execution["admin"]',
+    role,
     { ...role, tags: {}, inline_policy: [{ name: policyName, policy }] },
-    [{ address: 'aws_iam_role_policy.execution["admin"]', attributes: {
-      id: 'owned-role-policy', name: policyName, role: role['name'], policy,
-    } }],
-    (a) => { a['inline_policy'] = [{ name: policyName, policy: JSON.stringify({
-      Version: '2012-10-17', Statement: [{ Effect: 'Allow', Action: '*', Resource: '*' }],
-    }) }]; },
+    [
+      {
+        address: 'aws_iam_role_policy.execution["admin"]',
+        attributes: {
+          id: 'owned-role-policy',
+          name: policyName,
+          role: role['name'],
+          policy,
+        },
+      },
+    ],
+    (a) => {
+      a['inline_policy'] = [
+        {
+          name: policyName,
+          policy: JSON.stringify({
+            Version: '2012-10-17',
+            Statement: [{ Effect: 'Allow', Action: '*', Resource: '*' }],
+          }),
+        },
+      ];
+    },
   );
 
   const group = { ...attribute('aws_security_group.alb'), id: 'sg-test-alb' };
   check(
-    'aws_security_group.alb', group,
-    { ...group, tags: {},
-      ingress: [{ protocol: 'tcp', from_port: 80, to_port: 80, cidr_blocks: ['0.0.0.0/0'] }],
-      egress: [{ protocol: 'tcp', from_port: 3000, to_port: 3000, security_groups: ['sg-test-ops'] }],
+    'aws_security_group.alb',
+    group,
+    {
+      ...group,
+      tags: {},
+      ingress: [
+        {
+          protocol: 'tcp',
+          from_port: 80,
+          to_port: 80,
+          cidr_blocks: ['0.0.0.0/0'],
+        },
+      ],
+      egress: [
+        {
+          protocol: 'tcp',
+          from_port: 3000,
+          to_port: 3000,
+          security_groups: ['sg-test-ops'],
+        },
+      ],
     },
     [
-      { address: 'aws_vpc_security_group_ingress_rule.http', attributes: {
-        id: 'owned-http', security_group_id: group['id'], cidr_ipv4: '0.0.0.0/0',
-        ip_protocol: 'tcp', from_port: 80, to_port: 80,
-      } },
-      { address: 'aws_vpc_security_group_egress_rule.alb_app["ops"]', attributes: {
-        id: 'owned-ops', security_group_id: group['id'], referenced_security_group_id: 'sg-test-ops',
-        ip_protocol: 'tcp', from_port: 3000, to_port: 3000,
-      } },
+      {
+        address: 'aws_vpc_security_group_ingress_rule.http',
+        attributes: {
+          id: 'owned-http',
+          security_group_id: group['id'],
+          cidr_ipv4: '0.0.0.0/0',
+          ip_protocol: 'tcp',
+          from_port: 80,
+          to_port: 80,
+        },
+      },
+      {
+        address: 'aws_vpc_security_group_egress_rule.alb_app["ops"]',
+        attributes: {
+          id: 'owned-ops',
+          security_group_id: group['id'],
+          referenced_security_group_id: 'sg-test-ops',
+          ip_protocol: 'tcp',
+          from_port: 3000,
+          to_port: 3000,
+        },
+      },
     ],
-    (a) => { (a['ingress'] as unknown[]).push({ protocol: 'tcp', from_port: 22, to_port: 22, cidr_blocks: ['0.0.0.0/0'] }); },
+    (a) => {
+      (a['ingress'] as unknown[]).push({
+        protocol: 'tcp',
+        from_port: 22,
+        to_port: 22,
+        cidr_blocks: ['0.0.0.0/0'],
+      });
+    },
   );
 
   // Reproduce the live issued ACM certificate: AWS supplies both dates from
   // previously empty strings while preserving the certificate's physical ID.
-  const cert = { id: 'cert-demo', status: 'PENDING_VALIDATION', not_before: '', not_after: '' };
+  const cert = {
+    id: 'cert-demo',
+    status: 'PENDING_VALIDATION',
+    not_before: '',
+    not_after: '',
+  };
   check(
-    'aws_acm_certificate.demo', cert,
-    { ...cert, status: 'ISSUED',
-      not_before: '2026-10-29T00:00:00Z', not_after: '2027-05-14T23:59:59Z' },
+    'aws_acm_certificate.demo',
+    cert,
+    {
+      ...cert,
+      status: 'ISSUED',
+      not_before: '2026-10-29T00:00:00Z',
+      not_after: '2027-05-14T23:59:59Z',
+    },
     [],
-    (a) => { a['not_after'] = 'not-a-date'; },
+    (a) => {
+      a['not_after'] = 'not-a-date';
+    },
   );
 
   // Reproduce the actual nested route returned by AWS. Its destination field
   // is `cidr_block`; standalone aws_route.internet uses `destination_cidr_block`.
-  const table = { ...attribute('aws_route_table.public'), id: 'rtb-test-public' };
+  const table = {
+    ...attribute('aws_route_table.public'),
+    id: 'rtb-test-public',
+  };
   const gatewayId = 'igw-0d406926a25aa9d61';
   const nestedRoute = {
-    cidr_block: '0.0.0.0/0', gateway_id: gatewayId,
-    carrier_gateway_id: '', core_network_arn: '', destination_prefix_list_id: '',
-    egress_only_gateway_id: '', ipv6_cidr_block: '', local_gateway_id: '',
-    nat_gateway_id: '', network_interface_id: '', odb_network_arn: '',
-    transit_gateway_id: '', vpc_endpoint_id: '', vpc_peering_connection_id: '',
+    cidr_block: '0.0.0.0/0',
+    gateway_id: gatewayId,
+    carrier_gateway_id: '',
+    core_network_arn: '',
+    destination_prefix_list_id: '',
+    egress_only_gateway_id: '',
+    ipv6_cidr_block: '',
+    local_gateway_id: '',
+    nat_gateway_id: '',
+    network_interface_id: '',
+    odb_network_arn: '',
+    transit_gateway_id: '',
+    vpc_endpoint_id: '',
+    vpc_peering_connection_id: '',
   };
   const ownedRoute = [
-    { address: 'aws_route.internet', attributes: {
-      id: 'owned-route', route_table_id: table['id'],
-      destination_cidr_block: '0.0.0.0/0', gateway_id: gatewayId,
-    } },
+    {
+      address: 'aws_route.internet',
+      attributes: {
+        id: 'owned-route',
+        route_table_id: table['id'],
+        destination_cidr_block: '0.0.0.0/0',
+        gateway_id: gatewayId,
+      },
+    },
     { address: 'aws_internet_gateway.demo', attributes: { id: gatewayId } },
   ];
   check(
-    'aws_route_table.public', table,
+    'aws_route_table.public',
+    table,
     { ...table, tags: {}, route: [nestedRoute] },
     ownedRoute,
-    (a) => { (a['route'] as Record<string, unknown>[])[0]!['gateway_id'] = 'igw-deadbeef'; },
+    (a) => {
+      (a['route'] as Record<string, unknown>[])[0]!['gateway_id'] =
+        'igw-deadbeef';
+    },
   );
   const routeDrift = {
     address: 'aws_route_table.public',
-    change: { actions: ['update'], before: table,
-      after: { ...table, tags: {}, route: [nestedRoute] } },
+    change: {
+      actions: ['update'],
+      before: table,
+      after: { ...table, tags: {}, route: [nestedRoute] },
+    },
   };
   for (const extra of [
     { ...nestedRoute, cidr_block: '10.0.0.0/8' },
@@ -1132,14 +1274,30 @@ test('post-create refresh validates normalizations without weakening drift guard
   ]) {
     const changed = structuredClone(routeDrift);
     changed.change.after.route = [extra];
-    assert.equal(expectedCycleRefresh(changed, [
-      { address: 'aws_route_table.public', attributes: table }, ...ownedRoute,
-    ], 'provisioning'), false);
+    assert.equal(
+      expectedCycleRefresh(
+        changed,
+        [
+          { address: 'aws_route_table.public', attributes: table },
+          ...ownedRoute,
+        ],
+        'provisioning',
+      ),
+      false,
+    );
   }
-  assert.equal(expectedCycleRefresh(routeDrift, [
-    { address: 'aws_route_table.public', attributes: table },
-    ownedRoute[0]!,
-  ], 'provisioning'), false, 'Unverified gateway identity must be rejected');
+  assert.equal(
+    expectedCycleRefresh(
+      routeDrift,
+      [
+        { address: 'aws_route_table.public', attributes: table },
+        ownedRoute[0]!,
+      ],
+      'provisioning',
+    ),
+    false,
+    'Unverified gateway identity must be rejected',
+  );
 });
 
 test('a provisioning receipt must bind the current RDS physical identity, state, source and distinct books', () => {
