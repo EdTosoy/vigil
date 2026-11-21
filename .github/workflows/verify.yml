@@ -5,6 +5,7 @@ on:
     branches: [main]
   pull_request:
   workflow_dispatch:
+  workflow_call:
 
 permissions:
   contents: read
@@ -35,3 +36,34 @@ jobs:
       - run: pnpm typecheck
       - run: pnpm test:unit
       - run: pnpm build
+
+  database-integration:
+    needs: verify
+    runs-on: ubuntu-24.04
+    # The existing real-database suite took about 25 minutes locally, before
+    # runner variability and browser/build setup. Keep every test's own deadline.
+    timeout-minutes: 90
+    env:
+      NX_DAEMON: 'false'
+      NEXT_TELEMETRY_DISABLED: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Verify disposable-database prerequisites
+        run: |
+          docker version
+          docker compose version
+      - name: Install the pinned Playwright Chromium and system libraries
+        run: pnpm exec playwright install --with-deps chromium
+      - name: Select the pinned browser instead of an ambient system Chromium
+        run: node -e "console.log('PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=' + require('@playwright/test').chromium.executablePath())" >> "$GITHUB_ENV"
+      - run: pnpm build
+      - name: Verify migrations, financial invariants, concurrency, recovery and authenticated browser journeys
+        run: pnpm test:integration

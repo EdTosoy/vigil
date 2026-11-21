@@ -153,4 +153,31 @@ This is **real Stripe sandbox processor evidence + synthetic bank evidence** whe
 
 ## Limits and deferred work
 
+### Explicit lifecycle verification
+
+The existing verifier can require one supported event type, for example:
+
+```sh
+pnpm stripe:verify:sandbox refund.created
+pnpm stripe:verify:sandbox charge.dispute.funds_withdrawn
+pnpm stripe:verify:sandbox payout.reconciliation_completed
+```
+
+It reads existing recent sandbox events through the official API and durably
+imports/processes them through the configured narrow ingress/worker credentials.
+It creates no Stripe financial object. These commands write to the configured
+local evidence database, so use only an explicitly approved verification target.
+The requested type must have a source-bound successful completion with economic
+derivations in the preceding 24-hour window. A completed charge cannot satisfy
+a refund or payout request; pending, failed and unsupported evidence cannot
+satisfy successful interpretation. The output declares the required type. Without
+an argument, the historical aggregate check is retained and does not establish
+any particular lifecycle.
+
+Local fixture tests verify the filter and replay semantics. They do not expand
+the recorded external evidence: actual refund, dispute and payout demonstrations
+still require suitable real sandbox events and an executed verification run.
+An API backfill is distinct from proof of signed webhook acquisition. Neither
+proves bank receipt or source completeness.
+
 The external verification gate passed with real signed sandbox capture/fee evidence; refund, dispute and payout external demonstrations are not claimed by that run. The Phase 14 scope excludes live Stripe, financial POST endpoints, customers/billing/subscriptions/checkout, Connect, real bank ingestion, FX, unrepresented reversal economics, cloud deployment, production identity, AI, new queues, arbitrary N:M and web financial mutation. Phase 15 separately implements a protected ephemeral deployment; production identity and Phase 16 AI remain deferred. No prior performance optimization, index, cache or materialized view is added or relaxed. Full Phase 1–13 verification remains required; operational readiness remains distinct from financial assurance.

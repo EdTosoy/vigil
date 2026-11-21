@@ -15,6 +15,7 @@ import {
 } from '@vigil/worker-postgres';
 import {
   STRIPE_API_VERSION,
+  EVENT_TYPES,
   stripeMetric,
   StripeBoundaryError,
   eventObservation,
@@ -155,13 +156,19 @@ export class StripeEvidenceWorker extends PostgresWorker {
   ) {
     super(stripePool, telemetry);
   }
-  /** Inspect committed economic receipts using the worker's existing read capability. */
-  async completedEvidenceCount(from: number, to: number): Promise<bigint> {
+  /** Inspect committed economic receipts, optionally for one explicitly required lifecycle. */
+  async completedEvidenceCount(
+    from: number,
+    to: number,
+    eventType?: (typeof EVENT_TYPES)[number],
+  ): Promise<bigint> {
     if (!Number.isSafeInteger(from) || !Number.isSafeInteger(to) || from > to)
       throw new RangeError('Invalid evidence window');
+    if (eventType !== undefined && !EVENT_TYPES.includes(eventType))
+      throw new TypeError('Unsupported verification event type');
     const result = await this.stripePool.query<{ count: string }>(
-      "SELECT count(*)::text AS count FROM stripe.completion c JOIN stripe.event e ON e.event_id=c.receipt->>'eventId' JOIN worker.work_item w ON w.id=c.work_id WHERE e.source_account_id=$1 AND w.state='SUCCEEDED' AND (e.document->>'created')::bigint BETWEEN $2 AND $3 AND EXISTS(SELECT FROM jsonb_array_elements(c.receipt->'derivations')) AND EXISTS(SELECT FROM worker.attempt_event a JOIN stripe.principal_binding b ON b.principal=a.database_principal WHERE a.work_id=w.id AND a.kind='SUCCEEDED' AND b.capability='worker' AND b.source_account_id=e.source_account_id)",
-      [this.binding.sourceAccountId, from, to],
+      "SELECT count(*)::text AS count FROM stripe.completion c JOIN stripe.event e ON e.event_id=c.receipt->>'eventId' JOIN worker.work_item w ON w.id=c.work_id WHERE e.source_account_id=$1 AND w.state='SUCCEEDED' AND (e.document->>'created')::bigint BETWEEN $2 AND $3 AND ($4::text IS NULL OR e.document->>'type'=$4) AND EXISTS(SELECT FROM jsonb_array_elements(c.receipt->'derivations')) AND EXISTS(SELECT FROM worker.attempt_event a JOIN stripe.principal_binding b ON b.principal=a.database_principal WHERE a.work_id=w.id AND a.kind='SUCCEEDED' AND b.capability='worker' AND b.source_account_id=e.source_account_id)",
+      [this.binding.sourceAccountId, from, to, eventType ?? null],
     );
     return BigInt(result.rows[0]!.count);
   }

@@ -1,5 +1,10 @@
 import { Pool } from 'pg';
-import { stripeReader, object } from '@vigil/stripe-integration';
+import {
+  stripeReader,
+  object,
+  EVENT_TYPES,
+  STRIPE_API_VERSION,
+} from '@vigil/stripe-integration';
 import {
   backfill,
   StripeEvidenceDatabase,
@@ -8,6 +13,17 @@ import {
 import { stripeConfig } from './stripe-config';
 /** Fetches existing real sandbox objects; creates no external financial object and never fabricates evidence. */
 async function main(): Promise<void> {
+  const [requestedType, ...extra] = process.argv.slice(2);
+  if (
+    extra.length ||
+    (requestedType !== undefined &&
+      !EVENT_TYPES.some((type) => type === requestedType))
+  )
+    throw new Error(
+      'Usage: stripe:verify:sandbox [required-supported-event-type]',
+    );
+  const requiredEventType = requestedType as
+    (typeof EVENT_TYPES)[number] | undefined;
   if (!process.env['STRIPE_SECRET_KEY'] || !process.env['STRIPE_ACCOUNT_ID']) {
     process.stdout.write(
       'BLOCKED: Stripe sandbox credentials/account configuration unavailable\n',
@@ -52,15 +68,20 @@ async function main(): Promise<void> {
       throw new Error('No real supported sandbox event available');
     const executor = new StripeEvidenceWorker(workPool, worker.binding, api);
     await executor.processBatch('stripe-sandbox-verification', 100);
-    const proven = await executor.completedEvidenceCount(now - 86400, now);
+    const proven = await executor.completedEvidenceCount(
+      now - 86400,
+      now,
+      requiredEventType,
+    );
     if (proven === 0n)
       throw new Error(
-        'No supported sandbox event completed economic interpretation',
+        'No requested sandbox lifecycle completed economic interpretation',
       );
     process.stdout.write(
       JSON.stringify({
         externalSandbox: 'PASS',
-        apiVersion: '2026-09-30.endive',
+        apiVersion: STRIPE_API_VERSION,
+        requiredEventType: requiredEventType ?? null,
         eventsRecovered: result.received,
         completedEvidence: proven.toString(),
         bankBoundary: 'synthetic only',

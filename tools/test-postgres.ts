@@ -594,7 +594,7 @@ async function main(): Promise<void> {
       reconciliationRunIds: [phase8Run.id],
       createCases: true,
     });
-    const snapshot9 = async () =>
+    const snapshot9 = async (withoutPaymentColumns = false) =>
       JSON.stringify(
         await Promise.all(
           [
@@ -616,7 +616,7 @@ async function main(): Promise<void> {
             async (table) =>
               (
                 await admin!.query(
-                  `SELECT coalesce(jsonb_agg(to_jsonb(x) ORDER BY to_jsonb(x)::text),'[]') AS rows FROM ${table} x`,
+                  `SELECT coalesce(jsonb_agg(${withoutPaymentColumns ? "(to_jsonb(x)-ARRAY['payment_authorization_id','payment_execution_id'])" : 'to_jsonb(x)'} ORDER BY ${withoutPaymentColumns ? "(to_jsonb(x)-ARRAY['payment_authorization_id','payment_execution_id'])::text" : 'to_jsonb(x)::text'}),'[]') AS rows FROM ${table} x`,
                 )
               ).rows[0].rows,
           ),
@@ -779,7 +779,16 @@ async function main(): Promise<void> {
     console.log(
       'Populated Phase 10 -> Phase 11 history/work preservation, compatible backlog recovery and independent sweeps PASS',
     );
-    await migrate(admin); // Empty migration plus idempotent hash consistency gate.
+    await migrate(admin, '014_application_auth.sql');
+    const beforeAccountingUpgrade = await snapshot9(true);
+    await migrate(admin); // Additive accounting upgrade plus idempotent hash consistency gate.
+    if ((await snapshot9(true)) !== beforeAccountingUpgrade)
+      throw new Error(
+        'Authorized accounting migration changed existing financial history',
+      );
+    console.log(
+      'Populated authorized accounting upgrade preserves previous financial history PASS',
+    );
     await admin.query(
       'CREATE ROLE flow_test_writer LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS IN ROLE flow_ledger_writer',
     );
@@ -830,6 +839,8 @@ async function main(): Promise<void> {
       'CREATE ROLE flow_test_stripe_worker LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS IN ROLE flow_stripe_worker',
     );
     const files = [
+      'tests/payments.integration.test.ts',
+      'tests/operations-recovery.integration.test.ts',
       'tests/auth.integration.test.ts',
       'tests/stripe.integration.test.ts',
       'tests/operations.integration.test.ts',

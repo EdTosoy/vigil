@@ -46,7 +46,7 @@ flowchart TD
   Assurance -. "results compared only in tests" .-> Oracle["Test-only simulator oracle"]
 ```
 
-External observations never authorize payments or post ledger entries. The dotted path is test verification: oracle data cannot flow into runtime. Independent payment authorization and business-to-ledger orchestration remain deferred. [Current boundaries and code map](docs/architecture/current-system.md) · [Architectural decisions](docs/architecture/adr/README.md).
+External observations never authorize payments or post ledger entries. The dotted path is test verification: oracle data cannot flow into runtime. The independently authorized synthetic capture/full-reversal slice is implemented under [ADR-022](docs/architecture/adr/022-synthetic-authorized-accounting.md); production authorization and accounting recognition remain deferred. [Current boundaries and code map](docs/architecture/current-system.md) · [Architectural decisions](docs/architecture/adr/README.md).
 
 ## Dashboard / demo
 

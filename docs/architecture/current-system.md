@@ -33,7 +33,7 @@ flowchart TD
 
 Arrows show evidence flow, not permission to write another domain's tables or a promise that every step runs automatically. The existing workers normalize/enrich accepted evidence; reconciliation and control workflows use their own existing command boundaries. The simulator supplies deterministic public artifacts; its oracle is available only to test evaluators and never to runtime.
 
-Stripe reports what Stripe observed. A signed event does not authorize an internal payment, post a journal, prove bank receipt or establish complete source history. Independent payment authorization and business-to-ledger orchestration remain deferred. The implemented ledger mechanics are a separate boundary, not an automatic posting path from external evidence.
+Stripe reports what Stripe observed. A signed event does not authorize an internal payment, post a journal, prove bank receipt or establish complete source history. ADR-022 adds a separate synthetic-only authorized capture/full-reversal workflow in payment-domain/payment-postgres, with fixed receivable/payable policies and separate approving/executing database principals. Production authorization and recognition remain deferred. The ledger is never an automatic posting path from external evidence.
 
 | Boundary        | Guarantee and limitation                                                                                                                                                                          |
 | --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |

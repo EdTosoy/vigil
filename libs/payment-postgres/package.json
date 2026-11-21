@@ -1,0 +1,11 @@
+{
+  "name": "@vigil/payment-postgres",
+  "version": "0.0.0",
+  "private": true,
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "dependencies": {
+    "@vigil/payment-domain": "workspace:*",
+    "pg": "8.23.1"
+  }
+}

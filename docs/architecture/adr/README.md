@@ -34,3 +34,6 @@ ADR-008 is now accepted for Phase 7 synthetic complete-declaration N:1 settlemen
 - [ADR-019 — Isolated Sydney sources with external budget and manual DNS](019-sydney-offline-portability.md)
 
 - [ADR-020 — Local preparation for a single-host startup deployment](020-single-host-startup-preparation.md) — local verification only; hosted change requires separate approval.
+
+- [ADR-021 — Attended Sydney cycles](021-attended-sydney-cycles.md)
+- [ADR-022 — Independently authorized synthetic accounting](022-synthetic-authorized-accounting.md)

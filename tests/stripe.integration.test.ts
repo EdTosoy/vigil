@@ -560,6 +560,10 @@ test('sandbox verification counts completed economic evidence with only the narr
   const created = f.created + 12345;
   const row = f.event('charge.succeeded', f.chargeId, { created });
   await assert.rejects(
+    worker.completedEvidenceCount(created, created, 'unsupported' as never),
+    /Unsupported verification event type/,
+  );
+  await assert.rejects(
     workerPool.query('SELECT 1 FROM outbox.outbox_event LIMIT 1'),
     { code: '42501' },
   );
@@ -567,6 +571,15 @@ test('sandbox verification counts completed economic evidence with only the narr
   assert.equal(await worker.completedEvidenceCount(created, created), 0n);
   await drain();
   assert.equal(await worker.completedEvidenceCount(created, created), 1n);
+  // A capture must not satisfy a requested refund or payout verification.
+  assert.equal(
+    await worker.completedEvidenceCount(created, created, 'refund.created'),
+    0n,
+  );
+  assert.equal(
+    await worker.completedEvidenceCount(created, created, 'charge.succeeded'),
+    1n,
+  );
   assert.equal(
     await worker.completedEvidenceCount(created + 1, created + 2),
     0n,
@@ -574,6 +587,28 @@ test('sandbox verification counts completed economic evidence with only the narr
   await accept(row, 'api');
   await drain();
   assert.equal(await worker.completedEvidenceCount(created, created), 1n);
+  await accept(f.event('refund.created', f.refundId, { created }));
+  assert.equal(
+    await worker.completedEvidenceCount(created, created, 'refund.created'),
+    0n,
+  );
+  await drain();
+  assert.equal(
+    await worker.completedEvidenceCount(created, created, 'refund.created'),
+    1n,
+  );
+  assert.equal(
+    await worker.completedEvidenceCount(created, created, 'charge.succeeded'),
+    1n,
+  );
+  assert.equal(
+    await worker.completedEvidenceCount(
+      created,
+      created,
+      'payout.reconciliation_completed',
+    ),
+    0n,
+  );
   const otherAccountId = 'acct_' + randomUUID().replaceAll('-', '');
   const otherSourceId = await new PostgresIngestion(admin).registerSource({
     bookId,

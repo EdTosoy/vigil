@@ -36,6 +36,7 @@ export function authPool(url: string) {
     options: '-c search_path=app_auth,pg_catalog -c statement_timeout=3000',
     max: 4,
     connectionTimeoutMillis: 3000,
+    query_timeout: 3500,
     idleTimeoutMillis: 10000,
     application_name: 'vigil-human-auth',
   });
@@ -43,7 +44,8 @@ export function authPool(url: string) {
   return pool;
 }
 
-export function createAuthService(pool: Pool, env: NodeJS.ProcessEnv) {
+/** Validate before allocating a process pool; invalid config must fail closed. */
+export function validateAuthEnvironment(env: NodeJS.ProcessEnv) {
   const secret = env['BETTER_AUTH_SECRET'];
   const baseURL = env['BETTER_AUTH_URL'];
   if (!secret || secret.length < 32 || !baseURL)
@@ -60,6 +62,11 @@ export function createAuthService(pool: Pool, env: NodeJS.ProcessEnv) {
     throw new Error(
       'Auth URL must be an exact HTTPS origin (HTTP allowed only on loopback)',
     );
+  return { secret, baseURL, origin };
+}
+
+export function createAuthService(pool: Pool, env: NodeJS.ProcessEnv) {
+  const { secret, baseURL, origin } = validateAuthEnvironment(env);
   const auth = betterAuth({
     appName: 'Vigil',
     baseURL,
@@ -87,6 +94,37 @@ export function createAuthService(pool: Pool, env: NodeJS.ProcessEnv) {
   });
   return {
     auth,
+    async ready() {
+      await checkAuthCredential(pool);
+      // Resolve the schema used by sessions/login without reading identities or
+      // altering auth state. The role may still exist after a broken migration.
+      await pool.query(`SELECT
+          u.id,u.name,u.email,u."emailVerified",u.image,u."createdAt",u."updatedAt",
+          a.id,a."accountId",a."providerId",a."userId",a."accessToken",a."refreshToken",
+          a."idToken",a."accessTokenExpiresAt",a."refreshTokenExpiresAt",a.scope,
+          a.password,a."createdAt",a."updatedAt",
+          s.id,s."expiresAt",s.token,s."createdAt",s."updatedAt",s."ipAddress",s."userAgent",s."userId",
+          p.user_id,p.role,p.synthetic_only,
+          v.id,v.identifier,v.value,v."expiresAt",v."createdAt",v."updatedAt",
+          r.id,r.key,r.count,r."lastRequest"
+        FROM app_auth."user" u,app_auth.account a,app_auth.session s,
+          app_auth.principal p,app_auth.verification v,app_auth."rateLimit" r
+        LIMIT 0`);
+      const { rows } = await pool.query<{ ready: boolean }>(`
+        SELECT has_function_privilege(current_user,'app_auth.allowed_books(text)','EXECUTE')
+          AND NOT EXISTS (
+            SELECT FROM unnest(ARRAY['user','account','session','verification','rateLimit']) t(name)
+            CROSS JOIN unnest(ARRAY['SELECT','INSERT','UPDATE','DELETE']) p(privilege)
+            WHERE NOT has_table_privilege(current_user,format('app_auth.%I',t.name),p.privilege)
+          ) AS ready`);
+      if (rows[0]?.ready !== true)
+        throw new Error('Authentication schema unavailable');
+      // A NULL identity cannot match a grant. Execute the owning function so a
+      // broken book-grant dependency also fails readiness, without reading any
+      // principal's book metadata or relying only on the function's signature.
+      await pool.query(`SELECT id,code,environment,"cursorTime"
+        FROM app_auth.allowed_books(NULL::text)`);
+    },
     async principal(headers: Headers): Promise<Principal | null> {
       const session = await auth.api.getSession({
         headers,

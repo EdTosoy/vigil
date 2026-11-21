@@ -32,6 +32,14 @@ export default tseslint.config(
           allow: [],
           depConstraints: [
             {
+              sourceTag: 'layer:payment-domain',
+              onlyDependOnLibsWithTags: ['layer:money', 'layer:ledger-domain'],
+            },
+            {
+              sourceTag: 'layer:payment-postgres',
+              onlyDependOnLibsWithTags: ['layer:payment-domain'],
+            },
+            {
               sourceTag: 'layer:stripe-integration',
               onlyDependOnLibsWithTags: [
                 'layer:money',

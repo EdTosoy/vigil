@@ -13,6 +13,7 @@ import {
   permits,
 } from '../apps/ops/server/auth-service';
 import { seedAccount } from '../apps/ops/server/seed-account';
+import { createAuthRuntime } from '../apps/ops/server/auth-runtime';
 import { visitor } from '../apps/ops/visitor';
 import { PostgresIngestion } from '@vigil/ingestion-postgres';
 import { verifyCycleBindings } from '../tools/cloud-cycle-bindings';
@@ -183,6 +184,70 @@ test('scoped auth credentials cannot read financial tables or change grants; own
     await unsafe.end();
   }
 });
+test('auth initialization shares checks and recovers after unsafe credentials are repaired', async () => {
+  const loginName = 'flow_auth_recovery_' + randomUUID().replaceAll('-', '');
+  await admin.query(
+    `CREATE ROLE ${loginName} LOGIN IN ROLE flow_auth_runtime,flow_ledger_reader`,
+  );
+  const pool = authPool(adminURL.replace('flow_test_admin@', loginName + '@'));
+  let allocations = 0;
+  const lifecycle = createAuthRuntime(
+    { ...env, DATABASE_AUTH_URL: runtimeURL },
+    () => {
+      allocations++;
+      return pool;
+    },
+  );
+  try {
+    const failed = await Promise.allSettled(
+      Array.from({ length: 8 }, () => lifecycle.service()),
+    );
+    assert(failed.every((result) => result.status === 'rejected'));
+    await admin.query(`REVOKE flow_ledger_reader FROM ${loginName}`);
+    await assert.rejects(lifecycle.service(), /backoff/);
+    await new Promise((resolve) => setTimeout(resolve, 1050));
+    const recovered = await Promise.all(
+      Array.from({ length: 8 }, () => lifecycle.service()),
+    );
+    assert(recovered.every((value) => value === recovered[0]));
+    assert.equal(allocations, 1);
+    await lifecycle.ready();
+    await admin.query(`GRANT flow_ledger_reader TO ${loginName}`);
+    await assert.rejects(lifecycle.ready(), /Unsafe/);
+    await assert.rejects(lifecycle.service(), /backoff/);
+    await admin.query(`REVOKE flow_ledger_reader FROM ${loginName}`);
+    await new Promise((resolve) => setTimeout(resolve, 1050));
+    await lifecycle.ready();
+  } finally {
+    await pool.end();
+  }
+});
+test('auth readiness rejects incomplete session/book-grant schema and recovers after repair', async () => {
+  await service.ready();
+  try {
+    await admin.query(
+      'ALTER TABLE app_auth.session RENAME COLUMN "expiresAt" TO "testMissingExpiry"',
+    );
+    await assert.rejects(service.ready(), { code: '42703' });
+  } finally {
+    await admin.query(
+      'ALTER TABLE app_auth.session RENAME COLUMN "testMissingExpiry" TO "expiresAt"',
+    );
+  }
+  await service.ready();
+  try {
+    await admin.query(
+      'ALTER TABLE app_auth.book_grant RENAME COLUMN book_id TO test_missing_book_id',
+    );
+    await assert.rejects(service.ready(), { code: '42703' });
+  } finally {
+    await admin.query(
+      'ALTER TABLE app_auth.book_grant RENAME COLUMN test_missing_book_id TO book_id',
+    );
+  }
+  await service.ready();
+});
+
 test('password login persists an HttpOnly session; invalid, expired and signed-out sessions are rejected', async () => {
   assert.equal(await service.principal(new Headers()), null);
   assert.equal(
@@ -412,6 +477,30 @@ test(
         await new Promise((resolve) => setTimeout(resolve, 100));
       }
       assert(ready);
+      // Exercise the real production singleton: the first auth connection fails,
+      // then recovers without replacing/restarting the application process.
+      try {
+        await admin.query('ALTER ROLE flow_test_auth NOLOGIN');
+        assert.equal((await fetch(base + '/health/ready')).status, 503);
+        assert.equal((await fetch(base + '/health/live')).status, 200);
+      } finally {
+        await admin.query('ALTER ROLE flow_test_auth LOGIN');
+      }
+      await new Promise((resolve) => setTimeout(resolve, 1050));
+      assert.equal((await fetch(base + '/health/ready')).status, 200);
+      try {
+        await admin.query(
+          'REVOKE SELECT ON app_auth.session FROM flow_auth_runtime',
+        );
+        assert.equal((await fetch(base + '/health/ready')).status, 503);
+        assert.equal((await fetch(base + '/health/live')).status, 200);
+      } finally {
+        await admin.query(
+          'GRANT SELECT ON app_auth.session TO flow_auth_runtime',
+        );
+      }
+      await new Promise((resolve) => setTimeout(resolve, 1050));
+      assert.equal((await fetch(base + '/health/ready')).status, 200);
       const unauth = await fetch(base + '/?book=' + books[0], {
         redirect: 'manual',
       });
@@ -616,6 +705,7 @@ test(
             404,
           );
           if (mode === 'public-demo') {
+            assert.equal((await fetch(base + '/health/ready')).status, 200);
             assert.equal(response!.status(), 404);
             assert.equal(await page.locator('form').count(), 0);
             assert.equal(

@@ -593,6 +593,15 @@ Do not assume deferred functionality already exists.
 
 # Default engineering posture
 
+The audit follow-up adds independently authorized synthetic capture/full-reversal
+accounting under ADR-022 and migration 015. Read that ADR and
+`docs/accounting-command-proposal.md` before payment-command changes. The fixed
+processor-receivable/merchant-payable template, exact immutable approval and
+separate book-bound authorizer/executor capabilities are synthetic only. External
+observations never authorize it. Real payment initiation, production recognition,
+partial captures/refunds and web financial mutations remain deferred. This
+narrows the historical blanket deferral above; it does not broaden earlier phases.
+
 When choosing between:
 
 ```text

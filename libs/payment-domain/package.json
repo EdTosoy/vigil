@@ -1,0 +1,11 @@
+{
+  "name": "@vigil/payment-domain",
+  "version": "0.0.0",
+  "private": true,
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "dependencies": {
+    "@vigil/money": "workspace:*",
+    "@vigil/ledger-domain": "workspace:*"
+  }
+}

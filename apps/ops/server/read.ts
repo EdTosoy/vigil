@@ -45,7 +45,8 @@ function reader() {
 }
 export async function ready() {
   if (process.env['VIGIL_DEPLOYMENT_MODE'] === 'public-demo') return;
-  await reader().ready();
+  const { authReady } = await import('./auth');
+  await Promise.all([reader().ready(), authReady()]);
 }
 export async function read(
   kind: Operation,

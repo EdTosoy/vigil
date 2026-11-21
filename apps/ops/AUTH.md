@@ -52,6 +52,15 @@ deletes the server session. Better Auth enforces origin checks and persistent
 login rate limits. The proxy cookie check is only a navigation hint; server reads
 independently enforce sessions and book grants, including detail URLs.
 
+Authentication initialization shares one scoped pool and one in-flight capability
+check. Failed checks deny access and impose a one-second process-local backoff;
+the next request can recheck and recover without restarting the process. Readiness
+checks the authentication capability, required schema and permissions, and the
+book-authorization function with a NULL identity on every probe, in addition to
+operations connectivity. A failed probe invalidates cached
+initialization. Liveness stays independent, financial FAIL/UNKNOWN never causes a
+technical readiness failure, and the public snapshot initializes neither database.
+
 Local verification uses disposable PostgreSQL and a production build:
 
 ```sh

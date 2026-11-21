@@ -12,6 +12,12 @@
       "path": "libs/ledger-postgres"
     },
     {
+      "path": "libs/payment-domain"
+    },
+    {
+      "path": "libs/payment-postgres"
+    },
+    {
       "path": "libs/simulator"
     },
     {
