@@ -97,6 +97,25 @@ export async function verifyNavigation(
         const rect = row.getBoundingClientRect();
         return rect.top < innerHeight && rect.bottom > 0;
       }, record);
+      // Exercise a later fragment change with the same mounted table. Native
+      // anchor scrolling is disabled here so the component restoration is
+      // independently verified, rather than passing by browser timing alone.
+      await page.setViewportSize({ width, height: 200 });
+      await page.evaluate((id) => {
+        history.replaceState(
+          history.state,
+          '',
+          location.pathname + location.search + '#record-' + id,
+        );
+        window.scrollTo(0, 0);
+        window.dispatchEvent(new HashChangeEvent('hashchange'));
+      }, record);
+      await page.waitForFunction((id) => {
+        const row = document.getElementById('record-' + id)!;
+        const rect = row.getBoundingClientRect();
+        return rect.top < innerHeight && rect.bottom > 0;
+      }, record);
+      await page.setViewportSize({ width, height: 1000 });
       await page.screenshot({
         path: join(screenshots, `returned-results-${width}.png`),
         fullPage: true,

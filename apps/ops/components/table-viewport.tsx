@@ -18,6 +18,36 @@ export function TableViewport({
   const [overflow, setOverflow] = useState(false);
   const [position, setPosition] = useState('start');
   useEffect(() => {
+    // A return fragment can arrive before streamed rows or hydration. Restore
+    // only an existing row in this table after its committed children render.
+    let frame = 0;
+    const restore = () => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => {
+        let id: string;
+        try {
+          id = decodeURIComponent(window.location.hash.slice(1));
+        } catch {
+          return;
+        }
+        if (!id.startsWith('record-')) return;
+        const row = document.getElementById(id);
+        if (!row || !region.current?.contains(row)) return;
+        row.scrollIntoView({
+          block: 'center',
+          inline: 'nearest',
+          behavior: 'instant',
+        });
+      });
+    };
+    restore();
+    window.addEventListener('hashchange', restore);
+    return () => {
+      cancelAnimationFrame(frame);
+      window.removeEventListener('hashchange', restore);
+    };
+  }, [children]);
+  useEffect(() => {
     const element = region.current;
     if (!element) return;
     const measure = () => {

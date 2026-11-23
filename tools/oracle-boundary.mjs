@@ -19,6 +19,7 @@ function privateFile(file) {
     relative === 'tools/test-postgres.ts' ||
     relative === 'tools/ops-demo.ts' ||
     relative === 'tools/ops-demo-seed.ts' ||
+    relative === 'tools/local-demo.ts' ||
     relative === 'tools/cloud-provision.ts' ||
     relative.startsWith('tests/') ||
     relative.includes('/test/') ||

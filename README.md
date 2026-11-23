@@ -87,6 +87,8 @@ Start with the [Sydney audit](docs/phase15/sydney-redeployment.md) and [attended
 - **Evidence and history are immutable.** Corrections add history; independent controls assess current freshness.
 - **Tests cannot give runtime the answers.** The simulator oracle is isolated from application and adapter dependencies.
 
+For a disposable database-backed local investigation, see [the local demo guide](docs/local-demo.md). After building, `pnpm demo:local` starts the authenticated synthetic dashboard; `pnpm test:demo:integration` verifies its scenarios, browser navigation and cleanup.
+
 ## Inspect or reproduce
 
 For the normal local verification gate, install **Node 24**, **pnpm 11.27.0**, Docker and Chromium (system Chromium, or `pnpm exec playwright install chromium`):

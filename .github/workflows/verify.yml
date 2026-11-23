@@ -34,6 +34,10 @@ jobs:
       - run: pnpm format:check
       - run: pnpm lint
       - run: pnpm typecheck
+      - name: Prepare the pinned image for isolated storage-safety probes
+        run: |
+          docker compose version
+          docker pull postgres:18@sha256:fc973eb97c9fd04bfa1840e0f510719a584ccb3be8debfe6a4144637a9dfe8cf
       - run: pnpm test:unit
       - run: pnpm build
 
