@@ -1295,3 +1295,34 @@ button[aria-disabled='true'] {
 tbody th {
   vertical-align: top;
 }
+
+.investigation-scenarios {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 19rem), 1fr));
+  gap: 1rem;
+}
+
+.investigation-scenarios article {
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: 0.6rem;
+  padding: 1rem;
+  overflow-wrap: anywhere;
+}
+
+.investigation-scenarios h3 {
+  margin-top: 0;
+}
+
+.investigation-scenarios dd {
+  margin-inline-start: 0;
+  margin-bottom: 0.75rem;
+}
+
+.investigation-scenarios details {
+  margin-top: 0.75rem;
+}
+
+.evidence-item:target {
+  scroll-margin-top: 5rem;
+}

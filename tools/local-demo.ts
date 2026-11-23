@@ -1,5 +1,10 @@
 /** Offline provisioner and lifecycle owner. Never imported by a runtime app. */
 import assert from 'node:assert/strict';
+import { PostgresOperations } from '@vigil/operations-read-postgres';
+import { PostgresProcessor } from '@vigil/processor-postgres';
+import { PostgresWorker } from '@vigil/worker-postgres';
+import { object, rows } from '../apps/ops/components/model';
+import type { InvestigationEvidence } from '../apps/ops/server/investigation-guide';
 import { PostgresIngestion } from '@vigil/ingestion-postgres';
 import { PostgresReconciliation } from '@vigil/reconciliation-postgres';
 import { simulatorBatch } from './ingestion-input';
@@ -203,9 +208,13 @@ export async function localDemo(
     );
     const recon = new PostgresReconciliation(scoped['reconciliation']!);
     const initial = await recon.summary(summary.reconciliationRunIds[0]!);
-    assert(initial.matchedGroups > 0, 'Demo requires valid matches');
+    assert.equal(initial.matchedGroups, 11);
+    assert.deepEqual(initial.current, [{ status: 'ACTIVE', count: 11 }]);
     assert(
-      initial.outcomes.some((x) => x.outcome === 'UNMATCHED' && x.count > 0),
+      initial.outcomes.some(
+        (x) =>
+          x.side === 'PROCESSOR' && x.outcome === 'UNMATCHED' && x.count === 1,
+      ),
       'Missing bank evidence must remain unresolved',
     );
     assert.equal(initial.sourceCoverage, 'UNKNOWN');
@@ -227,23 +236,68 @@ export async function localDemo(
         await admin.query(
           `SELECT (SELECT count(*)::text FROM ingestion.source_fact WHERE source_account_id=$1) facts,
        (SELECT count(*)::text FROM ingestion.revision WHERE source_account_id=$1) revisions,
+       (SELECT count(*)::text FROM processor.activity WHERE source_account_id=$1) activities,
        (SELECT count(*)::text FROM ledger.ledger_transaction WHERE book_id=$2) journals`,
           [processorSource, summary.bookId],
         )
       ).rows[0];
     const before = await counts();
-    await ingestion.ingest(
+    assert.equal(before.journals, '0');
+    const replay = await ingestion.ingest(
       simulatorBatch(input, processorSource, 'local-demo-duplicate'),
     );
-    await new (await import('@vigil/worker-postgres')).PostgresWorker(
-      scoped['worker']!,
-    ).processBatch('local-demo-replay', 10000, summary.bookId);
+    assert.equal(
+      replay.replayed,
+      false,
+      'Replay must create a distinct delivery batch',
+    );
+    await new PostgresWorker(scoped['worker']!).processBatch(
+      'local-demo-replay',
+      10000,
+      summary.bookId,
+    );
+    const replaySummary = await ingestion.summary(replay.id);
+    assert(replaySummary.received > 0);
+    assert.equal(replaySummary.normalized, replaySummary.received);
+    await new PostgresProcessor(scoped['processor']!).deriveBatch(
+      replay.id,
+      'synthetic-movement-v1',
+    );
     assert.deepEqual(
       await counts(),
       before,
       'Duplicate delivery must retain economic and accounting identities',
     );
+    const operations = new PostgresOperations(scoped['operations']!);
+    const readRun = () =>
+      operations.read('run', summary.bookId, { id: initial.id, limit: '100' });
+    const frozen = await readRun();
+    assert.equal(frozen.nextCursor, null);
     const original = input.bankObservations[0]!;
+    const revisedMember = frozen.items?.find(
+      (m) =>
+        m['side'] === 'BANK' &&
+        object(m['snapshot'])['reference'] === original.transferReference,
+    );
+    assert(
+      revisedMember && object(revisedMember['allocation'])['current'] === true,
+    );
+    const missing = frozen.items?.find(
+      (m) =>
+        m['outcome'] === 'UNMATCHED' &&
+        object(m['cause'])['classification'] === 'MISSING_BANK_MOVEMENT',
+    );
+    const missingCase = rows(missing?.['cases'])[0];
+    assert(missingCase && typeof missingCase['id'] === 'string');
+    const missingDetail = await operations.read('case', summary.bookId, {
+      id: missingCase['id'],
+    });
+    assert.equal(
+      missingDetail.data?.['classification'],
+      'MISSING_BANK_MOVEMENT',
+    );
+    assert.equal(missingDetail.data?.['resolution'], 'ACCEPTED_RISK');
+    assert.equal(missingDetail.data?.['currentlyReconciled'], false);
     const revised = {
       ...input,
       bankObservations: [
@@ -256,7 +310,7 @@ export async function localDemo(
         },
       ],
     };
-    await ingestion.ingest(
+    const revision = await ingestion.ingest(
       simulatorBankBatch(revised, bankSource, 'local-demo-revision'),
     );
     const after = await recon.summary(initial.id);
@@ -269,11 +323,114 @@ export async function localDemo(
       initial.matchedGroups,
       'Historical matches remain frozen',
     );
+    const observed = await readRun();
+    const revisedAfter = observed.items?.find(
+      (m) => m['id'] === revisedMember['id'],
+    );
+    assert(revisedAfter);
+    assert.equal(revisedAfter['outcome'], 'MATCHED');
+    assert.deepEqual(revisedAfter['snapshot'], revisedMember['snapshot']);
+    assert.equal(object(revisedAfter['allocation'])['current'], false);
+    const exact = observed.items
+      ?.filter(
+        (m) =>
+          m['side'] === 'PROCESSOR' &&
+          m['outcome'] === 'MATCHED' &&
+          object(m['allocation'])['current'] === true &&
+          object(m['allocation'])['frozenDifferenceMinor'] === '0',
+      )
+      .sort((a, b) =>
+        String(object(a['snapshot'])['reference']).localeCompare(
+          String(object(b['snapshot'])['reference']),
+        ),
+      )[0];
+    assert(
+      exact &&
+        typeof exact['id'] === 'string' &&
+        typeof revisedAfter['id'] === 'string',
+    );
+
+    const deliveries = (
+      await admin.query<{
+        id: string;
+        received: string;
+        count: number;
+        revisions: string[];
+      }>(
+        `SELECT b.id, to_char(b.received_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') received, b.imported_count count,
+                ARRAY(SELECT r.revision_id FROM ingestion.raw_record r WHERE r.batch_id=b.id ORDER BY r.locator) revisions
+         FROM ingestion.batch b
+         WHERE b.source_account_id=$1 AND b.batch_key IN ('demo-activities','local-demo-duplicate')
+         ORDER BY b.batch_key`,
+        [processorSource],
+      )
+    ).rows;
+    const [originalDelivery, repeatDelivery] = deliveries;
+    assert(originalDelivery && repeatDelivery);
+    assert.equal(repeatDelivery.id, replay.id);
+    assert.equal(originalDelivery.count, replaySummary.received);
+    assert.deepEqual(repeatDelivery.revisions, originalDelivery.revisions);
+    const newRevision = (
+      await admin.query<{
+        id: string;
+        received: string;
+        original: string;
+        state: string;
+      }>(
+        `SELECT r.revision_id id, to_char(r.received_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') received,
+                prior.revision_id original, f.revision_state state
+         FROM ingestion.raw_record r JOIN ingestion.revision v ON v.id=r.revision_id
+         JOIN ingestion.fact_status f ON f.id=v.fact_id
+         JOIN ingestion.raw_record prior ON prior.source_account_id=r.source_account_id AND prior.external_id=r.external_id
+         JOIN ingestion.batch b ON b.id=prior.batch_id AND b.batch_key='demo-bank'
+         WHERE r.batch_id=$1`,
+        [revision.id],
+      )
+    ).rows[0];
+    assert(newRevision);
+    assert.equal(
+      newRevision.original,
+      object(revisedMember['snapshot'])['revisionId'],
+    );
+    assert.notEqual(newRevision.id, newRevision.original);
+    assert.equal(newRevision.state, 'REVIEW_REQUIRED');
+    const coverageKey = 'source:' + originalDelivery.id;
+    const coverage = await operations.read('control', summary.bookId, {
+      evaluation: summary.evaluationId,
+      key: coverageKey,
+    });
+    assert.equal(coverage.data?.['status'], 'UNKNOWN');
+    assert.equal(coverage.data?.['current'], false);
+    assert.equal(coverage.data?.['currentReason'], 'INPUTS_CHANGED');
+    const investigation: InvestigationEvidence = {
+      book: summary.bookId,
+      evaluation: summary.evaluationId,
+      run: initial.id,
+      exactItem: exact['id'],
+      missingCase: missingCase['id'],
+      revisedItem: revisedAfter['id'],
+      coverageKey,
+      originalDelivery: {
+        id: originalDelivery.id,
+        received: originalDelivery.received,
+        count: originalDelivery.count,
+      },
+      repeatDelivery: {
+        id: repeatDelivery.id,
+        received: repeatDelivery.received,
+        count: repeatDelivery.count,
+      },
+      newRevision,
+      ...before,
+    };
     const scenarios = {
       matchedGroups: initial.matchedGroups,
-      unresolved: true,
+      currentGroups: after.current,
+      missingBank: 'UNMATCHED',
       sourceCoverage: initial.sourceCoverage,
       duplicateDelivery: 'PASS',
+      repeatedReceipts: replaySummary.received,
+      unchangedCounts: before,
       revisedAssurance: 'INVALIDATED',
     };
     console.log('VIGIL_LOCAL_DEMO_SCENARIOS ' + JSON.stringify(scenarios));
@@ -312,6 +469,7 @@ export async function localDemo(
       BETTER_AUTH_SECRET: randomBytes(32).toString('hex'),
       BETTER_AUTH_URL: base,
       OPS_BOOK_ID: summary.bookId,
+      VIGIL_LOCAL_INVESTIGATION: JSON.stringify(investigation),
     };
     app = spawn(process.execPath, [join(serverRoot, 'apps/ops/server.js')], {
       env: serverEnv,
@@ -380,8 +538,11 @@ export async function localDemo(
         const page = await browser.newPage();
         const errors: string[] = [];
         page.on('pageerror', (error) => errors.push(error.message));
-        await page.goto(base + '/');
+        await page.goto(report.url);
         await page.waitForURL(base + '/sign-in');
+        await expect(
+          page.getByRole('heading', { name: 'Synthetic investigation guide' }),
+        ).toHaveCount(0);
         await page.getByLabel('Email', { exact: true }).fill(visitor.email);
         await page
           .getByLabel('Password', { exact: true })
@@ -390,6 +551,119 @@ export async function localDemo(
           .getByRole('button', { name: 'Sign in', exact: true })
           .click();
         await page.waitForURL(base + '/');
+        const guide = page.locator('section.panel').filter({
+          has: page.getByRole('heading', {
+            name: 'Synthetic investigation guide',
+          }),
+        });
+        const openGuide = async () => {
+          await page.goto(report.url);
+          await expect(guide).toBeVisible({ timeout: 30_000 });
+          await expect(guide.getByRole('heading', { level: 3 })).toHaveCount(5);
+        };
+        for (const width of [1280, 320]) {
+          await page.setViewportSize({ width, height: 800 });
+          await openGuide();
+          assert(
+            await page.evaluate(
+              () =>
+                document.documentElement.scrollWidth <=
+                document.documentElement.clientWidth,
+            ),
+            'Guide must fit within the viewport',
+          );
+          const exactLink = guide.getByRole('link', {
+            name: 'Compare the matched pair and its current proof',
+          });
+          await exactLink.focus();
+          await expect(exactLink).toBeFocused();
+          await page.keyboard.press('Enter');
+          const exactMember = page.locator(
+            'article[id="record-' + investigation.exactItem + '"]',
+          );
+          await expect(
+            exactMember.locator('.status').filter({ hasText: /^• CURRENT$/ }),
+          ).toBeVisible({ timeout: 30_000 });
+          await expect(
+            exactMember.locator('.status').filter({ hasText: /^• MATCHED$/ }),
+          ).toBeInViewport();
+        }
+
+        await openGuide();
+        await guide
+          .getByRole('link', {
+            name: 'Review the exception and linked settlement run',
+          })
+          .click();
+        await expect(
+          page.getByText('MISSING_BANK_MOVEMENT', { exact: true }).first(),
+        ).toBeVisible({ timeout: 30_000 });
+        await page
+          .getByRole('link', { name: /Inspect linked reconciliation run/ })
+          .click();
+        await expect(
+          page.getByRole('heading', {
+            name: 'Frozen reconciliation population',
+          }),
+        ).toBeVisible({ timeout: 30_000 });
+
+        await openGuide();
+        await guide
+          .getByText('Compare delivery IDs and receipt times', { exact: true })
+          .click();
+        await expect(
+          guide.getByText(repeatDelivery.id, { exact: true }),
+        ).toBeVisible();
+        await expect(
+          guide.getByText(originalDelivery.id, { exact: true }),
+        ).toBeVisible();
+
+        await guide
+          .getByText('Compare bank revision IDs', { exact: true })
+          .click();
+        await expect(
+          guide.getByText(newRevision.id, { exact: true }),
+        ).toBeVisible();
+        await guide
+          .getByRole('link', {
+            name: 'Compare frozen history with current applicability',
+          })
+          .click();
+        const revisedEvidence = page.locator(
+          'article[id="record-' + investigation.revisedItem + '"]',
+        );
+        await expect(
+          revisedEvidence
+            .locator('.status')
+            .filter({ hasText: /^\? NOT CURRENT$/ }),
+        ).toBeVisible({ timeout: 30_000 });
+        await expect(
+          revisedEvidence.locator('.status').filter({ hasText: /^• MATCHED$/ }),
+        ).toBeInViewport();
+
+        await openGuide();
+        await guide
+          .getByRole('link', {
+            name: 'Inspect expected and observed evidence for the coverage control',
+          })
+          .click();
+        const control = page.locator('section.panel').filter({
+          has: page.getByRole('heading', { name: 'Control evidence' }),
+        });
+        await expect(
+          control.locator('.status').filter({ hasText: /^\? STALE$/ }),
+        ).toBeVisible({
+          timeout: 30_000,
+        });
+        await expect(
+          control
+            .locator('.status')
+            .filter({ hasText: /^\? UNKNOWN$/ })
+            .first(),
+        ).toBeVisible();
+        console.log(
+          'VIGIL_LOCAL_DEMO_JOURNEY PASS 5 scenarios, 1280px and 320px, keyboard activation',
+        );
         for (const section of [
           'overview',
           'reconciliation',

@@ -3,6 +3,7 @@ import { Panel, Status, Table, Time, Empty, Notice, Id, url } from './common';
 import { money, age } from './format';
 import { EvaluationScope } from './evaluation-scope';
 import { EvidenceValue } from './common';
+import { RecordFragment } from './record-fragment';
 import type { ReactNode } from 'react';
 import {
   detailUrl,
@@ -1157,148 +1158,157 @@ export function Run({ model, book, evaluation, from }: Context) {
         </p>
       </Panel>
       <Panel title="Evidence, outcomes and allocation">
-        {model.items?.length ? (
-          model.items.map((m) => {
-            const snap = obj(m['snapshot']),
-              a = obj(m['allocation']);
-            return (
-              <article className="evidence-item" key={t(m['id'])}>
-                <div className="panel-heading">
-                  <h3>
-                    {t(m['side'])} ·{' '}
-                    <EvidenceValue
-                      value={m['id']}
-                      label="evidence item identifier"
-                      copy
-                    />
-                  </h3>
-                  <Status value={t(m['outcome'])} />
-                </div>
-                <p className="money">
-                  {money(snap['amountMinor'], snap['currency'])}
-                </p>
-                <p>{t(m['reason'])}</p>
-                <p className="footnote">
-                  At most 50 historical revisions/declarations are displayed,
-                  with their full frozen counts.
-                </p>
-                <EvidenceSection title="Financial amount and discrepancy">
-                  <Details
-                    data={{
-                      itemExposureWhereEstablished: money(
-                        obj(m['cause'])['exposureMinor'],
-                        r['currency'],
-                      ),
-                      discrepancyReason: obj(m['cause'])['exposureReason'],
-                    }}
-                  />
-                </EvidenceSection>
-                <EvidenceSection title="Identity and source">
-                  <Details
-                    data={{
-                      processorEvidenceId: m['processorEvidenceId'],
-                      bankEvidenceId: m['bankEvidenceId'],
-                      evidenceId: snap['evidenceId'],
-                      sourceAccountId: snap['sourceAccountId'],
-                      revisionId: snap['revisionId'],
-                      reference: snap['reference'],
-                    }}
-                    copy={[
-                      'processorEvidenceId',
-                      'bankEvidenceId',
-                      'evidenceId',
-                      'reference',
-                    ]}
-                  />
-                </EvidenceSection>
-                <EvidenceSection title="Source time and eligibility">
-                  <Details
-                    data={{
-                      sourceTime: snap['time'],
-                      reasons: snap['reasons'],
-                      eligibility: snap['eligible'],
-                    }}
-                    timestamps={['sourceTime']}
-                  />
-                </EvidenceSection>
-                <details className="raw-evidence">
-                  <summary>
-                    Frozen provenance, revision history and declarations
-                  </summary>
-                  <Details
-                    data={{
-                      processorProvenance: m['processorProvenance'],
-                      history: snap['history'],
-                      historyCount: snap['historyCount'],
-                      groupDeclarations: snap['groupVariants'],
-                      groupDeclarationCount: snap['groupVariantCount'],
-                    }}
-                  />
-                </details>
-                {Object.keys(a).length > 0 && (
-                  <>
+        <RecordFragment>
+          {model.items?.length ? (
+            model.items.map((m) => {
+              const snap = obj(m['snapshot']),
+                a = obj(m['allocation']);
+              return (
+                <article
+                  className="evidence-item"
+                  key={t(m['id'])}
+                  id={recordAnchor(t(m['id']))}
+                  tabIndex={-1}
+                >
+                  <div className="panel-heading">
                     <h3>
-                      {t(a['shape'])} allocation ·{' '}
+                      {t(m['side'])} ·{' '}
                       <EvidenceValue
-                        value={a['id']}
-                        label="allocation identifier"
+                        value={m['id']}
+                        label="evidence item identifier"
                         copy
                       />
                     </h3>
-                    <Currentness current={a['current']} />
-                    <p className="money">
-                      Allocated {money(a['amountMinor'], a['currency'])}
-                      <br />
-                      Frozen bank minus processor total:{' '}
-                      {money(a['frozenDifferenceMinor'], a['currency'])}
-                    </p>
-                    <details>
-                      <summary>Frozen rule proof and exact comparisons</summary>
-                      <Details data={obj(a['proof'])} />
-                    </details>
-                    <Table
-                      identity
-                      label="Allocation member contributions"
-                      numeric={[2]}
-                      headers={[
-                        'Member identity',
-                        'Role',
-                        'Exact contribution',
-                      ]}
-                    >
-                      {rows(a['members']).map((v) => (
-                        <tr key={t(v['itemId'])}>
-                          <th scope="row">
-                            <Id value={t(v['itemId'])} />
-                          </th>
-                          <td>{t(v['role'])}</td>
-                          <td className="money">
-                            {money(v['amountMinor'], a['currency'])}
-                          </td>
-                        </tr>
-                      ))}
-                    </Table>
-                  </>
-                )}
-                {rows(m['cases']).map((c) => (
-                  <p key={t(c['id'])}>
-                    <Link
-                      href={url('exceptions', book, evaluation, t(c['id']), {
-                        from,
-                      })}
-                    >
-                      Case {t(c['id'])} →
-                    </Link>{' '}
-                    · {t(c['state'])}
+                    <Status value={t(m['outcome'])} />
+                  </div>
+                  <p className="money">
+                    {money(snap['amountMinor'], snap['currency'])}
                   </p>
-                ))}
-                <RawEvidence data={m} title="Raw approved member evidence" />
-              </article>
-            );
-          })
-        ) : (
-          <Empty>No frozen members on this page.</Empty>
-        )}
+                  <p>{t(m['reason'])}</p>
+                  <p className="footnote">
+                    At most 50 historical revisions/declarations are displayed,
+                    with their full frozen counts.
+                  </p>
+                  <EvidenceSection title="Financial amount and discrepancy">
+                    <Details
+                      data={{
+                        itemExposureWhereEstablished: money(
+                          obj(m['cause'])['exposureMinor'],
+                          r['currency'],
+                        ),
+                        discrepancyReason: obj(m['cause'])['exposureReason'],
+                      }}
+                    />
+                  </EvidenceSection>
+                  <EvidenceSection title="Identity and source">
+                    <Details
+                      data={{
+                        processorEvidenceId: m['processorEvidenceId'],
+                        bankEvidenceId: m['bankEvidenceId'],
+                        evidenceId: snap['evidenceId'],
+                        sourceAccountId: snap['sourceAccountId'],
+                        revisionId: snap['revisionId'],
+                        reference: snap['reference'],
+                      }}
+                      copy={[
+                        'processorEvidenceId',
+                        'bankEvidenceId',
+                        'evidenceId',
+                        'reference',
+                      ]}
+                    />
+                  </EvidenceSection>
+                  <EvidenceSection title="Source time and eligibility">
+                    <Details
+                      data={{
+                        sourceTime: snap['time'],
+                        reasons: snap['reasons'],
+                        eligibility: snap['eligible'],
+                      }}
+                      timestamps={['sourceTime']}
+                    />
+                  </EvidenceSection>
+                  <details className="raw-evidence">
+                    <summary>
+                      Frozen provenance, revision history and declarations
+                    </summary>
+                    <Details
+                      data={{
+                        processorProvenance: m['processorProvenance'],
+                        history: snap['history'],
+                        historyCount: snap['historyCount'],
+                        groupDeclarations: snap['groupVariants'],
+                        groupDeclarationCount: snap['groupVariantCount'],
+                      }}
+                    />
+                  </details>
+                  {Object.keys(a).length > 0 && (
+                    <>
+                      <h3>
+                        {t(a['shape'])} allocation ·{' '}
+                        <EvidenceValue
+                          value={a['id']}
+                          label="allocation identifier"
+                          copy
+                        />
+                      </h3>
+                      <Currentness current={a['current']} />
+                      <p className="money">
+                        Allocated {money(a['amountMinor'], a['currency'])}
+                        <br />
+                        Frozen bank minus processor total:{' '}
+                        {money(a['frozenDifferenceMinor'], a['currency'])}
+                      </p>
+                      <details>
+                        <summary>
+                          Frozen rule proof and exact comparisons
+                        </summary>
+                        <Details data={obj(a['proof'])} />
+                      </details>
+                      <Table
+                        identity
+                        label="Allocation member contributions"
+                        numeric={[2]}
+                        headers={[
+                          'Member identity',
+                          'Role',
+                          'Exact contribution',
+                        ]}
+                      >
+                        {rows(a['members']).map((v) => (
+                          <tr key={t(v['itemId'])}>
+                            <th scope="row">
+                              <Id value={t(v['itemId'])} />
+                            </th>
+                            <td>{t(v['role'])}</td>
+                            <td className="money">
+                              {money(v['amountMinor'], a['currency'])}
+                            </td>
+                          </tr>
+                        ))}
+                      </Table>
+                    </>
+                  )}
+                  {rows(m['cases']).map((c) => (
+                    <p key={t(c['id'])}>
+                      <Link
+                        href={url('exceptions', book, evaluation, t(c['id']), {
+                          from,
+                        })}
+                      >
+                        Case {t(c['id'])} →
+                      </Link>{' '}
+                      · {t(c['state'])}
+                    </p>
+                  ))}
+                  <RawEvidence data={m} title="Raw approved member evidence" />
+                </article>
+              );
+            })
+          ) : (
+            <Empty>No frozen members on this page.</Empty>
+          )}
+        </RecordFragment>
       </Panel>
     </>
   );

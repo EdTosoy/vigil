@@ -33,29 +33,35 @@ processes can access that port. Do not expose it to a network or use real data.
 
 ## Investigation scenarios
 
-Seed 71201 includes valid exact settlement/bank matches and one missing bank
-movement. The setup verifies at least one MATCHED group and an UNMATCHED outcome.
-Received records do not prove upstream completeness: source coverage remains
-UNKNOWN. The existing seed also illustrates accepted risk, which remains
-unreconciled, and retained operational failures.
+Sign in and open **Overview → Synthetic investigation guide**. The guide links
+to the exact records for seed 71201. Open Overview again to continue the tour.
 
-A repeated processor delivery must preserve source-fact, revision and journal
-counts. No external receipt creates a journal. A new bank amount revision then
-invalidates earlier current assurance while retaining the original historical
-matched-group count. The earlier frozen control evaluation is intentionally
-retained for investigation. Historical MATCHED is not current assurance, and
-UNKNOWN is not a pass. The terminal prints scenario assertion results before
-announcing readiness; a failed assertion aborts startup.
+| Scenario                  | Evidence to review and expected result                                                                                                                                                                                                                                  | Investigator follow-up                                                                                                                         |
+| ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| Successful reconciliation | Open the matched pair. Compare mapped accounts, reference, signed amount, currency and booking window in **Frozen rule proof and exact comparisons**. The run has 11 historical matched groups. The linked 1:1 allocation is CURRENT and its frozen difference is zero. | Use the pair proof for that settlement. Check source closure separately before drawing conclusions about the period.                           |
+| Missing bank evidence     | Open the exception and follow its linked run. The processor outcome is UNMATCHED, with a MISSING_BANK_MOVEMENT case. ACCEPTED_RISK records the operational disposition. Financial status remains UNRECONCILED.                                                          | Use the frozen settlement reference, amount and date to request the corresponding booked bank evidence.                                        |
+| Duplicate delivery        | Expand **Compare delivery IDs and receipt times**. Setup receives and normalizes a distinct repeat batch and reruns processor derivation. Source fact, revision, activity and journal counts remain unchanged, with zero journals.                                      | Compare batch receipt times and distinguish physical deliveries from economic identities. Additional receipts leave period closure unresolved. |
+| Evidence revision         | Expand **Compare bank revision IDs**, then open the linked allocation. A second receipt changes one bank entry by one minor unit. Review is required. The original amount and MATCHED outcome remain frozen. Current applicability is NOT CURRENT.                      | Obtain evidence that can establish which version is authoritative before relying on a subsequent reconciliation.                               |
+| UNKNOWN coverage          | Open the original batch’s frozen coverage control. Received rows have no independent expected count or sequence range. The frozen result is UNKNOWN and the evaluation is STALE.                                                                                        | Seek independent count, sequence or period-closure evidence and evaluate fresh inputs before claiming completeness.                            |
+
+For screenshots, capture the Overview guide, a current exact allocation with
+its comparisons expanded, the exception’s operational and financial states side
+by side, the revised allocation’s MATCHED and NOT CURRENT statuses, and the
+coverage control’s UNKNOWN and STALE indicators. Capture at least one view at a
+narrow width to show the guide and evidence stack. Keep sign-in details out of
+screenshots.
 
 ```sh
 pnpm demo:local --smoke
 ```
 
-Smoke mode additionally launches real Chromium, checks the anonymous redirect,
-signs in through the actual application, visits all six operations sections, and
-rejects page errors. It then stops the app and its owned database and removes its
-private temporary files. A successful run prints scenario, browser and cleanup
-PASS evidence and exits zero. Ordinary mode stays running until Ctrl-C or SIGTERM.
+Setup checks PostgreSQL before announcing readiness. Smoke mode additionally
+launches real Chromium, checks the anonymous redirect, signs in, follows all five
+guide scenarios, and visits the six operations sections. It checks the guide at
+1280px and 320px, including keyboard activation, and rejects page errors. It
+then stops the app and its owned database and removes its private temporary
+files. A successful run prints scenario, journey, browser and cleanup PASS
+evidence and exits zero. Ordinary mode stays running until Ctrl-C or SIGTERM.
 
 Cleanup checks the container ownership label before stopping it. It does not
 remove other containers, databases or Docker volumes. SIGKILL, host failure or a
@@ -63,6 +69,28 @@ Docker outage can prevent cleanup; inspect only the printed `vigil-local-demo-`
 container identity before manually stopping that owned fixture. Missing image,
 Docker access, production build or browser is a prerequisite failure, not a
 passing smoke test.
+
+In the investigation acceptance run, a clean source copy passed a frozen
+install, production build and Chromium smoke. PostgreSQL preserved 11 frozen
+matches, with 10 current allocations and one invalidated allocation. The 24
+repeat receipts reused their original revisions, leaving 36 source facts, 36
+revisions, 24 processor activities and zero journals. The missing-bank case
+remained unreconciled, and the stale coverage control retained its frozen UNKNOWN
+result. Cleanup confirmed removal of the owned container and temporary files.
+
+## Evidence boundaries
+
+- This walkthrough uses local synthetic processor and booked bank fixtures. The
+  guide is supplied only to the isolated local application by the demo runner.
+  It records what setup verified. Linked records use the authenticated
+  operations reads and show frozen evidence and current applicability.
+- The recorded Stripe sandbox exercise verified a signed test capture and fee
+  through ingress, durable processing and processor interpretation. Those
+  records are separate from this seed. See [Stripe sandbox verification](phase14/verification.md#actual-stripe-sandbox-continuation).
+- Real-bank ingestion, independent real-bank period closure and production
+  accounting capabilities are unverified by this demo. The dashboard offers
+  read-only investigation. Evidence requests and review decisions are
+  investigator follow-ups outside the UI.
 
 ## Release verification
 
