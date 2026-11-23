@@ -20,6 +20,7 @@ test('browser closures and presentation modules cannot reach database, privilege
       "'use client'; const x=import('../server/read'); void x;",
       "export * from '@vigil/ledger-postgres';",
       "export * from '../../../tools/ops-demo';",
+      "export * from '../../../tools/local-demo';",
       "export * from '../../../tests/helpers/resilience';",
       "'use client'; export * from '@vigil/simulator-oracle';",
     ]) {

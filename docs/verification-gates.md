@@ -46,7 +46,22 @@ The workflow keeps read-only repository permissions and cancellable runs. The
 integration job has a 90-minute outer deadline because historical local database
 runs took about 25 minutes; individual test deadlines remain unchanged. Startup
 configuration tests now participate in `test:unit` and therefore `pnpm verify`
-and CI; their Compose parser requires the Docker Compose plugin.
+and CI. They require Docker Compose, a running local Docker daemon and the pinned
+PostgreSQL image. The fast CI job pulls that exact existing fixture image before
+units. Storage probes override its entrypoint with `/bin/true`, disable networking
+and publish no ports; they start no database and touch only newly created private
+temporary directories and a randomly named Compose project.
+
+The initial hosted hardening run failed at the storage configuration assertion:
+its Compose JSON omitted `create_host_path: false`, while local Compose 5.4.0
+preserved it. Older [compose-go v2.9.0 types](https://github.com/compose-spec/compose-go/blob/v2.9.0/types/types.go)
+used `omitempty` for this boolean. The test now requires the explicit false value
+in all three reviewed source declarations, rejects an enabled serialized value,
+and verifies actual Compose refusal of each missing bind directory. A positive
+control with explicit true proves that a missing daemon/image cannot pass the
+negative probes. Missing source declarations or changed true values still fail;
+undefined JSON is never treated as a safe policy default. This retains Docker's
+[documented long-syntax missing-path safety](https://docs.docker.com/reference/compose-file/container-spec/#long-syntax).
 
 This is configured CI coverage, not evidence of a successful hosted workflow.
 Configure repository branch protection to require both job results before merge;
@@ -85,7 +100,11 @@ Do not equate that platform probe with financial or application integration proo
 ## Hardening gate verification
 
 The configured workflows were parsed as YAML, and the browser-install command was
-checked against the installed Playwright 1.63.0 CLI. `pnpm test:startup` passed all
-three configuration/security tests. Hosted workflow execution, browser download
-on the GitHub runner and required-status configuration are NOT RUN locally.
-The full combined local verification is recorded separately when it completes.
+checked against the installed Playwright 1.63.0 CLI during the original hardening.
+The subsequent hosted startup assertion failure is recorded above. After the
+portability repair, `pnpm test:startup` passed all five cases locally, including
+actual missing-path refusal and the positive creation control. Repository
+TypeScript checking, scoped ESLint/Prettier and diff checks passed. A fresh hosted
+run of the repaired workflow, browser download on that runner and required-status
+configuration are NOT RUN locally. The prior combined local verification is
+recorded in [the hardening report](hardening-verification.md).

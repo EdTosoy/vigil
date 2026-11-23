@@ -1,9 +1,14 @@
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
+import { mkdtemp, writeFile, access, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { randomUUID } from 'node:crypto';
 import { test } from 'node:test';
 
 interface Service {
+  image?: string;
   platform?: string;
   ports?: { target: number; published: string }[];
   networks: Record<string, unknown>;
@@ -48,6 +53,28 @@ const model = JSON.parse(
   services: Record<string, Service>;
   networks: Record<string, { internal?: boolean }>;
 };
+const composeSource = readFileSync('container/startup/compose.yaml', 'utf8');
+function storagePolicies(source: string) {
+  // These are the three reviewed persistent mounts, not a general YAML parser.
+  // Check the declaration itself: older Compose config JSON omits false bools.
+  const policies = [
+    ...source.matchAll(
+      /target: (\/var\/lib\/postgresql|\/data|\/config)\s*\n\s+bind:\s*\{\s*create_host_path:\s*(false|true)\s*\}/g,
+    ),
+  ];
+  assert.deepEqual(policies.map((p) => p[1]).sort(), [
+    '/config',
+    '/data',
+    '/var/lib/postgresql',
+  ]);
+  for (const p of policies)
+    assert.equal(
+      p[2],
+      'false',
+      'persistent storage must explicitly refuse missing paths',
+    );
+  return policies.map((p) => p[1]!);
+}
 
 test('only Caddy publishes ports; PostgreSQL is isolated and persists on an existing mounted directory', () => {
   assert.equal(model.networks['database']!.internal, true);
@@ -67,8 +94,99 @@ test('only Caddy publishes ports; PostgreSQL is isolated and persists on an exis
   );
   assert(!JSON.stringify(db).includes('trust'));
   assert.equal(db.volumes?.[0]?.target, '/var/lib/postgresql');
-  assert.equal(db.volumes?.[0]?.bind?.create_host_path, false);
+  storagePolicies(composeSource);
+  // Omitted false is a serialization difference, never an inferred safe default.
+  assert([undefined, false].includes(db.volumes?.[0]?.bind?.create_host_path));
 });
+
+test('persistent mount declaration rejects enabled or omitted host-directory creation', () => {
+  assert.throws(() =>
+    storagePolicies(
+      composeSource.replaceAll(
+        'create_host_path: false',
+        'create_host_path: true',
+      ),
+    ),
+  );
+  assert.throws(() =>
+    storagePolicies(
+      composeSource.replaceAll('bind: { create_host_path: false }', 'bind: {}'),
+    ),
+  );
+});
+
+test(
+  'Compose actually refuses each missing persistent bind path without creating it',
+  { timeout: 60000 },
+  async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'vigil-bind-safety-'));
+    const project = 'vigil-bind-test-' + randomUUID();
+    const file = join(directory, 'compose.json');
+    const image = model.services['postgres']!.image;
+    assert(typeof image === 'string');
+    const compose = (...args: string[]) =>
+      execFileSync('docker', ['compose', '-p', project, '-f', file, ...args], {
+        encoding: 'utf8',
+        timeout: 15000,
+        stdio: ['ignore', 'pipe', 'pipe'],
+      });
+    let configured = false;
+    const configure = async (
+      source: string,
+      target: string,
+      create: boolean,
+    ) => {
+      await writeFile(
+        file,
+        JSON.stringify({
+          services: {
+            probe: {
+              image,
+              entrypoint: ['/bin/true'],
+              network_mode: 'none',
+              volumes: [
+                {
+                  type: 'bind',
+                  source,
+                  target,
+                  bind: { create_host_path: create },
+                },
+              ],
+            },
+          },
+        }),
+      );
+      configured = true;
+    };
+    try {
+      for (const [index, target] of storagePolicies(composeSource).entries()) {
+        const source = join(directory, 'missing-' + index);
+        await configure(source, target, false);
+        assert.throws(
+          () => compose('run', '--rm', '--no-deps', '--pull', 'never', 'probe'),
+          (error: unknown) =>
+            typeof error === 'object' &&
+            error !== null &&
+            'stderr' in error &&
+            typeof error.stderr === 'string' &&
+            /bind source path does not exist/i.test(error.stderr),
+        );
+        await assert.rejects(access(source), { code: 'ENOENT' });
+      }
+      // A positive control proves a missing image/daemon cannot satisfy the test.
+      const control = join(directory, 'creation-control');
+      await configure(control, '/proof', true);
+      compose('run', '--rm', '--no-deps', '--pull', 'never', 'probe');
+      await access(control);
+    } finally {
+      try {
+        if (configured) compose('down', '--remove-orphans');
+      } finally {
+        await rm(directory, { recursive: true, force: true });
+      }
+    }
+  },
+);
 
 test('runtime containers have scoped secret mounts, technical healthchecks and restarts; owner runs only manually', () => {
   for (const name of ['ops', 'ingress', 'stripe-worker', 'financial-worker']) {
