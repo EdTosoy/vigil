@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useId, useState, type ReactNode } from 'react';
+import { useRecordFragment } from './record-fragment';
 
 /** Display-only scroll state. Financial values remain server-rendered children. */
 export function TableViewport({
@@ -12,41 +13,11 @@ export function TableViewport({
   label: string;
   identity?: boolean;
 }) {
-  const region = useRef<HTMLDivElement>(null);
+  const region = useRecordFragment(children, 'center');
   const hint = useId();
   const [pinned, setPinned] = useState(true);
   const [overflow, setOverflow] = useState(false);
   const [position, setPosition] = useState('start');
-  useEffect(() => {
-    // A return fragment can arrive before streamed rows or hydration. Restore
-    // only an existing row in this table after its committed children render.
-    let frame = 0;
-    const restore = () => {
-      cancelAnimationFrame(frame);
-      frame = requestAnimationFrame(() => {
-        let id: string;
-        try {
-          id = decodeURIComponent(window.location.hash.slice(1));
-        } catch {
-          return;
-        }
-        if (!id.startsWith('record-')) return;
-        const row = document.getElementById(id);
-        if (!row || !region.current?.contains(row)) return;
-        row.scrollIntoView({
-          block: 'center',
-          inline: 'nearest',
-          behavior: 'instant',
-        });
-      });
-    };
-    restore();
-    window.addEventListener('hashchange', restore);
-    return () => {
-      cancelAnimationFrame(frame);
-      window.removeEventListener('hashchange', restore);
-    };
-  }, [children]);
   useEffect(() => {
     const element = region.current;
     if (!element) return;

@@ -23,6 +23,7 @@ import { Panel, Notice, Empty, Time, Id, url } from '../components/common';
 import { Filters } from '../components/filters';
 import * as Views from '../components/views';
 import { requirePrincipal } from './auth';
+import { InvestigationGuide } from './investigation-guide';
 const titles: Record<string, [string, string]> = {
   overview: [
     'Financial operations',
@@ -313,6 +314,7 @@ async function renderPage({
           </Notice>
         )}
         <ResultsReturn navigation={selection} detail={Boolean(id)} />
+        {section === 'overview' && <InvestigationGuide book={book} />}
         {content}
         {model.nextCursor && (
           <div className="pagination">
