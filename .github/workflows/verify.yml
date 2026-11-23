@@ -51,6 +51,11 @@ jobs:
       NX_DAEMON: 'false'
       NEXT_TELEMETRY_DISABLED: '1'
     steps:
+      - name: Deliberate release-enforcement failure (disposable PR only)
+        run: |
+          echo "Acceptance probe: keep database check pending, then deliberately fail it."
+          sleep 45
+          exit 1
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
